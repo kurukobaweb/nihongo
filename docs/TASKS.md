@@ -554,7 +554,7 @@
 
 ### T002-02: CHECK制約・インデックス反映
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: DB
 - 目的:
   - PostgreSQL CHECK制約と主要インデックスを反映する
@@ -570,6 +570,60 @@
   - 主要インデックスを反映する
   - `question_format` のCHECK制約は OI-022 確定後に反映する前提で保留する
   - OI-022確定前はアプリ層バリデーションでも具体値を固定しない
+- 確認結果:
+  - 実装commit: `b24b73e68a3752c3a104c8ade3fa49b6c5e3932e`
+  - 変更範囲は `database/migrations/` のみ
+  - 変更ファイル:
+    - `database/migrations/2026_06_05_060000_create_user_tables.php`
+    - `database/migrations/2026_06_05_060010_create_learning_tables.php`
+    - `database/migrations/2026_06_05_060040_create_consents_table.php`
+  - CHECK制約・既存UNIQUE/代表インデックス確認は完了
+  - 実DB migrate確認は未完了
+  - 理由は `pdo_pgsql` 未有効 / DB接続実値未投入である
+  - 反映したCHECK制約:
+    - `users.role`: `admin`, `user`
+    - `users.jlpt_level`: `N1`〜`N5`, `unknown`, `not_specified`, またはNULL
+    - `questions.difficulty`: `beginner`, `intermediate`, `advanced`
+    - `submissions.status`: `pending`, `processing`, `completed`, `failed`
+    - `evaluations.speed_assessment`: `slow`, `appropriate`, `fast`, またはNULL
+    - `consents.document_type`: `terms_of_service`, `privacy_policy`
+  - UNIQUE制約・代表インデックスはT002-01時点の既存定義を確認済み
+  - 重複追加はしていない
+  - `users.email` / `users.google_id` の部分UNIQUEを維持している
+  - `evaluations.submission_id` UNIQUEを維持している
+  - `question_tag` 複合主キーを維持している
+  - `consents(user_id, document_type, document_version)` UNIQUEを維持している
+  - `questions.question_format` は OI-022未確定のため値域固定なし
+  - `subscriptions.stripe_status` は Cashier互換性とOI-027未確定のため固定なし
+  - `raw_azure_response` は OI-107未確定のため500KB超過時扱いを固定なし
+  - `php -l` 全マイグレーション成功
+  - `php artisan route:list` 成功、5 routes表示
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `npm.cmd run build` 成功
+  - `php artisan migrate:status` は実施したが失敗
+  - `migrate:status` 失敗理由は `pdo_pgsql` 未有効 / DB接続実値未投入
+  - `question_format` の具体値・CHECK制約値域は固定していない
+  - `question_type` は追加していない
+  - `job_batches` は作成していない
+  - `personal_access_tokens` は作成していない
+  - `user_learning_settings` は作成していない
+  - `users` に学習設定JSONBは追加していない
+  - OI-022 / OI-023 / OI-027 / OI-104 / OI-107 / OI-108 を先取りしていない
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - Eloquentモデル、Seeder、Factoryは作成していない
+  - 認証、録音、Python、Azure、Stripe実装、管理画面には未着手
+  - T002-03以降には未着手
+- 申し送り:
+  - T002-02時点では、マイグレーションファイルへのCHECK制約反映と静的確認まで完了
+  - 実DBへの `migrate` 確認は未完了
+  - 理由は、`pdo_pgsql` 未有効およびDB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBで `php artisan migrate` または同等の適用確認が必要
+  - DB接続実値投入後に、追加CHECK制約が対象PostgreSQL環境で問題なく適用できるか確認が必要
+  - T002-01で追加済みの `submissions.id` default `gen_random_uuid()` も、実DB適用時に対象PostgreSQL環境で利用可能か確認が必要
+  - `.env` はリポジトリへcommitしない
+  - OI未確定事項に関わるCHECK制約は固定していない
 - 実装してはいけないこと:
   - OI-022未確定の値域を決めない
   - speed閾値をDB固定値にしない
