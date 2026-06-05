@@ -167,7 +167,7 @@
 
 ### T001-01: Laravel / Inertia / Vue / Tailwind 基盤作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: 実装
 - 目的:
   - リポジトリ直下にMVPアプリのWeb基盤を新規作成する
@@ -188,6 +188,25 @@
   - Inertia.js + Vue 3 + Tailwind CSSを導入する
   - SSRは前提にしない
   - 既存の仕様書Markdown群、`README.md`、`.env.example` を不用意に上書きしない
+- 確認結果:
+  - 実装commit: `051709b8c6941c6a737979fc727268aefafed72b`
+  - Laravel 11 / Inertia.js / Vue 3 / Tailwind CSS 基盤を作成済み
+  - SSRなし構成である
+  - `/` は `Inertia::render('Welcome')` により Inertia root を返す
+  - `npm.cmd run build` 成功
+  - `php artisan route:list` 成功
+  - 初期画面はローカルHTTP確認で `STATUS=200`、Inertia root確認済み
+  - `php artisan test` は exit 0、1 passed / 1 warning
+  - warning は `.env` 未作成による読み込み警告であり、T001-01要件上は許容する
+  - `README.md`、`docs/`、`.env.example` は変更していない
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - 認証、録音、DBマイグレーション、Seeder、Queue、Python FastAPI、Azure、Stripe、管理画面には未着手
+- 申し送り:
+  - `config/session.php` の `SESSION_DRIVER` 未指定時デフォルトは `file`
+  - `.env.example` では `SESSION_DRIVER=database`
+  - この差分はT001-01完了を止める問題ではない
+  - T001-02以降で PostgreSQL 接続、session/cache/queue 方針、`sessions` テーブルとの整合を再確認する
 - 実装してはいけないこと:
   - Reactや別SPA構成に変更しない
   - 認証・録音・Stripeを同時実装しない
