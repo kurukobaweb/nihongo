@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -26,6 +27,7 @@ return new class extends Migration
             $table->index('user_id');
             $table->index(['document_type', 'document_version']);
         });
+        DB::statement("ALTER TABLE consents ADD CONSTRAINT consents_document_type_check CHECK (document_type IN ('terms_of_service', 'privacy_policy'))");
     }
 
     /**

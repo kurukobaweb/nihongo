@@ -55,6 +55,7 @@ return new class extends Migration
             $table->index(['category_id', 'is_published', 'display_order']);
             $table->index(['difficulty', 'question_format', 'is_published']);
         });
+        DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_difficulty_check CHECK (difficulty IN ('beginner', 'intermediate', 'advanced'))");
 
         Schema::create('question_tag', function (Blueprint $table) {
             $table->foreignId('question_id')->constrained()->cascadeOnDelete()->cascadeOnUpdate();
@@ -83,6 +84,7 @@ return new class extends Migration
             $table->index('status');
             $table->index(['user_id', 'status']);
         });
+        DB::statement("ALTER TABLE submissions ADD CONSTRAINT submissions_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed'))");
 
         Schema::create('evaluations', function (Blueprint $table) {
             $table->id();
@@ -105,6 +107,7 @@ return new class extends Migration
             $table->index('speed_assessment');
             $table->index('created_at');
         });
+        DB::statement("ALTER TABLE evaluations ADD CONSTRAINT evaluations_speed_assessment_check CHECK (speed_assessment IS NULL OR speed_assessment IN ('slow', 'appropriate', 'fast'))");
     }
 
     /**

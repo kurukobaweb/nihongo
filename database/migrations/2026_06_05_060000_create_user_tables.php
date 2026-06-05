@@ -33,6 +33,8 @@ return new class extends Migration
 
         DB::statement('CREATE UNIQUE INDEX users_email_active_unique ON users (email) WHERE deleted_at IS NULL');
         DB::statement('CREATE UNIQUE INDEX users_google_id_active_unique ON users (google_id) WHERE deleted_at IS NULL AND google_id IS NOT NULL');
+        DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'user'))");
+        DB::statement("ALTER TABLE users ADD CONSTRAINT users_jlpt_level_check CHECK (jlpt_level IS NULL OR jlpt_level IN ('N1', 'N2', 'N3', 'N4', 'N5', 'unknown', 'not_specified'))");
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();
