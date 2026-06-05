@@ -343,7 +343,7 @@
 
 ### T001-04: Scheduler基盤作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: 運用
 - 目的:
   - CleanupTempFilesJobなどの定期ジョブを後続で登録できる基盤を用意する
@@ -356,6 +356,36 @@
   - T001-03
 - 実装内容:
   - Schedulerが動作確認できる最小構成を作る
+- 確認結果:
+  - 実装commit: `8a37c6c3d5492ad3c96b8d7b51a531d68df3d438`
+  - 変更ファイル:
+    - `routes/console.php`
+  - Scheduler基盤確認は完了
+  - Scheduler定義先は `routes/console.php`
+  - `bootstrap/app.php` から読み込み済み
+  - Laravel初期サンプルの `inspire` コマンドから `hourly()` を外した
+  - `hourly()` を外した理由は、未確定のScheduler頻度やジョブ一覧を固定しないためである
+  - `php artisan schedule:list` がDB/cache lockへ触らず実行できる状態にした
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `npm.cmd run build` 成功
+  - `php artisan route:list` 成功、5 routes表示
+  - CleanupTempFilesJob は作成していない
+  - 音声削除処理は実装していない
+  - OI-001 / OI-021 のジョブ一覧・頻度・削除条件を固定していない
+  - `.env` は作成・commitしていない
+  - `.env.example` は変更していない
+  - 実Secretsは追加していない
+  - DBマイグレーションは新規作成していない
+  - T001-05以降には未着手
+- 申し送り:
+  - 現時点では、Schedulerに業務ジョブは登録していない
+  - `php artisan schedule:list` の `No scheduled tasks have been defined.` は、T001-04時点では正常な状態として扱う
+  - Schedulerを使える土台はあるが、CleanupTempFilesJobなどの業務ジョブは後続タスクで扱う
+  - Scheduler の具体的なジョブ一覧の最終構成は OI-001 で管理する
+  - CleanupTempFilesJob の実行頻度および削除対象条件は OI-021 で管理する
+  - OI-001 / OI-021 確定前にジョブ一覧・頻度・削除条件を固定しない
+  - 本番cron設定、Supervisor設定、Queue Worker運用詳細はT001-04では扱っていない
 - 実装してはいけないこと:
   - OI-001 / OI-021 未確定の頻度やジョブ一覧を固定しない
 - 完了条件:
