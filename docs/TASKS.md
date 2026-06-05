@@ -722,7 +722,7 @@
 
 ### T002-04: Seeder基盤作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: DB
 - 目的:
   - MVP初期データ投入用Seederを作成する
@@ -740,6 +740,62 @@
   - `QuestionSeeder`
   - `AdminUserSeeder`
   - 冪等性を担保する
+- 確認結果:
+  - 実装commit: `3777f316841a97e862298b32009022483c4fe8eb`
+  - 変更範囲は `database/seeders/` の4件のみ
+  - 変更ファイル:
+    - `database/seeders/DatabaseSeeder.php`
+    - `database/seeders/CategorySeeder.php`
+    - `database/seeders/TagSeeder.php`
+    - `database/seeders/QuestionSeeder.php`
+  - Seeder基盤作成は完了
+  - MVP検証用の最小Learning master seedに限定して実装
+  - 作成・整備したSeeder:
+    - `DatabaseSeeder`
+    - `CategorySeeder`
+    - `TagSeeder`
+    - `QuestionSeeder`
+  - `DatabaseSeeder` は `CategorySeeder` → `TagSeeder` → `QuestionSeeder` の順に呼び出す構成
+  - categories は3件
+  - tags は5件
+  - questions は3件
+  - 冪等性確保のため `updateOrCreate()` を使用
+  - `question_tag` の紐付けは `syncWithoutDetaching()` を使用し、重複しない構成
+  - `php -l`: 全Seeder成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存vendor由来の ambiguous class warning あり
+  - Seederクラスautoload確認: 4クラスすべて `ok`
+  - `php artisan route:list`: 成功、5 routes
+  - `php artisan schedule:list`: 成功
+  - `php artisan schedule:list` の結果: `No scheduled tasks have been defined.`
+  - `npm.cmd run build`: 成功
+  - `php artisan db:seed`: 未実施
+  - `db:seed` 未実施理由は、`pdo_pgsql` 未有効、かつ `.env` / DB接続実値未投入のため
+  - Factoryは作成していない
+  - `Model::factory()` は使用していない
+  - 管理者ユーザーseedは作成していない
+  - 固定パスワードは投入していない
+  - 実Secretsは追加していない
+  - Stripe / Legal / User / Submission / Evaluation系seedには進んでいない
+  - `question_type` は追加していない
+  - `question_format` のenum・値域・定数は固定していない
+  - `user_learning_settings` は作成していない
+  - 認証、録音、Python、Azure、Stripe実装、管理画面には進んでいない
+  - `.env` は作成・commitしていない
+  - `database/migrations/` は変更していない
+  - `app/Models/` は変更していない
+  - T002-05以降には未着手
+- 申し送り:
+  - T002-04時点では、Seeder基盤作成と静的確認まで完了
+  - 実DBでの `php artisan db:seed` 実行確認は未完了
+  - 理由は、`pdo_pgsql` 未有効および `.env` / DB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBで `php artisan migrate` および `php artisan db:seed` の確認が必要
+  - DB接続実値投入後に、categories / tags / questions / question_tag が問題なく投入されるか確認が必要
+  - `composer dump-autoload` は成功しているが、既存vendor由来の ambiguous class warning が出ている
+  - ambiguous class warning はT002-04の失敗とは扱わないが、後続で必要に応じて確認する
+  - `.env` はリポジトリへcommitしない
+  - `question_format` のenum・値域・定数は固定していない
+  - OI-022確定後に、必要であればSeederの `question_format` 暫定値を見直す
 - 実装してはいけないこと:
   - OI-104確定前に初期管理者パスワードを固定しない
   - OI-022未確定の具体値を勝手に入れない
