@@ -478,7 +478,7 @@
 
 ### T002-01: 17テーブル / 5カテゴリのマイグレーション作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: DB
 - 目的:
   - `DB_SCHEMA.md` に基づくMVP DBスキーマを作成する
@@ -496,6 +496,48 @@
   - `question_format` の具体値・CHECK制約値域は OI-022 確定後の反映対象として扱う
   - `submissions.id` はUUID v4にする
   - `evaluations.submission_id` はUNIQUEにする
+- 確認結果:
+  - 実装commit: `2c40f857db8bb00d4d550dd1f6e064c1b60aae0a`
+  - 変更範囲は `database/migrations/` のみ
+  - DB_SCHEMA.mdに基づき、17テーブル / 5カテゴリのマイグレーションを作成・整備済み
+  - User: `users`, `password_reset_tokens`, `sessions`
+  - Learning: `categories`, `tags`, `questions`, `question_tag`, `submissions`, `evaluations`
+  - Stripe: `customers`, `subscriptions`, `subscription_items`
+  - System: `jobs`, `failed_jobs`, `cache`, `cache_locks`
+  - Legal: `consents`
+  - 既存マイグレーションは `jobs` / `failed_jobs` の2本のみだった
+  - `jobs` / `failed_jobs` は重複作成していない
+  - `jobs.attempts` を `unsignedSmallInteger` + default `0` に調整済み
+  - `failed_jobs.failed_at` に代表インデックスを追加済み
+  - `job_batches` は作成していない
+  - `personal_access_tokens` は作成していない
+  - `questions.question_format` を追加済み
+  - `question_type` は追加していない
+  - `question_format` の具体値・CHECK制約値域は固定していない
+  - `submissions.id` はUUID主キー、default `gen_random_uuid()` とした
+  - `evaluations.submission_id` はUUID FKかつUNIQUEとした
+  - `question_tag` は複合主キーで重複防止している
+  - `evaluations` のJSON系はJSONBとして扱っている
+  - `users` に学習設定JSONBは追加していない
+  - `user_learning_settings` は作成していない
+  - OI-022 / OI-023 / OI-027 / OI-104 / OI-107 / OI-108 を先取りしていない
+  - `php -l` 全マイグレーション成功
+  - `php artisan route:list` 成功、5 routes表示
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `npm.cmd run build` 成功
+  - `php artisan migrate:status` は実施したが失敗
+  - `migrate:status` 失敗理由は `pdo_pgsql` 未有効 / DB接続実値未投入
+  - `.env` は作成・commitしていない
+- 申し送り:
+  - T002-01時点では、マイグレーションファイル作成・静的確認まで完了
+  - 実DBへの `migrate` 確認は未完了
+  - 理由は、`pdo_pgsql` 未有効およびDB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBで `php artisan migrate` または同等の適用確認が必要
+  - DB接続実値投入後に、17テーブル作成確認が必要
+  - `submissions.id` の default `gen_random_uuid()` が対象PostgreSQL環境で利用可能か確認が必要
+  - `.env` はリポジトリへcommitしない
+  - T002-02でCHECK制約・詳細インデックスを反映する前に、T002-01マイグレーションの実DB適用確認を行うのが望ましい
 - 実装してはいけないこと:
   - `question_type` を追加しない
   - `user_learning_settings` を OI-023 確定前に追加しない
