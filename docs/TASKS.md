@@ -638,7 +638,7 @@
 
 ### T002-03: Eloquentモデル・リレーション作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: 実装
 - 目的:
   - DBスキーマに対応するEloquentモデルとリレーションを作成する
@@ -653,6 +653,63 @@
   - User, Category, Tag, Question, Submission, Evaluation, Consent, Customer, Subscription, SubscriptionItemを作成する
   - Question-TagのN:Nを定義する
   - Submission-Evaluationの1:1を定義する
+- 確認結果:
+  - 実装commit: `4caef550c83b4f55b1bc374af15f9103e782ce22`
+  - 変更範囲は `app/Models/` の10モデルのみ
+  - 変更ファイル:
+    - `app/Models/User.php`
+    - `app/Models/Category.php`
+    - `app/Models/Tag.php`
+    - `app/Models/Question.php`
+    - `app/Models/Submission.php`
+    - `app/Models/Evaluation.php`
+    - `app/Models/Customer.php`
+    - `app/Models/Subscription.php`
+    - `app/Models/SubscriptionItem.php`
+    - `app/Models/Consent.php`
+  - Eloquentモデル・主要リレーション作成は完了
+  - 実DB接続確認は未実施
+  - 理由は `pdo_pgsql` 未有効 / DB接続実値未投入である
+  - 作成・整備したモデルは `User`, `Category`, `Tag`, `Question`, `Submission`, `Evaluation`, `Customer`, `Subscription`, `SubscriptionItem`, `Consent`
+  - `User` は既存の `Authenticatable` 継承を維持している
+  - `User` は `HasFactory`、`Notifiable`、`SoftDeletes` を使用している
+  - `User` のみSoftDeletes対象である
+  - `User` に `submissions()` / `consents()` リレーションを追加済み
+  - `Category` / `Tag` / `Question` に、カテゴリ、タグ、問題、N:N `question_tag`、提出へのリレーションを定義済み
+  - `Submission` にUUID主キー設定として `$keyType = 'string'`, `$incrementing = false` を設定済み
+  - `Submission` に `user()` / `question()` / `evaluation()` リレーションを定義済み
+  - `Evaluation` に `submission()` リレーションを定義済み
+  - `Evaluation` のJSONB相当カラムを `array` cast済み
+  - `Customer` / `Subscription` / `SubscriptionItem` はStripe系テーブル対応のリレーションのみを定義済み
+  - `Consent` に `user()` リレーションを定義済み
+  - fillable / casts はマイグレーション実体に合わせて最小限設定済み
+  - `php -l` 全モデル成功
+  - `composer dump-autoload -o --no-scripts` 成功
+  - 既存vendor由来の ambiguous class warning は出たが、モデルautoloadは成功
+  - DB接続なしの `class_exists` 確認で全モデル `ok`
+  - `php artisan route:list` 成功、5 routes表示
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `npm.cmd run build` 成功
+  - `question_type` は追加していない
+  - `question_format` の値域・enum・定数は固定していない
+  - `user_learning_settings` モデルは作成していない
+  - `job_batches` / `personal_access_tokens` モデルは作成していない
+  - Seeder、Factoryは作成していない
+  - 認証、録音、Python、Azure、Stripe実装、管理画面には未着手
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - `database/migrations/` は変更していない
+  - T002-04以降には未着手
+- 申し送り:
+  - T002-03時点では、Eloquentモデル・主要リレーション作成と静的確認まで完了
+  - 実DB接続確認は未実施
+  - 理由は、`pdo_pgsql` 未有効およびDB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBでモデルとマイグレーションの整合確認が必要
+  - DB接続実値投入後に、主要リレーションが実DB上で問題なく利用できるか確認が必要
+  - `composer dump-autoload` は成功しているが、既存vendor由来の ambiguous class warning が出ている
+  - ambiguous class warning はT002-03の失敗とは扱わないが、後続で必要に応じて確認する
+  - `.env` はリポジトリへcommitしない
 - 実装してはいけないこと:
   - PythonサービスからDBアクセスする前提のモデルを作らない
   - `question_type` を参照しない
