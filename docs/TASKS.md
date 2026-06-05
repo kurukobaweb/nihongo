@@ -279,7 +279,7 @@
 
 ### T001-03: Queue database driver 基盤作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: Queue
 - 目的:
   - Laravel Queue database driver を使う基盤を作る
@@ -294,6 +294,42 @@
 - 実装内容:
   - `jobs`, `failed_jobs` を使用する
   - database queueをデフォルトにする
+- 確認結果:
+  - 実装commit: `4688ab83e26b98a0d500dbc76d34ef701759d1b5`
+  - 変更ファイル:
+    - `config/queue.php`
+    - `database/migrations/2026_06_05_050923_create_jobs_table.php`
+    - `database/migrations/2026_06_05_050929_create_failed_jobs_table.php`
+  - Queue database driver 基盤を作成済み
+  - `QUEUE_CONNECTION` 未指定時の fallback は `database` であることを確認済み
+  - `batching.database` / `failed.database` の `DB_CONNECTION` fallback を `pgsql` に変更済み
+  - Redis / SQS / sync をデフォルトにはしていない
+  - `.env.example` は確認のみで変更していない
+  - `.env.example` に `QUEUE_CONNECTION=database` と PostgreSQL接続キーが既存どおり存在する
+  - 実Secretsは追加していない
+  - `jobs` 用マイグレーションを作成済み
+  - `failed_jobs` 用マイグレーションを作成済み
+  - `job_batches` 用マイグレーションは作成していない
+  - `personal_access_tokens` 用マイグレーションは作成していない
+  - DBスキーマ本体や17テーブル作成には進んでいない
+  - Scheduler / Worker運用詳細には進んでいない
+  - T001-04以降には未着手
+  - `npm.cmd run build` 成功
+  - `php artisan route:list` 成功、5 routes表示
+  - `php artisan queue:work --once --stop-when-empty` 実施、exit 0
+  - 実DBへのQueue投入確認は未実施
+  - `php artisan migrate:status` は `pdo_pgsql` 未有効で失敗
+  - Queue投入確認未実施の理由は、実値未投入 / `pdo_pgsql` 未有効である
+  - `.env` は作成・commitしていない
+- 申し送り:
+  - 実DB上での Queue 投入確認は未実施
+  - 理由は、`pdo_pgsql` 未有効およびDB接続実値未投入のため
+  - `php artisan queue:work --once --stop-when-empty` の exit 0 は、Queue Worker コマンド実行確認として扱う
+  - ただし、実DB上の `jobs` / `failed_jobs` テーブルへの投入・処理確認完了とは扱わない
+  - 実DB接続確認前に、PHP側の `pdo_pgsql` driver を有効化する必要がある
+  - 実DB接続確認前に、`.env` にDB接続実値を投入する必要がある
+  - `.env` はリポジトリへcommitしない
+  - 後続のDBマイグレーション適用時に、`jobs` / `failed_jobs` のテーブル作成とQueue投入確認を再確認する
 - 実装してはいけないこと:
   - Redis前提にしない
   - `job_batches` をMVP前提で追加しない
