@@ -397,7 +397,7 @@
 
 ### T001-05: Feature Flag設定基盤作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: 設定
 - 目的:
   - Pronunciation / Fluency / Content / LLM のFeature FlagをOFF前提で管理する
@@ -415,6 +415,52 @@
   - Feature Flagキーを設定ファイルに定義する
   - デフォルトはすべてOFFにする
   - Vue側へshared dataで配布できる土台を作る
+- 確認結果:
+  - 実装commit: `c2557593f852c1b52d29513136704c971b7ab653`
+  - 変更ファイル:
+    - `.env.example`
+    - `app/Http/Middleware/HandleInertiaRequests.php`
+    - `config/features.php`
+  - `config/features.php` を新規作成済み
+  - 既存仕様の Speech / Comment 系Flagと、表示・機能トグル用FlagをLaravel config化済み
+  - すべてのFeature Flagは default `false`
+  - アプリ側で `config('features')` により参照可能
+  - `.env.example` に `FEATURE_*` キーを追加済み
+  - 追加したFeature Flagはすべて `false`
+  - 既存の `SPEECH_*` / `COMMENT_LLM_GENERATION_ENABLED` は維持済み
+  - `HandleInertiaRequests.php` で `features` をInertia shared dataへ渡す土台を追加済み
+  - `config('features')` から読み込む構成である
+  - Feature Flagをbooleanとして共有する構成である
+  - DBアクセスは追加していない
+  - 外部APIアクセスは追加していない
+  - Feature FlagはONにしていない
+  - DB管理方式にはしていない
+  - Feature Flag管理画面は作成していない
+  - 表示制御本体は実装していない
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - DBマイグレーションは作成していない
+  - Azure / Python / LLM / Stripe / 管理画面には未着手
+  - T001-06以降には未着手
+  - `php artisan config:clear` 成功
+  - `php artisan config:cache` 成功
+  - 再度 `php artisan config:clear` 成功
+  - `php artisan config:show features` で全Feature Flagが `false`
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `php artisan route:list` 成功、5 routes表示
+  - `npm.cmd run build` 成功
+- 申し送り:
+  - Feature Flagは設定ファイル / `.env.example` ベースで管理する
+  - 現時点ではDB管理方式にしない
+  - Feature Flag管理画面は作成していない
+  - すべてのFeature Flagはdefault OFFである
+  - Feature FlagをONにする判断は後続タスクまたは未確定事項の解消後に行う
+  - 表示制御本体は未実装であり、後続のUI実装タスクで扱う
+  - Pronunciation / Accuracy / Fluency / Completeness / Prosody などの表示はONにしていない
+  - Azure / Python / LLM / Stripe / 管理画面には進んでいない
+  - OI-012 のPoC判断を先取りしていない
+  - `.env` はリポジトリへcommitしない
 - 実装してはいけないこと:
   - Pronunciation / FluencyをデフォルトONにしない
   - DB管理方式にしない
