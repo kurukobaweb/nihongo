@@ -18,6 +18,9 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+            'features' => collect(config('features', []))
+                ->map(fn ($value) => (bool) $value)
+                ->all(),
         ];
     }
 }
