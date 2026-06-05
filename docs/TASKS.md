@@ -223,7 +223,7 @@
 
 ### T001-02: PostgreSQL接続設定
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: DB
 - 目的:
   - PostgreSQL 16 / UTF-8 前提でLaravelからDB接続できる状態にする
@@ -239,6 +239,34 @@
 - 実装内容:
   - PostgreSQL接続を前提に設定する
   - タイムゾーンはDB UTC保存、表示はアプリ層変換を前提にする
+- 確認結果:
+  - 実装commit: `99540623796bb01607ab9d4ef5ba6f5db8790a6c`
+  - 変更ファイルは `config/database.php` のみ
+  - Laravel側のDBデフォルトを PostgreSQL 前提に調整済み
+  - `DB_CONNECTION` 未指定時の default を `pgsql` に変更済み
+  - `pgsql` 接続の `DB_DATABASE` fallback を空文字に変更済み
+  - `pgsql` 接続の `DB_USERNAME` fallback を空文字に変更済み
+  - `.env.example` は確認のみで変更していない
+  - `.env.example` には PostgreSQL用の雛形、`SESSION_DRIVER=database`、Queue / Cache / Session 方針が既存どおり存在する
+  - `config/session.php` は確認のみで変更していない
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - DBスキーマ本体・マイグレーションは作成していない
+  - T001-03以降には未着手
+  - `npm.cmd run build` 成功
+  - `php artisan route:list` 成功
+  - `php artisan migrate:status` は実施したが完了不可
+  - `php artisan migrate:status` 完了不可の直接理由は、PHP側で `pdo_pgsql` driver が未有効であること
+  - 併せて `.env` 未作成、DB名 / ユーザー等が実値未投入であることを確認済み
+- 申し送り:
+  - 実DB接続確認前に、PHP側の `pdo_pgsql` driver を有効化する必要がある
+  - 実DB接続確認前に、`.env` にDB接続実値を投入する必要がある
+  - `.env` はリポジトリへcommitしない
+  - `config/session.php` の `SESSION_DRIVER` 未指定時 default は `file`
+  - `.env.example` では `SESSION_DRIVER=database`
+  - この差分はT001-02完了を止める問題ではない
+  - 後続のDBマイグレーション / `sessions` テーブル作成時に、session / cache / queue 方針と整合確認する
+  - `pdo_pgsql` 未有効はLaravelコードではなく、ローカルPHP実行環境側の前提として扱う
 - 実装してはいけないこと:
   - MySQL前提へ変更しない
   - DBスキーマ本体をこのタスクで作らない
