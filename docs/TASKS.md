@@ -811,7 +811,7 @@
 
 ### T002-05: OI-022確定後の question_format 値域反映タスク
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-05 確認済み）
 - 種別: DB
 - 目的:
   - OI-022確定済みの `question_format` 値域とUIラベルを反映する
@@ -835,6 +835,70 @@
   - `QuestionSeeder` の暫定値 `mvp_verification` を正式値へ置換する
   - 問題一覧UIラベルを `single_prompt` = `単体問題`、`two_choice` = `二者択一` として反映する
   - UIラベル変換方針を整理する
+- 確認結果:
+  - 実装commit: `7b2819631faa622548a406759da6cbbd594bb158`
+  - 変更範囲はT002-05実装に必要な3ファイルのみ
+  - 変更ファイル:
+    - `database/migrations/2026_06_05_060010_create_learning_tables.php`
+    - `database/seeders/QuestionSeeder.php`
+    - `app/Models/Question.php`
+  - OI-022確定値のコード反映は完了
+  - `questions.question_format` にCHECK制約を追加
+  - CHECK制約の値域は `single_prompt` / `two_choice`
+  - CHECK制約方針は `question_format IN ('single_prompt', 'two_choice')`
+  - PostgreSQL ENUM型は使用していない
+  - PHP enumは使用していない
+  - `question_type` は追加していない
+  - `difficulty` 値域は変更していない
+  - `has_model_answer` の意味は変更していない
+  - `QuestionSeeder` の暫定値 `mvp_verification` は削除済み
+  - 既存3問すべての `question_format` を `single_prompt` に置換済み
+  - T002-05時点の既存3問はすべて単体問題相当であるため `single_prompt` を使用している
+  - Seeder内の `question_format` 値は `single_prompt` / `two_choice` の値域に収まる
+  - `Question` モデルにvalidation / UIラベル変換で参照できる最小定義を追加
+  - 追加した定義:
+    - `QUESTION_FORMATS`
+    - `QUESTION_FORMAT_LABELS`
+  - 許可値:
+    - `single_prompt`
+    - `two_choice`
+  - UIラベル:
+    - `single_prompt` => `単体問題`
+    - `two_choice` => `二者択一`
+  - 後続のLaravel validationでは `QUESTION_FORMATS` を参照できる
+  - 後続のUI表示では `QUESTION_FORMAT_LABELS` を参照できる
+  - FormRequest / Controller / API route / UI本体は作成していない
+  - docsはT002-05実装時には変更していない
+  - `.env` / `.env.example` は変更していない
+  - 実Secretsは追加していない
+  - Factoryは作成していない
+  - `Model::factory()` は使用していない
+  - 管理者seedは作成していない
+  - OI-023 / OI-027 / OI-104 / OI-105 / OI-107 / OI-108 は先取りしていない
+  - T002-06以降には未着手
+  - `php -l`: 対象3ファイルすべて成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存vendor由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、5 routes
+  - `php artisan schedule:list`: 成功
+  - `php artisan schedule:list` の結果: `No scheduled tasks have been defined.`
+  - `npm.cmd run build`: 成功
+  - `php artisan migrate:status`: 実施したが失敗
+  - `migrate:status` 失敗理由は `pdo_pgsql` 未有効 / `.env`・DB接続実値未投入
+  - `php artisan db:seed`: 未実施
+  - `db:seed` 未実施理由は DB接続不可、かつ書き込み系コマンドのため
+- 申し送り:
+  - T002-05時点では、OI-022確定値のコード反映と静的確認まで完了
+  - 実DBでの `php artisan migrate` / `php artisan db:seed` 実行確認は未完了
+  - 理由は、`pdo_pgsql` 未有効および `.env` / DB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBで `php artisan migrate` および `php artisan db:seed` の確認が必要
+  - DB接続実値投入後に、`questions.question_format` CHECK制約が期待どおり機能するか確認が必要
+  - DB接続実値投入後に、`QuestionSeeder` の `single_prompt` 値が問題なく投入されるか確認が必要
+  - `composer dump-autoload` は成功しているが、既存vendor由来の ambiguous class warning が出ている
+  - ambiguous class warning はT002-05の失敗とは扱わないが、後続で必要に応じて確認する
+  - `.env` はリポジトリへcommitしない
+  - `question_format` の値域は `single_prompt` / `two_choice` に確定済み
+  - `mvp_verification` は暫定値として削除済み
 - 実装してはいけないこと:
   - DBカラム追加タスクにしない
   - OI-022で確定した `single_prompt` / `two_choice` 以外の値を追加しない
@@ -848,7 +912,7 @@
 - CodeX投入時の注意:
   - OI-022は確定済みとして扱う
   - このタスクはDBカラム追加ではなく、値域・CHECK制約・Seeder・UIラベル・バリデーションの反映である
-  - T002-05を完了扱いにするのは実装・検証後とする
+  - T002-05は実装・静的確認まで完了。実DB確認は環境整備後に行う
 
 ---
 
