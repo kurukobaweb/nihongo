@@ -28,6 +28,18 @@ const submit = () => {
                 </p>
             </div>
 
+            <div class="mt-8 space-y-3">
+                <a
+                    href="/auth/google/redirect"
+                    class="block w-full rounded border border-slate-700 bg-slate-900 px-4 py-2 text-center text-sm font-semibold text-slate-100 transition hover:border-emerald-400"
+                >
+                    Continue with Google
+                </a>
+                <p class="text-xs leading-5 text-slate-400">
+                    Googleログインを続けると、利用規約とプライバシーポリシーに同意したものとして扱います。
+                </p>
+            </div>
+
             <form class="mt-8 space-y-5" @submit.prevent="submit">
                 <div>
                     <label for="name" class="block text-sm font-medium text-slate-200">Name</label>

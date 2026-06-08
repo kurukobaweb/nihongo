@@ -6,12 +6,16 @@ use App\Models\User;
 use App\Models\Consent;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\URL;
+use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\User as SocialiteUser;
+use Mockery;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -467,5 +471,188 @@ class AuthenticationTest extends TestCase
 
         $this->actingAs($user)->get('/login')->assertRedirect('/dashboard');
         $this->actingAs($user)->get('/register')->assertRedirect('/dashboard');
+    }
+
+    public function test_google_oauth_routes_are_defined(): void
+    {
+        $this->assertSame('/auth/google/redirect', route('auth.google.redirect', absolute: false));
+        $this->assertSame('/auth/google/callback', route('auth.google.callback', absolute: false));
+    }
+
+    public function test_google_oauth_redirect_starts_google_authorization(): void
+    {
+        $provider = Mockery::mock();
+        $provider->shouldReceive('scopes')
+            ->once()
+            ->with(['openid', 'profile', 'email'])
+            ->andReturnSelf();
+        $provider->shouldReceive('redirect')
+            ->once()
+            ->andReturn(new RedirectResponse('https://accounts.google.com/o/oauth2/auth'));
+
+        Socialite::shouldReceive('driver')
+            ->once()
+            ->with('google')
+            ->andReturn($provider);
+
+        $this->get('/auth/google/redirect')
+            ->assertRedirect('https://accounts.google.com/o/oauth2/auth');
+    }
+
+    public function test_existing_google_user_can_login_with_google_oauth(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Google User',
+            'email' => 'google@example.com',
+            'email_verified_at' => now(),
+            'password' => null,
+            'google_id' => 'google-123',
+        ]);
+
+        $this->mockGoogleCallback($this->googleUser([
+            'id' => 'google-123',
+            'name' => 'Google User',
+            'email' => 'google@example.com',
+            'avatar' => 'https://example.com/avatar.png',
+            'email_verified' => true,
+        ]));
+
+        $this->get('/auth/google/callback')
+            ->assertRedirect('/dashboard');
+
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_new_google_user_is_created_with_consents(): void
+    {
+        $this->mockGoogleCallback($this->googleUser([
+            'id' => 'google-new',
+            'name' => 'New Google User',
+            'email' => 'new-google@example.com',
+            'avatar' => 'https://example.com/new-avatar.png',
+            'email_verified' => true,
+        ]));
+
+        $response = $this
+            ->withServerVariables([
+                'REMOTE_ADDR' => '203.0.113.20',
+                'HTTP_USER_AGENT' => 'Nihongo Google Test Browser',
+            ])
+            ->get('/auth/google/callback');
+
+        $response->assertRedirect('/dashboard');
+        $this->assertAuthenticated();
+
+        $user = User::query()->where('email', 'new-google@example.com')->first();
+
+        $this->assertNotNull($user);
+        $this->assertSame('google-new', $user->google_id);
+        $this->assertSame('New Google User', $user->name);
+        $this->assertSame('https://example.com/new-avatar.png', $user->avatar_url);
+        $this->assertNull($user->password);
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertSame(2, $user->consents()->count());
+        $this->assertDatabaseHas('consents', [
+            'user_id' => $user->id,
+            'document_type' => 'terms_of_service',
+            'document_version' => 'test-terms-v1',
+            'ip_address' => '203.0.113.20',
+            'user_agent' => 'Nihongo Google Test Browser',
+        ]);
+        $this->assertDatabaseHas('consents', [
+            'user_id' => $user->id,
+            'document_type' => 'privacy_policy',
+            'document_version' => 'test-privacy-v1',
+            'ip_address' => '203.0.113.20',
+            'user_agent' => 'Nihongo Google Test Browser',
+        ]);
+        $this->assertSame(
+            2,
+            $user->consents()
+                ->select('document_type', 'document_version')
+                ->distinct()
+                ->count()
+        );
+    }
+
+    public function test_existing_email_match_stops_without_auto_linking_google_oauth(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Existing User',
+            'email' => 'existing@example.com',
+            'password' => Hash::make('password'),
+            'google_id' => null,
+        ]);
+
+        $this->mockGoogleCallback($this->googleUser([
+            'id' => 'google-existing-email',
+            'name' => 'Existing User',
+            'email' => 'existing@example.com',
+            'avatar' => null,
+            'email_verified' => true,
+        ]));
+
+        $this->from('/login')
+            ->get('/auth/google/callback')
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        $this->assertNull($user->fresh()->google_id);
+        $this->assertSame(0, Consent::query()->count());
+    }
+
+    public function test_soft_deleted_email_match_does_not_block_new_google_user(): void
+    {
+        $deletedUser = User::query()->create([
+            'name' => 'Deleted User',
+            'email' => 'deleted-google@example.com',
+            'password' => Hash::make('password'),
+            'google_id' => null,
+        ]);
+        $deletedUser->delete();
+
+        $this->mockGoogleCallback($this->googleUser([
+            'id' => 'google-after-delete',
+            'name' => 'Replacement User',
+            'email' => 'deleted-google@example.com',
+            'avatar' => null,
+            'email_verified' => true,
+        ]));
+
+        $this->get('/auth/google/callback')
+            ->assertRedirect('/dashboard');
+
+        $this->assertAuthenticated();
+        $this->assertSame(2, User::withTrashed()->where('email', 'deleted-google@example.com')->count());
+        $this->assertSame('google-after-delete', User::query()->where('email', 'deleted-google@example.com')->first()->google_id);
+        $this->assertNull(User::withTrashed()->find($deletedUser->id)->google_id);
+    }
+
+    private function mockGoogleCallback(SocialiteUser $user): void
+    {
+        $provider = Mockery::mock();
+        $provider->shouldReceive('user')->once()->andReturn($user);
+
+        Socialite::shouldReceive('driver')
+            ->once()
+            ->with('google')
+            ->andReturn($provider);
+    }
+
+    private function googleUser(array $attributes): SocialiteUser
+    {
+        return (new SocialiteUser())->setRaw([
+            'sub' => $attributes['id'],
+            'name' => $attributes['name'],
+            'email' => $attributes['email'],
+            'picture' => $attributes['avatar'],
+            'email_verified' => $attributes['email_verified'],
+        ])->map([
+            'id' => $attributes['id'],
+            'name' => $attributes['name'],
+            'email' => $attributes['email'],
+            'avatar' => $attributes['avatar'],
+        ]);
     }
 }
