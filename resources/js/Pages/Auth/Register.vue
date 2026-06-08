@@ -6,6 +6,8 @@ const form = useForm({
     email: '',
     password: '',
     password_confirmation: '',
+    terms_of_service: false,
+    privacy_policy: false,
 });
 
 const submit = () => {
@@ -72,6 +74,28 @@ const submit = () => {
                         autocomplete="new-password"
                         class="mt-2 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
                     >
+                </div>
+
+                <div class="space-y-3">
+                    <label class="flex items-start gap-3 text-sm text-slate-200">
+                        <input
+                            v-model="form.terms_of_service"
+                            type="checkbox"
+                            class="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-400"
+                        >
+                        <span>利用規約に同意する</span>
+                    </label>
+                    <p v-if="form.errors.terms_of_service" class="text-sm text-red-300">{{ form.errors.terms_of_service }}</p>
+
+                    <label class="flex items-start gap-3 text-sm text-slate-200">
+                        <input
+                            v-model="form.privacy_policy"
+                            type="checkbox"
+                            class="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-emerald-400"
+                        >
+                        <span>プライバシーポリシーに同意する</span>
+                    </label>
+                    <p v-if="form.errors.privacy_policy" class="text-sm text-red-300">{{ form.errors.privacy_policy }}</p>
                 </div>
 
                 <button

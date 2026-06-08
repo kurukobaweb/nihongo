@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\Consent;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\Hash;
@@ -47,6 +48,22 @@ class AuthenticationTest extends TestCase
             $table->string('token');
             $table->timestamp('created_at')->nullable();
         });
+
+        Schema::create('consents', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete()->cascadeOnUpdate();
+            $table->string('document_type', 50);
+            $table->string('document_version', 50);
+            $table->timestamp('agreed_at')->useCurrent();
+            $table->string('ip_address', 45)->nullable();
+            $table->text('user_agent')->nullable();
+            $table->timestamps();
+
+            $table->unique(['user_id', 'document_type', 'document_version']);
+        });
+
+        config()->set('legal.terms_of_service_version', 'test-terms-v1');
+        config()->set('legal.privacy_policy_version', 'test-privacy-v1');
     }
 
     public function test_registration_requires_valid_input(): void
@@ -59,20 +76,61 @@ class AuthenticationTest extends TestCase
         ]);
 
         $response->assertRedirect('/register');
-        $response->assertSessionHasErrors(['name', 'email', 'password']);
+        $response->assertSessionHasErrors(['name', 'email', 'password', 'terms_of_service', 'privacy_policy']);
         $this->assertGuest();
+    }
+
+    public function test_registration_requires_terms_of_service_consent(): void
+    {
+        $response = $this->from('/register')->post('/register', [
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'privacy_policy' => true,
+        ]);
+
+        $response->assertRedirect('/register');
+        $response->assertSessionHasErrors('terms_of_service');
+        $this->assertGuest();
+        $this->assertSame(0, User::query()->count());
+        $this->assertSame(0, Consent::query()->count());
+    }
+
+    public function test_registration_requires_privacy_policy_consent(): void
+    {
+        $response = $this->from('/register')->post('/register', [
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'terms_of_service' => true,
+        ]);
+
+        $response->assertRedirect('/register');
+        $response->assertSessionHasErrors('privacy_policy');
+        $this->assertGuest();
+        $this->assertSame(0, User::query()->count());
+        $this->assertSame(0, Consent::query()->count());
     }
 
     public function test_user_can_register_with_email_and_password(): void
     {
         Notification::fake();
 
-        $response = $this->post('/register', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
-        ]);
+        $response = $this
+            ->withServerVariables([
+                'REMOTE_ADDR' => '203.0.113.10',
+                'HTTP_USER_AGENT' => 'Nihongo Test Browser',
+            ])
+            ->post('/register', [
+                'name' => 'Test User',
+                'email' => 'test@example.com',
+                'password' => 'password',
+                'password_confirmation' => 'password',
+                'terms_of_service' => true,
+                'privacy_policy' => true,
+            ]);
 
         $response->assertRedirect('/verify-email');
         $this->assertAuthenticated();
@@ -82,6 +140,30 @@ class AuthenticationTest extends TestCase
         $this->assertNotNull($user);
         $this->assertTrue(Hash::check('password', $user->password));
         Notification::assertSentTo($user, VerifyEmail::class);
+
+        $this->assertDatabaseHas('consents', [
+            'user_id' => $user->id,
+            'document_type' => 'terms_of_service',
+            'document_version' => 'test-terms-v1',
+            'ip_address' => '203.0.113.10',
+            'user_agent' => 'Nihongo Test Browser',
+        ]);
+        $this->assertDatabaseHas('consents', [
+            'user_id' => $user->id,
+            'document_type' => 'privacy_policy',
+            'document_version' => 'test-privacy-v1',
+            'ip_address' => '203.0.113.10',
+            'user_agent' => 'Nihongo Test Browser',
+        ]);
+        $this->assertSame(2, $user->consents()->count());
+        $this->assertSame(
+            2,
+            $user->consents()
+                ->select('document_type', 'document_version')
+                ->distinct()
+                ->count()
+        );
+        $this->assertTrue($user->consents()->whereNotNull('agreed_at')->exists());
     }
 
     public function test_registration_allows_reusing_soft_deleted_user_email(): void
@@ -98,6 +180,8 @@ class AuthenticationTest extends TestCase
             'email' => 'deleted@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
+            'terms_of_service' => true,
+            'privacy_policy' => true,
         ]);
 
         $response->assertRedirect('/verify-email');
