@@ -56,6 +56,7 @@ return new class extends Migration
             $table->index(['difficulty', 'question_format', 'is_published']);
         });
         DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_difficulty_check CHECK (difficulty IN ('beginner', 'intermediate', 'advanced'))");
+        DB::statement("ALTER TABLE questions ADD CONSTRAINT questions_question_format_check CHECK (question_format IN ('single_prompt', 'two_choice'))");
 
         Schema::create('question_tag', function (Blueprint $table) {
             $table->foreignId('question_id')->constrained()->cascadeOnDelete()->cascadeOnUpdate();

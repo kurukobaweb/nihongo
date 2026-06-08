@@ -9,6 +9,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Question extends Model
 {
+    public const QUESTION_FORMAT_SINGLE_PROMPT = 'single_prompt';
+
+    public const QUESTION_FORMAT_TWO_CHOICE = 'two_choice';
+
+    public const QUESTION_FORMATS = [
+        self::QUESTION_FORMAT_SINGLE_PROMPT,
+        self::QUESTION_FORMAT_TWO_CHOICE,
+    ];
+
+    public const QUESTION_FORMAT_LABELS = [
+        self::QUESTION_FORMAT_SINGLE_PROMPT => '単体問題',
+        self::QUESTION_FORMAT_TWO_CHOICE => '二者択一',
+    ];
+
     protected $fillable = [
         'category_id',
         'title',
