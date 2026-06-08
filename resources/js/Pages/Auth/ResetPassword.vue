@@ -1,21 +1,27 @@
 <script setup>
-import { Link, useForm } from '@inertiajs/vue3';
+import { useForm } from '@inertiajs/vue3';
 
-defineProps({
-    status: {
+const props = defineProps({
+    email: {
         type: String,
-        default: null,
+        default: '',
+    },
+    token: {
+        type: String,
+        required: true,
     },
 });
 
 const form = useForm({
-    email: '',
+    token: props.token,
+    email: props.email ?? '',
     password: '',
+    password_confirmation: '',
 });
 
 const submit = () => {
-    form.post('/login', {
-        onFinish: () => form.reset('password'),
+    form.post('/reset-password', {
+        onFinish: () => form.reset('password', 'password_confirmation'),
     });
 };
 </script>
@@ -25,15 +31,11 @@ const submit = () => {
         <section class="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
             <div>
                 <p class="text-sm font-medium text-emerald-300">Nihongo</p>
-                <h1 class="mt-3 text-3xl font-semibold tracking-normal">Log in</h1>
+                <h1 class="mt-3 text-3xl font-semibold tracking-normal">Set a new password</h1>
                 <p class="mt-3 text-sm leading-6 text-slate-300">
-                    Continue with your email address and password.
+                    Choose a new password for your account.
                 </p>
             </div>
-
-            <p v-if="status" class="mt-6 rounded border border-emerald-800 bg-emerald-950 px-3 py-2 text-sm text-emerald-200">
-                {{ status }}
-            </p>
 
             <form class="mt-8 space-y-5" @submit.prevent="submit">
                 <div>
@@ -49,20 +51,26 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <div class="flex items-center justify-between gap-3">
-                        <label for="password" class="block text-sm font-medium text-slate-200">Password</label>
-                        <Link href="/forgot-password" class="text-sm font-medium text-emerald-300 hover:text-emerald-200">
-                            Forgot password?
-                        </Link>
-                    </div>
+                    <label for="password" class="block text-sm font-medium text-slate-200">Password</label>
                     <input
                         id="password"
                         v-model="form.password"
                         type="password"
-                        autocomplete="current-password"
+                        autocomplete="new-password"
                         class="mt-2 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
                     >
                     <p v-if="form.errors.password" class="mt-2 text-sm text-red-300">{{ form.errors.password }}</p>
+                </div>
+
+                <div>
+                    <label for="password_confirmation" class="block text-sm font-medium text-slate-200">Confirm password</label>
+                    <input
+                        id="password_confirmation"
+                        v-model="form.password_confirmation"
+                        type="password"
+                        autocomplete="new-password"
+                        class="mt-2 w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+                    >
                 </div>
 
                 <button
@@ -70,14 +78,9 @@ const submit = () => {
                     :disabled="form.processing"
                     class="w-full rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    Log in
+                    Update password
                 </button>
             </form>
-
-            <p class="mt-6 text-sm text-slate-300">
-                Need an account?
-                <Link href="/register" class="font-medium text-emerald-300 hover:text-emerald-200">Create one</Link>
-            </p>
         </section>
     </main>
 </template>

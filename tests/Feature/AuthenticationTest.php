@@ -3,9 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -36,6 +41,12 @@ class AuthenticationTest extends TestCase
             $table->softDeletes();
             $table->timestamps();
         });
+
+        Schema::create('password_reset_tokens', function (Blueprint $table) {
+            $table->string('email')->primary();
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
+        });
     }
 
     public function test_registration_requires_valid_input(): void
@@ -54,6 +65,8 @@ class AuthenticationTest extends TestCase
 
     public function test_user_can_register_with_email_and_password(): void
     {
+        Notification::fake();
+
         $response = $this->post('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
@@ -61,13 +74,14 @@ class AuthenticationTest extends TestCase
             'password_confirmation' => 'password',
         ]);
 
-        $response->assertRedirect('/dashboard');
+        $response->assertRedirect('/verify-email');
         $this->assertAuthenticated();
 
         $user = User::query()->where('email', 'test@example.com')->first();
 
         $this->assertNotNull($user);
         $this->assertTrue(Hash::check('password', $user->password));
+        Notification::assertSentTo($user, VerifyEmail::class);
     }
 
     public function test_registration_allows_reusing_soft_deleted_user_email(): void
@@ -86,7 +100,7 @@ class AuthenticationTest extends TestCase
             'password_confirmation' => 'password',
         ]);
 
-        $response->assertRedirect('/dashboard');
+        $response->assertRedirect('/verify-email');
         $this->assertAuthenticated();
         $this->assertSame(2, User::withTrashed()->where('email', 'deleted@example.com')->count());
     }
@@ -172,11 +186,198 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect('/login');
     }
 
+    public function test_unverified_user_is_redirected_from_dashboard(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('password'),
+        ]);
+
+        $response = $this->actingAs($user)->get('/dashboard');
+
+        $response->assertRedirect('/verify-email');
+    }
+
+    public function test_verified_user_can_view_dashboard(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password'),
+        ]);
+
+        $response = $this->actingAs($user)->get('/dashboard');
+
+        $response->assertOk();
+    }
+
+    public function test_verification_notice_is_available_to_unverified_user(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('password'),
+        ]);
+
+        $response = $this->actingAs($user)->get('/verify-email');
+
+        $response->assertOk();
+    }
+
+    public function test_verified_user_is_redirected_from_verification_notice(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password'),
+        ]);
+
+        $response = $this->actingAs($user)->get('/verify-email');
+
+        $response->assertRedirect('/dashboard');
+    }
+
+    public function test_verification_email_can_be_resent(): void
+    {
+        Notification::fake();
+
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('password'),
+        ]);
+
+        $response = $this->actingAs($user)->post('/email/verification-notification');
+
+        $response->assertRedirect();
+        $response->assertSessionHas('status', 'verification-link-sent');
+        Notification::assertSentTo($user, VerifyEmail::class);
+    }
+
+    public function test_verified_user_is_redirected_when_resending_verification_email(): void
+    {
+        Notification::fake();
+
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password'),
+        ]);
+
+        $response = $this->actingAs($user)->post('/email/verification-notification');
+
+        $response->assertRedirect('/dashboard');
+        Notification::assertNothingSent();
+    }
+
+    public function test_user_can_verify_email_with_signed_link(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('password'),
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1($user->email)]
+        );
+
+        $response = $this->actingAs($user)->get($url);
+
+        $response->assertRedirect('/dashboard?verified=1');
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+    }
+
+    public function test_user_cannot_verify_email_with_invalid_hash(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('password'),
+        ]);
+
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1('other@example.com')]
+        );
+
+        $response = $this->actingAs($user)->get($url);
+
+        $response->assertForbidden();
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
+    }
+
+    public function test_password_reset_link_can_be_requested(): void
+    {
+        Notification::fake();
+
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('old-password'),
+        ]);
+
+        $response = $this->from('/forgot-password')->post('/forgot-password', [
+            'email' => 'test@example.com',
+        ]);
+
+        $response->assertRedirect('/forgot-password');
+        Notification::assertSentTo($user, ResetPassword::class);
+    }
+
+    public function test_password_can_be_reset_with_valid_token(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('old-password'),
+        ]);
+        $token = Password::createToken($user);
+
+        $response = $this->post('/reset-password', [
+            'token' => $token,
+            'email' => 'test@example.com',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response->assertRedirect('/login');
+        $this->assertTrue(Hash::check('new-password', $user->fresh()->password));
+    }
+
+    public function test_password_reset_fails_with_invalid_token(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('old-password'),
+        ]);
+
+        $response = $this->from('/reset-password/invalid-token')->post('/reset-password', [
+            'token' => 'invalid-token',
+            'email' => 'test@example.com',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response->assertRedirect('/reset-password/invalid-token');
+        $response->assertSessionHasErrors('email');
+        $this->assertTrue(Hash::check('old-password', $user->fresh()->password));
+    }
+
     public function test_authenticated_user_is_redirected_from_auth_pages(): void
     {
         $user = User::query()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'email_verified_at' => now(),
             'password' => Hash::make('password'),
         ]);
 

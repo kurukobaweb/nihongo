@@ -43,6 +43,6 @@ class RegisteredUserController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect(route('dashboard', absolute: false));
+        return redirect(route('verification.notice', absolute: false));
     }
 }

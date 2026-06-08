@@ -20,15 +20,15 @@ const submit = () => {
         <section class="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
             <div>
                 <p class="text-sm font-medium text-emerald-300">Nihongo</p>
-                <h1 class="mt-3 text-3xl font-semibold tracking-normal">新規登録</h1>
+                <h1 class="mt-3 text-3xl font-semibold tracking-normal">Create account</h1>
                 <p class="mt-3 text-sm leading-6 text-slate-300">
-                    メールアドレスとパスワードで学習アカウントを作成します。
+                    Set up an email and password account for the MVP.
                 </p>
             </div>
 
             <form class="mt-8 space-y-5" @submit.prevent="submit">
                 <div>
-                    <label for="name" class="block text-sm font-medium text-slate-200">名前</label>
+                    <label for="name" class="block text-sm font-medium text-slate-200">Name</label>
                     <input
                         id="name"
                         v-model="form.name"
@@ -40,7 +40,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <label for="email" class="block text-sm font-medium text-slate-200">メールアドレス</label>
+                    <label for="email" class="block text-sm font-medium text-slate-200">Email address</label>
                     <input
                         id="email"
                         v-model="form.email"
@@ -52,7 +52,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <label for="password" class="block text-sm font-medium text-slate-200">パスワード</label>
+                    <label for="password" class="block text-sm font-medium text-slate-200">Password</label>
                     <input
                         id="password"
                         v-model="form.password"
@@ -64,7 +64,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <label for="password_confirmation" class="block text-sm font-medium text-slate-200">パスワード確認</label>
+                    <label for="password_confirmation" class="block text-sm font-medium text-slate-200">Confirm password</label>
                     <input
                         id="password_confirmation"
                         v-model="form.password_confirmation"
@@ -79,14 +79,13 @@ const submit = () => {
                     :disabled="form.processing"
                     class="w-full rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    登録する
+                    Create account
                 </button>
             </form>
 
             <p class="mt-6 text-sm text-slate-300">
-                すでにアカウントがある場合は
-                <Link href="/login" class="font-medium text-emerald-300 hover:text-emerald-200">ログイン</Link>
-                へ進んでください。
+                Already have an account?
+                <Link href="/login" class="font-medium text-emerald-300 hover:text-emerald-200">Log in</Link>
             </p>
         </section>
     </main>
