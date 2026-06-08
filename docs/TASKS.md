@@ -1334,7 +1334,7 @@
 
 ### T003-05: セッション管理方針反映
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-08 確認済み）
 - 種別: 設定
 - 目的:
   - セッション有効期限とremember me運用を設定する
@@ -1348,6 +1348,89 @@
   - T003-01
 - 実装内容:
   - OI-017確定内容に従いセッション設定を反映する
+- 確認結果:
+  - 実装commit: `1f03906a9a285340717e87fdfd2967153d16170b`
+  - commit message: `feat: apply session policy`
+  - 変更ファイル:
+    - `.env.example`
+  - OI-017 確定方針に従ってセッション管理方針を確認
+  - `config/session.php` は変更なし
+  - `config/session.php` の `SESSION_LIFETIME` default が 120 であることを確認
+  - `config/session.php` の `SESSION_EXPIRE_ON_CLOSE` default が `false` であることを確認
+  - `.env.example` に `SESSION_LIFETIME=120` を追加
+  - `.env.example` に `SESSION_EXPIRE_ON_CLOSE=false` を追加
+  - remember me UI は追加していない
+  - `Login.vue` に remember me チェックボックスが存在しないことを確認
+  - メール/パスワードログインは `Auth::attempt($this->only('email', 'password'))` のままで remember 引数なし
+  - Google OAuthログインは `Auth::login($user)` のままで remember 引数なし
+  - ログアウト時の `session()->invalidate()` / `session()->regenerateToken()` を維持
+  - OI-017 の確定方針は変更していない
+  - 実装していないこと:
+    - remember me の採用
+    - remember me チェックボックス追加
+    - 「ログイン状態を保持する」UI追加
+    - `Auth::attempt` の remember 引数 true
+    - `Auth::login($user, true)`
+    - セッション有効期限を120分以外に変更
+    - `SESSION_EXPIRE_ON_CLOSE=true`
+    - ブラウザ終了時の強制ログアウト
+    - OI-017 の再変更
+    - OI-016 の確定
+    - OI-108 の確定
+    - Google OAuth実値投入
+    - Google OAuth既存メール自動リンク
+    - Google以外のOAuth
+    - Sanctum / personal access token
+    - Stripe
+    - Azure
+    - 録音
+    - 問題一覧
+    - 管理画面
+    - `.env` 作成
+    - 実Secrets追加
+    - `docs/TASKS.md` 完了反映以外のdocs更新
+    - PR作成
+    - main merge
+  - `php -l` 対象PHPファイル: 成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存 vendor 由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、20 routes
+  - `npm.cmd run build`: 成功
+  - `php artisan test tests\Feature\AuthenticationTest.php`: exit 0
+  - `php artisan test tests\Feature\AuthenticationTest.php` は 29 warnings
+  - `php artisan test tests\Feature\AuthenticationTest.php` は `.env` 未作成 warning あり
+  - `php artisan test tests\Feature\AuthenticationTest.php` は DBドライバ制約により Feature は実質未実行
+  - `php artisan test`: exit 0
+  - `php artisan test` は 1 passed / 30 warnings
+  - `php -m | rg "pdo|sqlite|pgsql"` は `pdo_mysql` のみ
+  - `pdo_sqlite` / `pdo_pgsql` なし
+  - `git diff --name-only`: `.env.example`
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` が未有効のため
+  - Google OAuth 実疎通確認は未実施
+  - Google OAuth 実疎通確認未実施理由は、`.env` 未作成、Google Client ID / Secret / Redirect URI 実値未投入のため
+- 申し送り:
+  - T003-05 はセッション管理方針の確認・必要最小限の反映まで完了
+  - OI-017 は 2026-06-08 に確定済み
+  - MVPでは remember me は採用しない
+  - セッション有効期限は 120分
+  - `SESSION_EXPIRE_ON_CLOSE` は `false`
+  - ブラウザ終了時の強制ログアウトは行わない
+  - `users.remember_token` は Laravel 標準カラムとして維持する
+  - MVP UIでは remember me チェックボックスを表示しない
+  - `config/session.php` は既に方針どおりだったため変更なし
+  - `.env.example` に `SESSION_LIFETIME=120` / `SESSION_EXPIRE_ON_CLOSE=false` を明示した
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - Google OAuth 実値は投入していない
+  - Google OAuth 実疎通確認は未完了
+  - Google OAuth 実疎通確認は環境設定後の確認事項として扱う
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成を継続
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-05 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、メール/パスワード認証、メール認証、パスワード再設定、同意記録、Google OAuth、セッション方針、Google OAuth実疎通確認、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、`.env` / Secrets未commitをまとめて確認する
 - 実装してはいけないこと:
   - OI-017未確定の値を勝手に決めない
 - 完了条件:
