@@ -920,7 +920,7 @@
 
 ### T003-01: メール登録・ログイン・ログアウト実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-08 確認済み）
 - 種別: 実装
 - 目的:
   - メール/パスワードによる基本認証を実装する
@@ -941,6 +941,63 @@
   - ログイン
   - ログアウト
   - セッション認証
+- 確認結果:
+  - 実装commit: `13066128bf6e759eca218bef43bdcfcf09c92557`
+  - commit message: `feat: implement basic email authentication`
+  - 変更ファイル:
+    - `app/Http/Controllers/Auth/AuthenticatedSessionController.php`
+    - `app/Http/Controllers/Auth/RegisteredUserController.php`
+    - `app/Http/Requests/Auth/LoginRequest.php`
+    - `app/Http/Middleware/HandleInertiaRequests.php`
+    - `routes/web.php`
+    - `resources/js/Pages/Auth/Login.vue`
+    - `resources/js/Pages/Auth/Register.vue`
+    - `resources/js/Pages/Dashboard.vue`
+    - `tests/Feature/AuthenticationTest.php`
+    - `phpunit.xml`
+  - メール/パスワードの新規登録を実装
+  - メール/パスワードのログインを実装
+  - ログアウト時のセッション破棄とCSRF token再生成を実装
+  - auth / guest middleware による導線制御を実装
+  - 保護ページ `/dashboard` を追加
+  - Inertia共有propsへ最小の認証ユーザー情報を追加
+  - ログイン画面を追加
+  - 新規登録画面を追加
+  - 最小Dashboard画面を追加
+  - soft deleted user がログイン対象外になる前提のFeature testを追加
+  - `phpunit.xml` に testing専用ダミー `APP_KEY` を追加
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - Google OAuth / Socialite は実装していない
+  - メール認証 / パスワード再設定は実装していない
+  - 利用規約同意保存 / `consents` 連携は実装していない
+  - remember me / セッション期限方針は確定していない
+  - Sanctum / personal access token は実装していない
+  - Stripe、Azure、録音、問題一覧、管理画面には未着手
+  - `php -l`: 対象PHPファイル成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存vendor由来の ambiguous class warning あり
+  - `composer dump-autoload -o --no-scripts` の初回は120秒でtimeout
+  - `composer dump-autoload -o --no-scripts` は240秒で再実行して成功
+  - `php artisan route:list`: 成功、11 routes
+  - `npm.cmd run build`: 成功
+  - `php artisan test`: exit 0
+  - Unitはpass
+  - 認証Feature testは現環境でDBドライバ不足のため実DB相当の検証は未実行扱い
+  - `.env` 未作成 warning あり
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため
+- 申し送り:
+  - T003-01 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-01 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - `phpunit.xml` の `APP_KEY` は testing専用のダミー値であり、実Secretsではない
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、`.env` / Secrets未commitをまとめて確認する
 - 実装してはいけないこと:
   - Sanctumトークン認証をMVP前提で入れない
   - Google OAuthを同時実装しない
