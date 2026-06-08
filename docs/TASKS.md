@@ -1447,7 +1447,7 @@
 
 ### T004-01: 問題取得API / Controller作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-08 確認済み）
 - 種別: API
 - 目的:
   - 公開済み問題を取得するサーバー側処理を作る
@@ -1477,6 +1477,116 @@
 - CodeX投入時の注意:
   - question_formatの具体ラベルはOI-022に従う
   - OI-022確定値 `single_prompt` / `two_choice` と表示ラベル `単体問題` / `二者択一` に従う
+- 実装commit:
+  - `81add45b62f7db0648e6dd454c9a3c3c2f7a2786`
+  - commit message: `feat: implement question listing API`
+- 変更ファイル:
+  - `app/Http/Controllers/QuestionController.php`
+  - `app/Http/Requests/QuestionIndexRequest.php`
+  - `app/Services/QuestionQueryService.php`
+  - `routes/web.php`
+  - `tests/Feature/QuestionListingTest.php`
+- 実装結果:
+  - `GET /api/questions` を追加
+  - route name は `questions.index`
+  - middleware は `web`, `auth`
+  - `QuestionController` を追加
+  - `QuestionIndexRequest` を追加
+  - `QuestionQueryService` を追加
+  - 公開済み問題一覧取得を実装
+  - `questions.is_published = true` のみ取得
+  - `categories.is_active = true` のカテゴリに属する問題のみ取得
+  - `display_order ASC, id ASC` の安定ソートを実装
+  - `difficulty` フィルタを実装
+  - `question_format` フィルタを実装
+  - `category` フィルタを実装
+  - `tag` フィルタを実装
+  - `category` / `tag` は slug と id の両方に対応
+  - `question_format` は `single_prompt` / `two_choice` のみ許可
+  - `question_format` の表示ラベルは `single_prompt = 単体問題`, `two_choice = 二者択一`
+  - `has_model_answer` は模範解答有無として返却のみ
+  - `has_model_answer` は問題形式フィルタには未使用
+  - `question_type` は未参照
+  - `model_answer_text` は一覧 response に含めていない
+- Response項目:
+  - `id`
+  - `title`
+  - `prompt_text`
+  - `difficulty`
+  - `question_format.value`
+  - `question_format.label`
+  - `recommended_duration_seconds`
+  - `has_model_answer`
+  - `display_order`
+  - `category`
+  - `tags`
+- 実装していないこと:
+  - 問題一覧UI
+  - Vue画面
+  - 録音画面
+  - 音声アップロード
+  - 音声評価
+  - Azure連携
+  - Stripe
+  - 管理画面
+  - 問題CRUD
+  - 管理者向け問題作成・編集・削除
+  - Seederの大規模変更
+  - DBカラム追加
+  - `question_type` の追加
+  - `question_type` の復活
+  - `has_model_answer` を問題形式フィルタに使うこと
+  - `question_format` に `single_prompt` / `two_choice` 以外を追加すること
+  - OI-023 の確定
+  - OI-024 の確定
+  - OI-025 の確定
+  - OI-027 の確定
+  - OI-028 の確定
+  - Google OAuth / 認証章の追加変更
+  - remember me の追加
+  - Sanctum / personal access token
+  - `.env` 作成
+  - 実Secrets追加
+  - `docs/TASKS.md` 完了反映以外のdocs更新
+  - T004-02以降の実装
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php -l` 対象PHPファイル: 全て pass
+  - `composer dump-autoload -o --no-scripts`: pass
+  - 既存 vendor class ambiguity warning あり
+  - `php artisan route:list`: pass
+  - `GET|HEAD api/questions` を確認
+  - `npm.cmd run build`: pass
+  - `vendor\bin\pint --test ...`: pass
+  - `php artisan test tests/Feature/QuestionListingTest.php`: exit 0
+  - `.env` 未作成 warning あり
+  - `pdo_sqlite` 不足により実質未確認
+  - `php artisan test`: exit 0
+  - Feature tests は同じく `.env` warning / DB driver 制約あり
+  - 実DB確認: 未実施
+  - 理由: `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - Feature test 本実行: 未完了
+  - 理由: `pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - 実DB確認と Feature test 本実行は、T004-01単体の未完了ではなく、環境整備後の横断確認事項として扱う
+- 申し送り:
+  - T004-01 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` 未有効のため未完了
+  - 実DB確認は T004-01 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - Feature test 本実行はDBドライバ有効化後に行う
+  - `GET /api/questions` は `auth` middleware 配下で実装済み
+  - `verified` middleware は未付与
+  - T004-01 の要件は「会員登録済みユーザーのみ」であり、現時点では `auth` で範囲内
+  - 将来「メール認証済みユーザーのみ」に絞る判断が出た場合は、別途 `verified` middleware 追加を検討する
+  - `question_format` は OI-022 確定値 `single_prompt` / `two_choice` のみ
+  - 表示ラベルは `単体問題` / `二者択一`
+  - `question_type` は使用していない
+  - `has_model_answer` は問題形式フィルタに使用していない
+  - `model_answer_text` は一覧 response に含めていない
+  - `category` / `tag` フィルタは slug と id の両方に対応
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - T004-02 の問題一覧UI実装には進んでいない
 
 ### T004-02: 問題一覧UI実装
 
