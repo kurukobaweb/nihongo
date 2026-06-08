@@ -1113,7 +1113,7 @@
 
 ### T003-03: 利用規約同意記録実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-08 確認済み）
 - 種別: 実装
 - 目的:
   - 新規登録時に利用規約・プライバシーポリシー同意を記録する
@@ -1130,6 +1130,73 @@
 - 実装内容:
   - 同意チェックを必須にする
   - `consents` に `terms_of_service` / `privacy_policy` を記録する
+- 確認結果:
+  - 実装commit: `30f5b34b4ebd1602df97a5c98b484ea7b12f0d1b`
+  - commit message: `feat: record registration consents`
+  - 変更ファイル:
+    - `app/Http/Controllers/Auth/RegisteredUserController.php`
+    - `config/legal.php`
+    - `resources/js/Pages/Auth/Register.vue`
+    - `tests/Feature/AuthenticationTest.php`
+  - 登録画面に「利用規約」「プライバシーポリシー」の同意チェックを追加
+  - 登録処理に `terms_of_service` / `privacy_policy` の `accepted` バリデーションを追加
+  - ユーザー作成と同意2件保存を DB transaction 内で実行
+  - `consents` に `terms_of_service` / `privacy_policy` の2件を保存
+  - `document_version` を設定値から保存
+  - `agreed_at` を保存
+  - `ip_address` を保存
+  - `user_agent` を保存
+  - `config/legal.php` に MVP 用バージョン値を追加
+  - Feature test に同意必須・同意保存・重複しない2件保存の観点を追加
+  - soft deleted user の再登録テストにも同意チェックを反映
+  - 実装していないこと:
+    - OI-108 の確定
+    - 利用規約 / プライバシーポリシー最新バージョン管理専用テーブル
+    - 規約更新時の再同意フロー
+    - OI-106 の実装
+    - 管理画面での規約バージョン管理
+    - Google OAuth / Socialite
+    - メール認証・パスワード再設定の追加変更
+    - remember me / セッション期限方針確定
+    - Sanctum / personal access token
+    - Stripe
+    - Azure
+    - 録音
+    - 問題一覧
+    - 管理画面
+    - `.env` 作成
+    - 実Secrets追加
+    - `docs/TASKS.md` 完了反映以外のdocs更新
+  - `php -l` 対象PHPファイル: 成功
+  - `composer dump-autoload -o --no-scripts`: 初回240秒 timeout
+  - `composer dump-autoload -o --no-scripts`: 再実行成功
+  - 既存vendor由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、18 routes
+  - `npm.cmd run build`: 成功
+  - `php artisan test tests\Feature\AuthenticationTest.php`: exit 0
+  - `php artisan test tests\Feature\AuthenticationTest.php` は `.env` 未作成 warning あり
+  - `php artisan test tests\Feature\AuthenticationTest.php` は DBドライバ制約により Feature は実質未実行
+  - `php artisan test`: exit 0
+  - `php artisan test` は 1 passed / 24 warnings
+  - `php -m | rg "pdo|sqlite|pgsql"` は `pdo_mysql` のみ
+  - `pdo_sqlite` / `pdo_pgsql` なし
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` が未有効のため
+- 申し送り:
+  - T003-03 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - `consents` への同意記録は新規登録時のみ取得する
+  - `terms_of_service` と `privacy_policy` の2件を登録時に保存する
+  - `document_version` は `config/legal.php` の設定値として扱う
+  - OI-108 は未確定のまま維持しており、永続管理方式は確定していない
+  - 規約更新時の再同意フローは MVP 対象外として実装していない
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成を継続
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-03 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、同意記録、`.env` / Secrets未commitをまとめて確認する
 - 実装してはいけないこと:
   - 規約更新時の再同意フローをMVPで実装しない
   - OI-108未確定の専用テーブルを追加しない
