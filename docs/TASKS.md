@@ -1012,7 +1012,7 @@
 
 ### T003-02: メール認証・パスワード再設定実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-08 確認済み）
 - 種別: 実装
 - 目的:
   - メール認証とパスワード再設定を実装する
@@ -1030,6 +1030,77 @@
   - メール認証
   - 認証メール再送
   - パスワードリセット
+- 確認結果:
+  - 実装commit: `25d1d875943b090d427d4346e6578db9eadbc6cf`
+  - commit message: `feat: implement email verification and password reset`
+  - Laravel標準のメール認証を追加
+  - 登録後の認証メール通知を追加
+  - メール認証案内画面を追加
+  - 認証メール再送導線を追加
+  - 署名付き認証リンク処理を追加
+  - `User` モデルに `MustVerifyEmail` を追加
+  - `/dashboard` を `auth` + `verified` 前提に調整
+  - Laravel標準のパスワードリセット導線を追加
+  - パスワード再設定メール送信リクエスト画面を追加
+  - パスワード再設定メール送信処理を追加
+  - パスワードリセット画面を追加
+  - パスワード更新処理を追加
+  - `ForgotPassword` / `ResetPassword` / `VerifyEmail` の Inertia Vue 画面を追加
+  - T003-01 の登録・ログイン・ログアウト導線に合わせて Feature test を拡張
+  - 既存 `password_reset_tokens` テーブル前提で実装
+  - 変更ファイル:
+    - `app/Http/Controllers/Auth/AuthenticatedSessionController.php`
+    - `app/Http/Controllers/Auth/EmailVerificationNotificationController.php`
+    - `app/Http/Controllers/Auth/EmailVerificationPromptController.php`
+    - `app/Http/Controllers/Auth/NewPasswordController.php`
+    - `app/Http/Controllers/Auth/PasswordResetLinkController.php`
+    - `app/Http/Controllers/Auth/RegisteredUserController.php`
+    - `app/Http/Controllers/Auth/VerifyEmailController.php`
+    - `app/Models/User.php`
+    - `routes/web.php`
+    - `resources/js/Pages/Auth/ForgotPassword.vue`
+    - `resources/js/Pages/Auth/Login.vue`
+    - `resources/js/Pages/Auth/Register.vue`
+    - `resources/js/Pages/Auth/ResetPassword.vue`
+    - `resources/js/Pages/Auth/VerifyEmail.vue`
+    - `tests/Feature/AuthenticationTest.php`
+  - 実装していないこと:
+    - Google OAuth / Socialite
+    - 利用規約同意保存 / `consents` 連携
+    - remember me / セッション期限方針確定
+    - Sanctum / personal access token
+    - Stripe
+    - Azure
+    - 録音
+    - 問題一覧
+    - 管理画面
+    - `.env` 作成
+    - 実Secrets追加
+    - 外部メール配信サービスの固定
+    - `docs/TASKS.md` 完了反映以外のdocs更新
+  - `php -l` 対象PHPファイル: 成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存vendor由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、18 routes
+  - `npm.cmd run build`: 成功
+  - `php artisan test`: exit 0
+  - `php artisan test` は 1 passed / 22 warnings
+  - warning は `.env` 未作成による読み込み警告
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため
+- 申し送り:
+  - T003-02 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - メール認証とパスワード再設定は Laravel標準機構を前提に実装済み
+  - 実SMTPのSecretsは実値未投入として扱っている
+  - 外部メール配信サービスは固定していない
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成を継続
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-02 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、`.env` / Secrets未commitをまとめて確認する
 - 実装してはいけないこと:
   - メール配信サービスを仕様外で固定しない
 - 完了条件:
