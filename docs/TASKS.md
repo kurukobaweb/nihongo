@@ -1210,7 +1210,7 @@
 
 ### T003-04: Google OAuth基盤実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-08 確認済み）
 - 種別: 実装
 - 目的:
   - Google OAuthログイン導線を実装する
@@ -1228,6 +1228,98 @@
 - 実装内容:
   - Google OAuth開始・callbackを実装する
   - `google_id` 保存に対応する
+- 確認結果:
+  - 実装commit: `5e21bedd61abde3e81d6a4de6f6b93d59188f369`
+  - commit message: `feat: implement google oauth login`
+  - 変更ファイル:
+    - `app/Http/Controllers/Auth/GoogleOAuthController.php`
+    - `composer.json`
+    - `composer.lock`
+    - `config/services.php`
+    - `resources/js/Pages/Auth/Login.vue`
+    - `resources/js/Pages/Auth/Register.vue`
+    - `routes/web.php`
+    - `tests/Feature/AuthenticationTest.php`
+  - `laravel/socialite` を追加
+  - Google OAuth redirect / callback route を追加
+  - Google OAuth Controller を追加
+  - Google認可開始処理を追加
+  - Google OAuth callback処理を追加
+  - 既存 `google_id` ユーザーのログインを実装
+  - 新規Googleユーザー作成を実装
+  - 新規Googleユーザー作成時に `google_id` を保存
+  - 新規Googleユーザー作成時に `avatar_url` を保存
+  - Google側でメール検証済みの場合に `email_verified_at` を保存
+  - 新規Googleユーザー作成時に `consents` へ `terms_of_service` / `privacy_policy` を保存
+  - 既存メール一致時は自動リンクせず、ログイン画面へ安全停止
+  - 既存メール一致時に `google_id` を自動保存しない
+  - soft deleted user は有効ユーザーとして扱わない
+  - ログイン画面に Google ログイン導線と同意表示を追加
+  - 登録画面に Google ログイン導線と同意表示を追加
+  - `config/services.php` に Google OAuth env 参照を追加
+  - Feature test に OAuth 分岐観点を追加
+  - 実装していないこと:
+    - OI-016 の確定
+    - 既存メール一致ユーザーの自動リンク
+    - 既存メール一致ユーザーへの `google_id` 自動保存
+    - OI-017 の確定
+    - remember me / セッション期限方針確定
+    - OI-108 の確定
+    - 規約更新時の再同意フロー
+    - Google以外のOAuth
+    - Sanctum / personal access token
+    - Stripe
+    - Azure
+    - 録音
+    - 問題一覧
+    - 管理画面
+    - `.env` 作成
+    - 実Secrets追加
+    - Google OAuth 実値投入
+    - `docs/TASKS.md` 完了反映以外のdocs更新
+    - PR作成
+    - main merge
+  - `php -l` 対象PHPファイル: 成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存 vendor 由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、20 routes
+  - `php artisan route:list` で Google OAuth 2 routes を確認
+  - `npm.cmd run build`: 成功
+  - `php artisan test tests\Feature\AuthenticationTest.php`: exit 0
+  - `php artisan test tests\Feature\AuthenticationTest.php` は 29 warnings
+  - `php artisan test tests\Feature\AuthenticationTest.php` は `.env` 未作成 warning あり
+  - `php artisan test tests\Feature\AuthenticationTest.php` は DBドライバ制約により Feature は実質未実行
+  - `php artisan test`: exit 0
+  - `php artisan test` は 1 passed / 30 warnings
+  - `php -m | rg "pdo|sqlite|pgsql"` は `pdo_mysql` のみ
+  - `pdo_sqlite` / `pdo_pgsql` なし
+  - Google OAuth 実疎通確認は未実施
+  - Google OAuth 実疎通確認未実施理由は、`.env` 未作成、Google Client ID / Secret / Redirect URI 実値未投入のため
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` が未有効のため
+- 申し送り:
+  - T003-04 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - Google OAuth 実値は投入していない
+  - Google OAuth 実疎通確認は未完了
+  - Google OAuth 実疎通確認は T003-04 単体の未完了ではなく、環境設定後の確認事項として扱う
+  - OI-016 は未確定のまま維持している
+  - 既存メール一致ユーザーは自動リンクしない
+  - 既存メール一致ユーザーに `google_id` を自動保存しない
+  - 既存メール一致時はログイン画面へ安全停止する
+  - 新規Googleユーザー作成時は `consents` へ `terms_of_service` / `privacy_policy` の2件を保存する
+  - `document_version` は `config/legal.php` の設定値として扱う
+  - OI-108 は未確定のまま維持しており、永続管理方式は確定していない
+  - 規約更新時の再同意フローは MVP 対象外として実装していない
+  - soft deleted user は Laravel SoftDeletes の通常クエリ上、有効ユーザーとして扱わない
+  - soft deleted user のOAuth扱いは T003-05完了後の「認証章まとめ確認」で再確認する
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成を継続
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-04 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、Google OAuth実疎通確認、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、同意記録、`.env` / Secrets未commitをまとめて確認する
 - 実装してはいけないこと:
   - 既存メール一致ユーザーの自動リンクを OI-016 確定前に固定しない
 - 完了条件:
