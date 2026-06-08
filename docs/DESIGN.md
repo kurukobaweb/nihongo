@@ -132,7 +132,8 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 補足:
 
 - 問題一覧の問題形式フィルタは `questions.question_format` を使用する。
-- `questions.question_format` は DB_SCHEMA.md 反映済みのカラムである。ただし、具体値・値域は OI-022 で管理する。
+- `questions.question_format` は DB_SCHEMA.md 反映済みのカラムである。値域は `single_prompt` / `two_choice` とする。
+- 問題形式のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一` とする。
 - 設定画面の保存先は OI-023 で管理し、本文書では DB カラム・専用テーブルを確定しない。
 - 管理画面は単一 admin ロールを前提とする。MVP で実装する最小範囲は OI-028 で管理する。
 - サブスクリプション管理画面は契約状態の表示と解約導線を扱う。Stripe Webhook 対象イベントは OI-027 で管理し、本文書では詳細化しない。
@@ -145,7 +146,7 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 | カテゴリ | `categories` テーブル（問題の大分類） |
 | タグ | `tags` テーブル（問題の副分類、N:N） |
 | 難易度 | `questions.difficulty`（beginner / intermediate / advanced） |
-| 問題形式 | `questions.question_format`（値域は OI-022 で管理） |
+| 問題形式 | `questions.question_format`（`single_prompt` / `two_choice`） |
 | 模範解答有無 | `questions.has_model_answer` |
 | 提出 | `submissions` テーブル（UUID v4） |
 | 評価結果 | `evaluations` テーブル（submissions と 1:1） |
@@ -159,7 +160,8 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 補足:
 
 - `questions.question_format` は問題形式を表す分類軸であり、DB_SCHEMA.md 反映済みである。
-- `questions.question_format` の具体値・値域は OI-022 で管理する。
+- `questions.question_format` の値域は `single_prompt` / `two_choice` とする。
+- UI上ではDB値をそのまま表示せず、`single_prompt` は `単体問題`、`two_choice` は `二者択一` と表示する。
 - `questions.has_model_answer` は模範解答有無を表す項目であり、問題形式ではない。
 - `question_type` は使用しない。
 
@@ -358,7 +360,7 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 #### 主な要素
 
 * 難易度タブ（beginner / intermediate / advanced）
-* 問題形式タブ（具体ラベルは OI-022 確定後に反映）
+* 問題形式タブ（`単体問題` / `二者択一`）
 * 問題リスト（タイトル、カテゴリ、推奨秒数）
 * 問題ごとの実施済みマーク
 * 問題選択 → ホームへの遷移
@@ -374,7 +376,7 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 #### DB との対応
 
 * 難易度: `questions.difficulty`（CHECK制約: beginner / intermediate / advanced）
-* 問題形式: `questions.question_format`
+* 問題形式: `questions.question_format`（`single_prompt` / `two_choice`）
 * カテゴリ: `questions.category_id` → `categories`
 * タグ: `question_tag` → `tags`（副分類）
 * 実施済み判定: `submissions` の該当 `question_id` + `status = completed` の存在
@@ -382,9 +384,10 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 #### question_format の扱い
 
 * `questions.question_format` は DB_SCHEMA.md 反映済みのカラムである。
-* `questions.question_format` の具体値・値域は OI-022 で管理する。
-* 問題形式タブの具体ラベルは、OI-022 確定後に反映する。
-* 「OI-022 確定後に DB カラム追加」ではなく、「DB カラムは反映済み、値域は OI-022 で管理」として扱う。
+* `questions.question_format` の値域は `single_prompt` / `two_choice` とする。
+* 問題形式タブの表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一` とする。
+* UI上ではDB値をそのまま表示せず、日本語ラベルへ変換する前提とする。
+* 「OI-022 確定後に DB カラム追加」ではなく、「DB カラムは反映済み、値域・CHECK制約・Seeder・UIラベル・validationをT002-05で反映」として扱う。
 * `question_type` は使用しない。
 
 ---

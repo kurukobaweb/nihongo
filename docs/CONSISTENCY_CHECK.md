@@ -48,7 +48,8 @@
 - `questions.question_type` 不採用、`has_model_answer` 採用は両文書で一貫している
 - `questions.question_format` は DB_SCHEMA.md に反映済みである
 - `questions.question_format` は問題形式を表す分類軸として扱われている
-- `questions.question_format` の値域は OI-022 で管理されている
+- `questions.question_format` の値域は `single_prompt` / `two_choice` として確定済みである
+- `questions.question_format` のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一` として確定済みである
 - `question_format` と `has_model_answer` は別概念として両文書で整理済みである
 - `question_format` は問題形式、`has_model_answer` は模範解答有無であり、混同しない方針が両文書で一致している
 - `submissions.id` = UUID v4 は両文書で一貫している
@@ -70,12 +71,12 @@
 | A-02 | `ARCHITECTURE.md §13` | `has_model_answer` 方針の反映 | **解消済み** — `question_format` とは別概念として整理済み |
 | A-03 | `ARCHITECTURE.md §13` | Cashier v15+ の `billable_id + billable_type` 反映 | **解消済み** — ARCHITECTURE.md §13.1 と DB_SCHEMA.md Stripe 定義が一致 |
 | A-04 | `ARCHITECTURE.md §11` | 音声一時保存方針の反映 | **解消済み** — 音声非永続保存、即時削除、バックアップ対象外で一致 |
-| A-05 | `ARCHITECTURE.md §13` | `questions.question_format` 追加の反映 | **解消済み** — DB_SCHEMA.md 反映済み。値域は OI-022 管理 |
+| A-05 | `ARCHITECTURE.md §13` | `questions.question_format` 追加の反映 | **解消済み** — DB_SCHEMA.md 反映済み。値域は `single_prompt` / `two_choice` として確定済み |
 | A-06 | `ARCHITECTURE.md §13` | ユーザー設定保存先の反映 | **管理中** — OI-023 管理。現時点ではテーブル追加なし、17テーブル / 5カテゴリ維持 |
 
 ### 要確認（OI 依存）
 
-- `questions.question_format` の具体値・CHECK 制約値域は OI-022 確定後に反映する
+- `questions.question_format` の具体値は `single_prompt` / `two_choice` として確定済み。CHECK 制約値域はT002-05で反映する
 - ユーザー設定5項目の保存方式は OI-023 確定後に反映する
 - OI-023 でテーブル追加または `users` JSONB 追加が確定した場合は、DB_SCHEMA.md、ARCHITECTURE.md §13、CONSISTENCY_CHECK.md のテーブル数・カテゴリ表記を同時に更新する
 
@@ -220,8 +221,9 @@
 - DESIGN.md §4.1 の DB 対応列が DB_SCHEMA.md のテーブル構成と一致している
 - DESIGN.md §7-3 の difficulty 値（beginner / intermediate / advanced）は DB_SCHEMA.md §5.2 と一致している
 - DESIGN.md §7-3 の `questions.question_format` は、DB_SCHEMA.md に反映済みのカラムである
-- DESIGN.md / DB_SCHEMA.md の整合状態は、`question_format` の「カラム追加待ち」ではなく「値域確定待ち」である
-- `questions.question_format` の具体値・値域は OI-022 で管理されている
+- DESIGN.md / DB_SCHEMA.md の整合状態は、`question_format` の「カラム追加待ち」ではなく「T002-05での値域・CHECK制約・Seeder・UIラベル・validation反映待ち」である
+- `questions.question_format` の具体値・値域は `single_prompt` / `two_choice` として確定済みである
+- `questions.question_format` のUI表示ラベルは `単体問題` / `二者択一` として確定済みである
 - `difficulty` と `question_format` は独立した分類軸である
 - `has_model_answer` は模範解答有無であり、問題形式ではない
 - `question_type` は使用しない方針で一致している
@@ -233,7 +235,7 @@
 
 ### 要確認（OI 依存）
 
-- `questions.question_format`: DBカラムは反映済み。具体値・値域は OI-022 確定後に反映する
+- `questions.question_format`: DBカラムは反映済み。具体値・値域は `single_prompt` / `two_choice` として確定済みで、CHECK制約・Seeder・UIラベル・validationはT002-05で反映する
 - 設定項目の保存先: OI-023 確定後に、DB_SCHEMA.md / DESIGN.md / ARCHITECTURE.md の該当箇所を同時に更新する
 - OI-023 でテーブル追加が確定した場合は、17テーブル / 5カテゴリ表記の更新要否を確認する
 
@@ -313,7 +315,8 @@
 - `DESIGN.md` は MVP UI/UX 設計の正本として扱われている
 - `OPERATIONS.md` は MVP テスト環境向け最小運用の正本として扱われている
 - `CONSISTENCY_CHECK.md` は文書間の整合性確認結果を記録するメモとして扱われている
-- `questions.question_format` は DB_SCHEMA.md 反映済みであり、値域は OI-022 管理として整理されている
+- `questions.question_format` は DB_SCHEMA.md 反映済みであり、値域は `single_prompt` / `two_choice` として確定済みである
+- 現在のQuestionSeeder暫定値 `mvp_verification` はT002-05で正式値へ置換する
 - `questions.question_type` は復活していない
 - `has_model_answer` は模範解答有無として維持されている
 - ユーザー設定保存先は OI-023 管理であり、現時点でテーブル追加・JSONB 方式採用済みとしては扱っていない
@@ -325,4 +328,3 @@
 - 422急増時の品質調査扱いは、DESIGN.md のUX設計、OPEN_ISSUES.md OI-006、OPERATIONS.md の運用整理と矛盾していない
 本メモは文書間整合性の確認結果であり、実装タスク定義および CodeX 実装指示は別文書で管理する。
 ---
-

@@ -21,7 +21,7 @@
 - 音声ファイルを永続保存させない
 - `question_type` を復活させない
 - `questions.question_format` のDBカラム追加タスクは作成しない
-- `question_format` の具体値・値域は OI-022 確定後に反映する
+- `question_format` の具体値・値域は `single_prompt` / `two_choice` として確定済みで、T002-05で反映する
 - `has_model_answer` は模範解答有無として扱い、問題形式と混同しない
 - ユーザー設定保存先は OI-023 確定前に固定しない
 - Stripe Webhook対象イベントは OI-027 確定前に固定しない
@@ -568,8 +568,8 @@
 - 実装内容:
   - `users.role`, `users.jlpt_level`, `questions.difficulty`, `submissions.status`, `evaluations.speed_assessment`, `consents.document_type` の値域を反映する
   - 主要インデックスを反映する
-  - `question_format` のCHECK制約は OI-022 確定後に反映する前提で保留する
-  - OI-022確定前はアプリ層バリデーションでも具体値を固定しない
+  - `question_format` のCHECK制約は、OI-022確定後のT002-05で反映する前提で保留する
+  - T002-02時点ではアプリ層バリデーションでも具体値を固定しない
 - 確認結果:
   - 実装commit: `b24b73e68a3752c3a104c8ade3fa49b6c5e3932e`
   - 変更範囲は `database/migrations/` のみ
@@ -593,7 +593,7 @@
   - `evaluations.submission_id` UNIQUEを維持している
   - `question_tag` 複合主キーを維持している
   - `consents(user_id, document_type, document_version)` UNIQUEを維持している
-  - `questions.question_format` は OI-022未確定のため値域固定なし
+  - `questions.question_format` はT002-02時点では値域固定なし。OI-022確定後の正式値は `single_prompt` / `two_choice`
   - `subscriptions.stripe_status` は Cashier互換性とOI-027未確定のため固定なし
   - `raw_azure_response` は OI-107未確定のため500KB超過時扱いを固定なし
   - `php -l` 全マイグレーション成功
@@ -623,9 +623,9 @@
   - DB接続実値投入後に、追加CHECK制約が対象PostgreSQL環境で問題なく適用できるか確認が必要
   - T002-01で追加済みの `submissions.id` default `gen_random_uuid()` も、実DB適用時に対象PostgreSQL環境で利用可能か確認が必要
   - `.env` はリポジトリへcommitしない
-  - OI未確定事項に関わるCHECK制約は固定していない
+  - T002-02時点でOI未確定事項に関わるCHECK制約は固定していない
 - 実装してはいけないこと:
-  - OI-022未確定の値域を決めない
+  - T002-02時点では当時未確定だったOI-022の値域を決めない
   - speed閾値をDB固定値にしない
 - 完了条件:
   - 仕様にある確定済みCHECK制約とインデックスが反映されている
@@ -633,7 +633,7 @@
   - 不正値投入が制約で弾かれる
   - OI管理項目が固定値化されていない
 - CodeX投入時の注意:
-  - `question_format` はカラム追加済み前提、値域のみ未確定として扱う
+  - `question_format` はカラム追加済み前提、T002-05で確定値域を反映する
   - `has_model_answer` は模範解答有無であり、問題形式の代替として使わない
 
 ### T002-03: Eloquentモデル・リレーション作成
@@ -778,7 +778,7 @@
   - 実Secretsは追加していない
   - Stripe / Legal / User / Submission / Evaluation系seedには進んでいない
   - `question_type` は追加していない
-  - `question_format` のenum・値域・定数は固定していない
+  - T002-04時点では `question_format` のenum・値域・定数は固定していない
   - `user_learning_settings` は作成していない
   - 認証、録音、Python、Azure、Stripe実装、管理画面には進んでいない
   - `.env` は作成・commitしていない
@@ -795,10 +795,10 @@
   - ambiguous class warning はT002-04の失敗とは扱わないが、後続で必要に応じて確認する
   - `.env` はリポジトリへcommitしない
   - `question_format` のenum・値域・定数は固定していない
-  - OI-022確定後に、必要であればSeederの `question_format` 暫定値を見直す
+  - OI-022確定値 `single_prompt` / `two_choice` はT002-05でSeederへ反映する
 - 実装してはいけないこと:
   - OI-104確定前に初期管理者パスワードを固定しない
-  - OI-022未確定の具体値を勝手に入れない
+  - T002-04時点で当時未確定だったOI-022の具体値を勝手に入れない
   - `question_format` を `has_model_answer` から推定しない
   - `question_type` を投入しない
 - 完了条件:
@@ -806,15 +806,15 @@
 - テスト観点:
   - カテゴリ・タグ・問題・管理者の初期投入が成立する
 - CodeX投入時の注意:
-  - `QuestionSeeder` の `question_format` 具体値はOI-022確定後に反映する
-  - OI-022未確定の間はSeederを無理に完成扱いにせず、実値未投入として扱う
+  - `QuestionSeeder` の `question_format` 具体値はT002-05で反映する
+  - T002-04時点ではSeederの `question_format` は暫定値であり、正式値はT002-05で反映する
 
 ### T002-05: OI-022確定後の question_format 値域反映タスク
 
 - [ ] 状態: 未着手
 - 種別: DB
 - 目的:
-  - OI-022確定後に `question_format` の値域とUIラベルを反映する
+  - OI-022確定済みの `question_format` 値域とUIラベルを反映する
 - 参照仕様書:
   - `OPEN_ISSUES.md` OI-022
   - `DB_SCHEMA.md`
@@ -829,22 +829,26 @@
   - T002-04
   - T004-02
 - 実装内容:
-  - CHECK制約に値域を反映する
-  - アプリ層バリデーションに値域を反映する
-  - `QuestionSeeder` に確定値を反映する
-  - 問題一覧UIラベルを反映する
+  - CHECK制約に値域 `single_prompt` / `two_choice` を反映する
+  - CHECK制約は `question_format IN ('single_prompt', 'two_choice')` とする
+  - アプリ層バリデーションに値域 `single_prompt` / `two_choice` を反映する
+  - `QuestionSeeder` の暫定値 `mvp_verification` を正式値へ置換する
+  - 問題一覧UIラベルを `single_prompt` = `単体問題`、`two_choice` = `二者択一` として反映する
+  - UIラベル変換方針を整理する
 - 実装してはいけないこと:
   - DBカラム追加タスクにしない
-  - 具体値をOI-022確定前に決めない
+  - OI-022で確定した `single_prompt` / `two_choice` 以外の値を追加しない
   - `question_type` を復活させない
+  - PostgreSQL ENUM型を採用しない
 - 完了条件:
   - `question_format` の値域・Seeder・UIが一致している
 - テスト観点:
   - 不正な `question_format` が保存できない
   - UIフィルタが確定ラベルで表示される
 - CodeX投入時の注意:
-  - OI-022確定後のみ実施する
+  - OI-022は確定済みとして扱う
   - このタスクはDBカラム追加ではなく、値域・CHECK制約・Seeder・UIラベル・バリデーションの反映である
+  - T002-05を完了扱いにするのは実装・検証後とする
 
 ---
 
@@ -1038,7 +1042,7 @@
   - is_published条件
 - CodeX投入時の注意:
   - question_formatの具体ラベルはOI-022に従う
-  - OI-022未確定時は、DBカラムが存在する前提のまま、具体値・表示ラベルを固定しない
+  - OI-022確定値 `single_prompt` / `two_choice` と表示ラベル `単体問題` / `二者択一` に従う
 
 ### T004-02: 問題一覧UI実装
 
@@ -1062,8 +1066,8 @@
   - 問題リスト
   - 問題選択導線
 - 実装してはいけないこと:
-  - OI-022未確定のラベルを勝手に固定しない
-  - UIタスク内でDB制約やSeeder値を勝手に確定しない
+  - OI-022確定値 `single_prompt` / `two_choice` と表示ラベル `単体問題` / `二者択一` に従う
+  - UIタスク内でDB制約やSeeder値を勝手に変更しない
   - `has_model_answer` を問題形式フィルタとして扱わない
   - 学習管理画面を混ぜない
 - 完了条件:

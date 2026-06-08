@@ -105,7 +105,7 @@ CodeX での MVP 実装に入る前に、以下の観点で本台帳を確認す
 
 | ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
 |---|---|---|---|---|---|
-| OI-022 | DB設計 | 問題形式（二者択一/単体）の分類方式。推奨: `questions.question_format` カラム追加（varchar + CHECK制約）。`difficulty` と独立した分類軸として扱う。問題一覧・QuestionSeeder・DBマイグレーションに影響するため、MVP実装前に分類方式を確定する | DB_SCHEMA.md `questions`, ARCHITECTURE.md §13.2, QuestionSeeder, フロントエンド問題一覧 | 実装前 | 高 |
+| OI-022 | DB設計 | 問題形式の分類方式は確定済み。`questions.question_format` の値域は `single_prompt` / `two_choice` とし、UI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一` とする。CHECK制約は `question_format IN ('single_prompt', 'two_choice')` を採用する。PostgreSQL ENUM型ではなく varchar + CHECK制約方式を維持する。`difficulty`、`has_model_answer` とは独立した分類軸であり、`question_type` は採用しない。T002-05でDB制約、QuestionSeeder、UIラベル、Laravel validationへ反映する。現在のSeeder暫定値 `mvp_verification` はT002-05で正式値へ置換する | DB_SCHEMA.md `questions`, ARCHITECTURE.md §13.2, QuestionSeeder, フロントエンド問題一覧, Laravel validation | 確定済み | 高 |
 | OI-023 | DB設計 | DB 設計前提に「③ ユーザーの学習条件の保存」を追加。設定5項目（出題方式, スピーチ時間, タイマー表示方式, 強制終了ON/OFF, 文字起こし表示ON/OFF）の保存先設計。テーブル追加 or `users` への JSONB カラム追加を比較し、MVP実装前に保存方式を確定 | DB_SCHEMA.md, ARCHITECTURE.md §13, DESIGN.md §7-5, 設定画面 | 実装前 | 高 |
 | OI-024 | UI設計 | ナビゲーション最終構成。ボトムナビに含める項目、ハンバーガーメニューの採否、PC サイドバーとの項目対応を確定 | DESIGN.md §6, フロントエンド実装 | 実装前 | 中 |
 | OI-025 | UI設計 | デザイントークンの確定。カラーパレット（役割ベースの色定義）、タイポグラフィ（フォントファミリー・サイズ体系）、アイコン体系（ライブラリ選定含む）に加え、Tailwind 実装時に必要な最小トークン値を確定する | DESIGN.md §3, フロントエンド実装, Tailwind 設定 | 実装前 | 高 |

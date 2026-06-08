@@ -39,7 +39,7 @@
 - `users.jlpt_level` は nullable
 - `questions.question_type` は **採用しない**
 - `questions.question_format` は問題形式を表す分類軸として追加する
-- `questions.question_format` の値域は OI-022 で管理する
+- `questions.question_format` の値域は `single_prompt` / `two_choice`
 - `questions` は `has_model_answer` で模範解答有無を表す
 - `question_format` と `has_model_answer` は別概念として扱う
 - 問題は **1カテゴリ** に属し、**複数タグ** を持てる
@@ -448,7 +448,7 @@ ORDER BY name ASC;
 | `title` | varchar(255) | No | なし | 問題タイトル |
 | `prompt_text` | text | No | なし | 出題文 |
 | `difficulty` | varchar(20) | No | なし | 難易度 |
-| `question_format` | varchar(50) | No | なし | 問題形式。`difficulty` とは独立した分類軸。値域は OI-022 で管理 |
+| `question_format` | varchar(50) | No | なし | 問題形式。`difficulty` とは独立した分類軸。値域は `single_prompt` / `two_choice` |
 | `recommended_duration_seconds` | integer | No | `60` | 問題マスタ側の推奨回答秒数 |
 | `has_model_answer` | boolean | No | `false` | 模範解答の有無 |
 | `model_answer_text` | text | Yes | NULL | 模範解答本文 |
@@ -490,7 +490,10 @@ ORDER BY display_order ASC, id ASC;
 - `question_format` は「問題形式」を表す
 - `has_model_answer` は「模範解答有無」を表す
 - `question_format` と `has_model_answer` は別概念である
-- `question_format` の値域は OI-022 確定後に CHECK 制約へ反映する
+- `question_format` の値域は `single_prompt` / `two_choice`
+- `question_format` のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一`
+- `question_format` は PostgreSQL ENUM 型ではなく varchar + CHECK 制約方式で扱う
+- CHECK 制約は `question_format IN ('single_prompt', 'two_choice')`
 - `recommended_duration_seconds` は問題マスタ側の推奨秒数である
 - 音声評価サービスへ渡す `expected_duration` は、原則として `recommended_duration_seconds` を実行時パラメータとして渡す
 - `recommended_duration_seconds` の値域根拠は OI-009 で管理する
@@ -1076,7 +1079,8 @@ ORDER BY agreed_at DESC;
 
 | 値 | 説明 |
 |---|---|
-| OI-022 で管理 | 問題形式。`difficulty` とは独立した分類軸 |
+| `single_prompt` | 単体問題。1つの出題文に対して回答する問題形式 |
+| `two_choice` | 二者択一。2つの選択肢から回答方針を選ぶ問題形式 |
 
 #### `questions.recommended_duration_seconds`
 
@@ -1270,7 +1274,8 @@ MVP 規模は年間 `submissions` が概ね 100,000 件未満を想定する。
 ### 10.4 QuestionSeeder
 
 - `QuestionSeeder` は `questions.question_format` を投入対象に含める
-- `question_format` の具体値は OI-022 確定後に反映する
+- `question_format` の値域は `single_prompt` / `two_choice`
+- `QuestionSeeder` の現在の暫定値 `mvp_verification` はT002-05で正式値へ置換する
 - `recommended_duration_seconds` は問題マスタ側の推奨秒数として投入する
 - `recommended_duration_seconds` の候補値および根拠は OI-009 で管理する
 - `question_type` は投入しない
@@ -1294,7 +1299,7 @@ MVP 規模は年間 `submissions` が概ね 100,000 件未満を想定する。
 - `ARCHITECTURE.md §11` の音声ファイル一時保管方針と矛盾しないか
 - `ARCHITECTURE.md §10` のセッション認証 / Sanctum 不使用と整合しているか
 - `questions.question_type` 不採用、`has_model_answer` 採用の方針が維持されているか
-- `questions.question_format` は `ARCHITECTURE.md §13.2` と `DB_SCHEMA.md` に反映済みであり、残る具体値・値域は OI-022 で管理されているか
+- `questions.question_format` は `ARCHITECTURE.md §13.2` と `DB_SCHEMA.md` に反映済みであり、値域は `single_prompt` / `two_choice` として確定済みか
 
 ### 11.2 齟齬・修正要否
 
@@ -1317,7 +1322,8 @@ ARCHITECTURE.md のハブ文書化リファクタリング（2026-05-08）によ
 ### 11.4 反映順序推奨
 
 - `questions.question_format` カラムは `DB_SCHEMA.md` / `ARCHITECTURE.md` に反映済み
-- `question_format` の具体値・CHECK 制約値域は OI-022 確定後に反映する
+- `question_format` の具体値は `single_prompt` / `two_choice` として確定済み
+- CHECK 制約値域はT002-05で `question_format IN ('single_prompt', 'two_choice')` を反映する
 - ユーザー設定保存先は OI-023 確定後に、テーブル追加または `users` JSONB カラム追加を判断する
 - OI-023 でテーブル追加が確定した場合は、`DB_SCHEMA.md`、`ARCHITECTURE.md §13`、`CONSISTENCY_CHECK.md` のテーブル数表記を同時に更新する
 
@@ -1343,7 +1349,7 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 | OI-106 | 規約更新時の再同意フロー | MVP 対象外。`consents` は新規登録時のみ記録 | 管理中 |
 | OI-107 | `raw_azure_response` 500KB 超過時の保持方針 | 想定上限と全文検索しない方針を本文反映。超過時の扱いは OI-107 参照 | 管理中 |
 | OI-108 | 利用規約 / PP 最新バージョンの永続管理方式 | 現時点ではアプリ設定値管理。専用テーブル追加要否は OI-108 参照 | 管理中 |
-| OI-022 | 問題形式の分類方式 | `questions.question_format` カラム追加前提を本文反映。値域は OI-022 参照 | 管理中 |
+| OI-022 | 問題形式の分類方式 | `questions.question_format` の値域は `single_prompt` / `two_choice` として確定済み。CHECK制約・Seeder・UIラベル・validationへの反映はT002-05で実施 | 確定済み |
 | OI-023 | ユーザー設定5項目の保存先 | 現時点ではテーブル追加・`users` JSONB 追加を行わない。保存方式は OI-023 参照 | 管理中 |
 | OI-026 | 学習管理画面は MVP 対象外 | 集計テーブル追加なし。将来実装時に再検討 | 管理中 |
 | OI-027 | MVPで処理対象とする Stripe Webhook イベントの最小範囲 | `subscriptions` 同期方針に影響。イベント範囲は OI-027 参照 | 管理中 |
@@ -1371,4 +1377,3 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 - hard delete 条件と Stripe / user 削除順序を補強
 - 音声ファイル非永続保存、CleanupTempFilesJob、バックアップ対象外方針を補足
 - OPEN_ISSUES 対応表を更新済み内容に合わせて再整理
-
