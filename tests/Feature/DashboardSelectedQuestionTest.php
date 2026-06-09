@@ -121,6 +121,8 @@ class DashboardSelectedQuestionTest extends TestCase
     {
         $source = file_get_contents(resource_path('js/Pages/Dashboard.vue'));
         $recordingPanelSource = file_get_contents(resource_path('js/Components/Recording/RecordingPanel.vue'));
+        $audioRecorderSource = file_get_contents(resource_path('js/Composables/useAudioRecorder.js'));
+        $recordingStoreSource = file_get_contents(resource_path('js/Stores/useRecordingStore.js'));
 
         $this->assertStringContainsString('selectedQuestion', $source);
         $this->assertStringContainsString('selectedQuestionUnavailable', $source);
@@ -138,13 +140,27 @@ class DashboardSelectedQuestionTest extends TestCase
         $this->assertStringContainsString('現在状態', $recordingPanelSource);
         $this->assertStringContainsString('提出確認', $recordingPanelSource);
         $this->assertStringContainsString('エラー確認', $recordingPanelSource);
+        $this->assertStringContainsString('useRecordingStore', $recordingPanelSource);
+        $this->assertStringContainsString('useAudioRecorder', $recordingStoreSource);
+        $this->assertStringContainsString('MediaRecorder', $audioRecorderSource);
+        $this->assertStringContainsString('audio/webm;codecs=opus', $audioRecorderSource);
+        $this->assertStringContainsString('Blob', $audioRecorderSource);
+        $this->assertStringContainsString('URL.createObjectURL', $recordingStoreSource);
+        $this->assertStringContainsString('URL.revokeObjectURL', $recordingStoreSource);
         $this->assertStringNotContainsString('model_answer_text', $source);
         $this->assertStringNotContainsString('question_type', $source);
         $this->assertStringNotContainsString('model_answer_text', $recordingPanelSource);
         $this->assertStringNotContainsString('question_type', $recordingPanelSource);
-        $this->assertStringNotContainsString('MediaRecorder', $recordingPanelSource);
-        $this->assertStringNotContainsString('Blob', $recordingPanelSource);
         $this->assertStringNotContainsString('fetch(', $recordingPanelSource);
+        $this->assertStringNotContainsString('fetch(', $audioRecorderSource);
+        $this->assertStringNotContainsString('fetch(', $recordingStoreSource);
+        $this->assertStringNotContainsString('axios', $recordingPanelSource);
+        $this->assertStringNotContainsString('axios', $audioRecorderSource);
+        $this->assertStringNotContainsString('axios', $recordingStoreSource);
+        $this->assertStringNotContainsString('submission_id', $recordingPanelSource);
+        $this->assertStringNotContainsString('submission_id', $recordingStoreSource);
+        $this->assertStringNotContainsString('polling', $recordingPanelSource);
+        $this->assertStringNotContainsString('polling', $recordingStoreSource);
     }
 
     public function test_dashboard_controller_does_not_select_model_answer_text_or_question_type(): void

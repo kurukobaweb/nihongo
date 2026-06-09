@@ -1,37 +1,37 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
+import { useRecordingStore } from '@/Stores/useRecordingStore';
 
-const recordingState = ref('idle');
+const recordingStore = useRecordingStore();
 
 const stateLabels = {
     idle: '待機中',
     recording: '録音中',
-    confirm: '提出確認',
+    recorded: '提出確認',
     error: 'エラー確認',
 };
 
 const stateHelp = computed(() => ({
-    idle: 'STARTを押すと録音中の表示に切り替わります。',
-    recording: 'STOPを押すと提出確認の表示に進みます。',
-    confirm: '提出前に内容を確認する想定の領域です。',
-    error: '録音または認識に失敗した場合の案内枠です。',
-}[recordingState.value]));
+    idle: 'STARTを押すとマイク許可を確認し、録音を開始します。',
+    recording: '録音中です。STOPを押すと録音を停止します。',
+    recorded: '録音データを取得しました。提出処理は後続タスクで実装します。',
+    error: recordingStore.state.errorMessage || '録音または認識に失敗した場合の案内枠です。',
+}[recordingStore.state.status]));
 
-const startRecording = () => {
-    recordingState.value = 'recording';
-};
+const formattedElapsedTime = computed(() => {
+    const minutes = Math.floor(recordingStore.state.elapsedSeconds / 60);
+    const seconds = recordingStore.state.elapsedSeconds % 60;
 
-const stopRecording = () => {
-    recordingState.value = 'confirm';
-};
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+});
 
-const resetRecording = () => {
-    recordingState.value = 'idle';
-};
+const formattedBlobSize = computed(() => {
+    if (! recordingStore.state.audioBlob) {
+        return '';
+    }
 
-const showError = () => {
-    recordingState.value = 'error';
-};
+    return `${Math.ceil(recordingStore.state.audioBlob.size / 1024)} KB`;
+});
 </script>
 
 <template>
@@ -47,14 +47,14 @@ const showError = () => {
 
             <div class="rounded border border-slate-700 bg-slate-950 px-4 py-3 text-sm">
                 <p class="text-slate-400">現在状態</p>
-                <p class="mt-1 font-semibold text-white">{{ stateLabels[recordingState] }}</p>
+                <p class="mt-1 font-semibold text-white">{{ stateLabels[recordingStore.state.status] }}</p>
             </div>
         </div>
 
         <div class="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_12rem]">
             <div class="rounded border border-slate-800 bg-slate-950 p-4">
                 <p class="text-sm font-medium text-slate-200">録音タイマー</p>
-                <p class="mt-3 font-mono text-4xl font-semibold tracking-normal text-white">00:00</p>
+                <p class="mt-3 font-mono text-4xl font-semibold tracking-normal text-white">{{ formattedElapsedTime }}</p>
                 <p class="mt-2 text-sm leading-6 text-slate-400">{{ stateHelp }}</p>
             </div>
 
@@ -62,62 +62,72 @@ const showError = () => {
                 <button
                     type="button"
                     class="rounded bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-                    :disabled="recordingState === 'recording'"
-                    @click="startRecording"
+                    :disabled="recordingStore.state.status === 'recording'"
+                    @click="recordingStore.start"
                 >
                     START
                 </button>
                 <button
                     type="button"
                     class="rounded border border-slate-600 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
-                    :disabled="recordingState !== 'recording'"
-                    @click="stopRecording"
+                    :disabled="recordingStore.state.status !== 'recording'"
+                    @click="recordingStore.stop"
                 >
                     STOP
                 </button>
                 <button
                     type="button"
                     class="rounded border border-slate-700 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-slate-500"
-                    @click="resetRecording"
+                    @click="recordingStore.reset"
                 >
                     再録音
-                </button>
-                <button
-                    type="button"
-                    class="rounded border border-amber-700 px-4 py-3 text-sm font-medium text-amber-100 transition hover:border-amber-500"
-                    @click="showError"
-                >
-                    エラー表示
                 </button>
             </div>
         </div>
 
         <div
-            v-if="recordingState === 'confirm'"
+            v-if="recordingStore.state.status === 'recorded'"
             class="mt-5 rounded border border-emerald-800 bg-emerald-950 px-4 py-4"
         >
             <p class="text-sm font-semibold text-emerald-100">提出確認</p>
             <p class="mt-2 text-sm leading-6 text-emerald-200">
-                録音内容を提出する前の確認枠です。実際の送信処理は後続タスクで実装します。
+                録音Blobを取得しました。実際の送信処理は後続タスクで実装します。
             </p>
+            <dl class="mt-4 grid gap-3 text-sm text-emerald-100 sm:grid-cols-2">
+                <div class="rounded border border-emerald-800 bg-emerald-900 px-3 py-2">
+                    <dt class="text-emerald-300">録音時間</dt>
+                    <dd class="mt-1 font-semibold">{{ formattedElapsedTime }}</dd>
+                </div>
+                <div class="rounded border border-emerald-800 bg-emerald-900 px-3 py-2">
+                    <dt class="text-emerald-300">Blob取得</dt>
+                    <dd class="mt-1 font-semibold">取得済み {{ formattedBlobSize }}</dd>
+                </div>
+            </dl>
+            <audio
+                v-if="recordingStore.state.audioUrl"
+                :src="recordingStore.state.audioUrl"
+                controls
+                class="mt-4 w-full"
+            />
             <div class="mt-4 flex flex-wrap gap-3">
                 <button
                     type="button"
-                    class="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+                    class="rounded bg-slate-700 px-4 py-2 text-sm font-semibold text-slate-300"
+                    disabled
                 >
-                    提出する
+                    提出する（後続タスク）
                 </button>
                 <button
                     type="button"
                     class="rounded border border-emerald-700 px-4 py-2 text-sm font-medium text-emerald-100 hover:border-emerald-500"
-                    @click="resetRecording"
+                    @click="recordingStore.reset"
                 >
                     キャンセル
                 </button>
                 <button
                     type="button"
                     class="rounded border border-emerald-700 px-4 py-2 text-sm font-medium text-emerald-100 hover:border-emerald-500"
-                    @click="resetRecording"
+                    @click="recordingStore.reset"
                 >
                     再録音する
                 </button>
@@ -125,27 +135,32 @@ const showError = () => {
         </div>
 
         <div
-            v-if="recordingState === 'error'"
+            v-if="recordingStore.state.status === 'error'"
             class="mt-5 rounded border border-amber-800 bg-amber-950 px-4 py-4"
         >
             <p class="text-sm font-semibold text-amber-100">録音を確認できませんでした</p>
             <p class="mt-2 text-sm leading-6 text-amber-200">
-                状況を確認して、もう一度録音または提出をお試しください。
+                {{ recordingStore.state.errorMessage }}
+            </p>
+            <p
+                v-if="recordingStore.state.permissionDenied"
+                class="mt-2 text-sm leading-6 text-amber-200"
+            >
+                ブラウザのマイク権限を許可してから再試行してください。
+            </p>
+            <p
+                v-if="recordingStore.state.unsupported"
+                class="mt-2 text-sm leading-6 text-amber-200"
+            >
+                MediaRecorder API に対応したブラウザでアクセスしてください。
             </p>
             <div class="mt-4 flex flex-wrap gap-3">
                 <button
                     type="button"
                     class="rounded bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-300"
-                    @click="resetRecording"
+                    @click="recordingStore.start"
                 >
-                    再録音する
-                </button>
-                <button
-                    type="button"
-                    class="rounded border border-amber-700 px-4 py-2 text-sm font-medium text-amber-100 hover:border-amber-500"
-                    @click="recordingState = 'confirm'"
-                >
-                    提出確認へ戻る
+                    再試行する
                 </button>
             </div>
         </div>
