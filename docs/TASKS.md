@@ -2013,7 +2013,7 @@
 
 ### T005-02: MediaRecorder録音処理実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-09 確認済み）
 - 種別: UI
 - 目的:
   - ブラウザで音声録音できるようにする
@@ -2042,6 +2042,61 @@
   - 録音中の二重開始防止
 - CodeX投入時の注意:
   - WebM/Opus前提。WAV変換はPython側で行う
+- 実装commit:
+  - `f5a75101cd8061c07a4a6af91d602e3142e49b0b`
+  - commit message: `feat: implement MediaRecorder recording flow`
+- 変更ファイル:
+  - `resources/js/Components/Recording/RecordingPanel.vue`
+  - `resources/js/Composables/useAudioRecorder.js`
+  - `resources/js/Stores/useRecordingStore.js`
+  - `tests/Feature/DashboardSelectedQuestionTest.php`
+- 実装結果:
+  - `useAudioRecorder` で MediaRecorder API ラッパーを追加
+  - WebM/Opus優先のMIME type選択を追加
+  - getUserMediaによるマイク許可要求を追加
+  - START / STOP を実録音処理に接続
+  - 停止後に音声Blobを取得
+  - `useRecordingStore` で `idle / recording / recorded / error` を管理
+  - 録音時間を管理
+  - BlobとBlob URLを管理
+  - Blob URLを reset / 再録音時に revoke
+  - 録音中の二重開始防止を追加
+  - マイク許可拒否表示を追加
+  - ブラウザ非対応表示を追加
+  - 録音後にBlob取得済み表示を追加
+  - audio previewを追加
+  - 提出ボタンは後続タスク表示として disabled のまま維持
+  - 主要文言と禁止実装の Feature test を更新
+- 実装していないこと:
+  - 音声アップロード
+  - Laravel側の音声提出API
+  - Submission Controller
+  - attempt / evaluation_job 作成
+  - 音声ファイル保存
+  - Queue処理
+  - Python FastAPI音声評価サービス
+  - Azure連携
+  - WAV変換
+  - ポーリング本実装
+  - 結果表示本実装
+  - Stripe
+  - 管理画面
+  - `docs/TASKS.md` 完了反映以外の docs 更新
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php artisan route:list`: success
+  - `npm.cmd run build`: success
+  - pint: passed
+  - `php artisan test tests/Feature/DashboardSelectedQuestionTest.php`: success、既存 `.env` missing warning あり
+  - `php artisan test`: success、既存 `.env` missing warning あり
+  - 最終 `git status --short`: clean
+- 申し送り:
+  - 録音BlobとBlob URLはメモリ上のみ
+  - 永続保存やAPI通信は入れていない
+  - 提出ボタンは後続タスク表示として disabled のまま
+  - 視覚的確認は今回対象外
+  - T005-03 以降は先取りしていない
 
 ### T005-03: タイマー・提出確認UI実装
 
