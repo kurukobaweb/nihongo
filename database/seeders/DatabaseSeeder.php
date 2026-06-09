@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             TagSeeder::class,
             QuestionSeeder::class,
+            MvpQuestionSeeder::class,
         ]);
     }
 }

@@ -23,6 +23,12 @@ const logout = () => {
 
             <div class="mt-8 flex flex-wrap gap-3">
                 <Link
+                    href="/questions"
+                    class="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+                >
+                    問題一覧へ
+                </Link>
+                <Link
                     href="/"
                     class="rounded border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:border-slate-500"
                 >
@@ -30,7 +36,7 @@ const logout = () => {
                 </Link>
                 <button
                     type="button"
-                    class="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+                    class="rounded border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:border-slate-500"
                     @click="logout"
                 >
                     ログアウト

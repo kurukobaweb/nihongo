@@ -36,6 +36,10 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/api/questions', [QuestionController::class, 'index'])->name('questions.index');
 
+    Route::get('/questions', function () {
+        return Inertia::render('Questions/Index');
+    })->name('questions.page');
+
     Route::get('/verify-email', EmailVerificationPromptController::class)->name('verification.notice');
 
     Route::get('/verify-email/{id}/{hash}', VerifyEmailController::class)
