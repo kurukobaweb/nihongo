@@ -2100,7 +2100,7 @@
 
 ### T005-03: タイマー・提出確認UI実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-09 確認済み）
 - 種別: UI
 - 目的:
   - 録音時間表示と提出確認導線を実装する
@@ -2128,6 +2128,61 @@
 - CodeX投入時の注意:
   - 設定項目はUI上の初期値またはpropsに留める
   - OI-023未確定の保存先を前提に、録音UI側から設定永続化を実装しない
+- 実装扱いcommit:
+  - `f5a75101cd8061c07a4a6af91d602e3142e49b0b`
+  - commit message: `feat: implement MediaRecorder recording flow`
+- 完了反映理由:
+  - T005-03 の要求範囲は T005-02 実装内で既に満たされている
+  - 追加実装は行っていない
+- 既に満たされている内容:
+  - 録音時間表示
+  - `elapsedSeconds` による録音時間管理
+  - `setInterval` / `clearInterval` による timer 管理
+  - STOP後の提出確認領域
+  - 録音後のBlob取得済み表示
+  - audio preview
+  - キャンセルで `recordingStore.reset` を呼び、録音Blob / Blob URL を破棄
+  - 再録音で `recordingStore.reset` を呼び、録音Blob / Blob URL を破棄
+  - `URL.revokeObjectURL` によるBlob URL破棄
+  - 提出ボタンは後続タスク表示として disabled
+- `useCountdown` について:
+  - T005-03 の変更対象には `useCountdown` がある
+  - ただし現時点では `useRecordingStore` の timer / `elapsedSeconds` で完了条件を満たしている
+  - そのため、分離だけを目的とした `useCountdown` 新規作成は行っていない
+- 実装していないこと:
+  - `useCountdown` 新規作成
+  - 追加UI実装
+  - 音声アップロード
+  - Laravel側の音声提出API
+  - Submission Controller
+  - attempt / evaluation_job 作成
+  - 音声ファイル保存
+  - Queue処理
+  - Python FastAPI音声評価サービス
+  - Azure連携
+  - WAV変換
+  - ポーリング本実装
+  - 結果表示本実装
+  - Stripe
+  - 管理画面
+  - 設定保存先の確定
+  - 強制終了ON/OFFの永続化
+  - `docs/TASKS.md` 完了反映以外の docs 更新
+  - PR作成
+  - main merge
+- 確認結果:
+  - T005-03 開始前確認で、録音時間表示・STOP後の提出確認・キャンセル破棄・再録音は既存実装で満たされている可能性が高いことを確認
+  - `useCountdown.js` は未作成
+  - OI-023 保存先には影響なし
+  - 視覚的確認は今回対象外
+  - 最終 `git status --short`: clean
+- 申し送り:
+  - T005-03 は T005-02 実装内で要件充足と判断
+  - 追加実装なし
+  - `useCountdown` 分離は、将来タイマー責務が複雑化した時点で再検討
+  - #5 ホーム・録音UI はここまでで完了扱い
+  - 次工程は #6 音声提出バックエンドの開始前確認
+  - #6 では音声アップロードAPIに入る前に、T006-01の依存関係と既存DB/API構成を確認する
 
 ---
 
