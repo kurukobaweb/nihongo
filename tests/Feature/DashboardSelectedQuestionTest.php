@@ -117,25 +117,34 @@ class DashboardSelectedQuestionTest extends TestCase
                 ->where('selectedQuestionUnavailable', true));
     }
 
-    public function test_dashboard_vue_contains_selected_question_display_without_recording_ui(): void
+    public function test_dashboard_vue_contains_selected_question_display_with_recording_layout(): void
     {
         $source = file_get_contents(resource_path('js/Pages/Dashboard.vue'));
+        $recordingPanelSource = file_get_contents(resource_path('js/Components/Recording/RecordingPanel.vue'));
 
         $this->assertStringContainsString('selectedQuestion', $source);
         $this->assertStringContainsString('selectedQuestionUnavailable', $source);
         $this->assertStringContainsString('問題一覧から問題を選択してください', $source);
         $this->assertStringContainsString('選択した問題は表示できません', $source);
+        $this->assertStringContainsString('RecordingPanel', $source);
         $this->assertStringContainsString('question_format.label', $source);
         $this->assertStringContainsString('recommended_duration_seconds', $source);
         $this->assertStringContainsString('has_model_answer', $source);
         $this->assertStringContainsString('模範解答あり', $source);
         $this->assertStringContainsString('模範解答なし', $source);
+        $this->assertStringContainsString('START', $recordingPanelSource);
+        $this->assertStringContainsString('STOP', $recordingPanelSource);
+        $this->assertStringContainsString('録音タイマー', $recordingPanelSource);
+        $this->assertStringContainsString('現在状態', $recordingPanelSource);
+        $this->assertStringContainsString('提出確認', $recordingPanelSource);
+        $this->assertStringContainsString('エラー確認', $recordingPanelSource);
         $this->assertStringNotContainsString('model_answer_text', $source);
         $this->assertStringNotContainsString('question_type', $source);
-        $this->assertStringNotContainsString('録音開始', $source);
-        $this->assertStringNotContainsString('録音停止', $source);
-        $this->assertStringNotContainsString('アップロード', $source);
-        $this->assertStringNotContainsString('評価開始', $source);
+        $this->assertStringNotContainsString('model_answer_text', $recordingPanelSource);
+        $this->assertStringNotContainsString('question_type', $recordingPanelSource);
+        $this->assertStringNotContainsString('MediaRecorder', $recordingPanelSource);
+        $this->assertStringNotContainsString('Blob', $recordingPanelSource);
+        $this->assertStringNotContainsString('fetch(', $recordingPanelSource);
     }
 
     public function test_dashboard_controller_does_not_select_model_answer_text_or_question_type(): void

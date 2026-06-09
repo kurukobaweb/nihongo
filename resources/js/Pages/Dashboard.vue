@@ -1,6 +1,7 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import RecordingPanel from '@/Components/Recording/RecordingPanel.vue';
 
 defineProps({
     selectedQuestion: {
@@ -29,7 +30,7 @@ const logout = () => {
 
 <template>
     <main class="min-h-screen bg-slate-950 text-slate-100">
-        <section class="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-6 py-12">
+        <section class="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-6 py-10">
             <div>
                 <p class="text-sm font-medium text-emerald-300">Nihongo</p>
                 <h1 class="mt-3 text-3xl font-semibold tracking-normal">学習ホーム</h1>
@@ -46,43 +47,45 @@ const logout = () => {
                 <p class="mt-1 text-amber-200">公開状態またはURLを確認してください。問題一覧から選び直してください。</p>
             </div>
 
-            <article
+            <div
                 v-if="selectedQuestion"
-                class="mt-8 rounded border border-slate-800 bg-slate-900 p-5"
+                class="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.85fr)]"
             >
-                <div class="flex flex-wrap items-center gap-2 text-xs font-medium">
-                    <span class="rounded bg-emerald-500 px-2 py-1 text-slate-950">
-                        {{ difficultyLabels[selectedQuestion.difficulty] ?? selectedQuestion.difficulty }}
-                    </span>
-                    <span class="rounded border border-slate-700 px-2 py-1 text-slate-200">
-                        {{ selectedQuestion.question_format.label }}
-                    </span>
-                    <span class="rounded border border-slate-700 px-2 py-1 text-slate-200">
-                        {{ selectedQuestion.recommended_duration_seconds }}秒
-                    </span>
-                    <span class="rounded border border-slate-700 px-2 py-1 text-slate-200">
-                        {{ selectedQuestion.has_model_answer ? '模範解答あり' : '模範解答なし' }}
-                    </span>
-                </div>
+                <article class="rounded border border-slate-800 bg-slate-900 p-5">
+                    <p class="text-sm font-medium text-emerald-300">選択中の問題</p>
 
-                <h2 class="mt-4 text-xl font-semibold tracking-normal text-white">{{ selectedQuestion.title }}</h2>
-                <p class="mt-3 text-sm leading-6 text-slate-300">{{ selectedQuestion.prompt_text }}</p>
+                    <h2 class="mt-3 text-2xl font-semibold tracking-normal text-white">{{ selectedQuestion.title }}</h2>
+                    <p class="mt-4 text-base leading-8 text-slate-200">{{ selectedQuestion.prompt_text }}</p>
 
-                <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                    <span class="rounded border border-slate-700 px-2 py-1">{{ selectedQuestion.category.name }}</span>
-                    <span
-                        v-for="tag in selectedQuestion.tags"
-                        :key="tag.id"
-                        class="rounded border border-slate-700 px-2 py-1"
-                    >
-                        {{ tag.name }}
-                    </span>
-                </div>
+                    <div class="mt-5 flex flex-wrap items-center gap-2 text-xs font-medium">
+                        <span class="rounded bg-emerald-500 px-2 py-1 text-slate-950">
+                            {{ difficultyLabels[selectedQuestion.difficulty] ?? selectedQuestion.difficulty }}
+                        </span>
+                        <span class="rounded border border-slate-700 px-2 py-1 text-slate-200">
+                            {{ selectedQuestion.question_format.label }}
+                        </span>
+                        <span class="rounded border border-slate-700 px-2 py-1 text-slate-200">
+                            {{ selectedQuestion.recommended_duration_seconds }}秒
+                        </span>
+                        <span class="rounded border border-slate-700 px-2 py-1 text-slate-200">
+                            {{ selectedQuestion.has_model_answer ? '模範解答あり' : '模範解答なし' }}
+                        </span>
+                    </div>
 
-                <p class="mt-5 rounded border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-300">
-                    録音機能は後続タスクで実装します。
-                </p>
-            </article>
+                    <div class="mt-5 flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                        <span class="rounded border border-slate-700 px-2 py-1">{{ selectedQuestion.category.name }}</span>
+                        <span
+                            v-for="tag in selectedQuestion.tags"
+                            :key="tag.id"
+                            class="rounded border border-slate-700 px-2 py-1"
+                        >
+                            {{ tag.name }}
+                        </span>
+                    </div>
+                </article>
+
+                <RecordingPanel />
+            </div>
 
             <div
                 v-else
