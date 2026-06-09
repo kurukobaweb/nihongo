@@ -1771,7 +1771,7 @@
 
 ### T004-03: ホーム画面への選択問題引き継ぎ
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-08 確認済み）
 - 種別: UI
 - 目的:
   - 問題一覧で選択した問題をホーム画面に反映する
@@ -1796,6 +1796,139 @@
   - 非公開問題アクセス不可
 - CodeX投入時の注意:
   - 認可と公開状態のチェックを忘れない
+- 実装commit:
+  - `285af15b6dae0f5ef7de39ce4ca491b3f7ca9f1f`
+  - commit message: `feat: display selected question on dashboard`
+- 変更ファイル:
+  - `app/Http/Controllers/DashboardController.php`
+  - `resources/js/Pages/Dashboard.vue`
+  - `routes/web.php`
+  - `tests/Feature/DashboardSelectedQuestionTest.php`
+- 実装結果:
+  - `DashboardController` を追加
+  - `/dashboard` を closure から Controller に移行
+  - `/dashboard` の route name `dashboard` を維持
+  - `/dashboard` の `verified` middleware を維持
+  - `question_id` を query parameter で受け取る
+  - 不正な `question_id` はB案で扱う
+  - dashboardを表示する
+  - `selectedQuestion = null`
+  - `selectedQuestionUnavailable = true`
+  - 公開済みかつ active category の問題のみ `selectedQuestion` として表示
+  - 非公開問題は表示不可扱い
+  - inactive category の問題は表示不可扱い
+  - `model_answer_text` は渡していない
+  - `question_type` は使用していない
+  - `has_model_answer` は「模範解答あり / なし」表示のみ
+  - 問題一覧から `/dashboard?question_id={id}` へ戻った際に、選択問題をDashboardへ表示
+- selectedQuestion props:
+  - `id`
+  - `title`
+  - `prompt_text`
+  - `difficulty`
+  - `question_format.value`
+  - `question_format.label`
+  - `recommended_duration_seconds`
+  - `has_model_answer`
+  - `category.id`
+  - `category.name`
+  - `category.slug`
+  - `tags.id`
+  - `tags.name`
+  - `tags.slug`
+- Dashboard表示内容:
+  - 問題タイトルを表示
+  - 問題文を表示
+  - カテゴリ名を表示
+  - 難易度を表示
+  - `question_format.label` を表示
+  - 推奨秒数を表示
+  - タグを表示
+  - 模範解答あり / なしを表示
+  - 未選択時は「問題一覧から問題を選択してください」と問題一覧への導線を表示
+  - 不正ID時は「選択した問題は表示できません」を表示
+  - 録音機能は後続タスクで実装する旨のプレースホルダー文言のみ表示
+- 実装していないこと:
+  - 録音UI
+  - 録音開始ボタン
+  - 録音停止ボタン
+  - 音声アップロード
+  - 音声評価
+  - Azure連携
+  - Stripe
+  - 管理画面
+  - 問題CRUD
+  - 管理者向け問題作成・編集・削除
+  - 学習管理画面
+  - 統計カード
+  - カレンダー
+  - 連続日数
+  - 選択問題のDB保存
+  - ユーザー学習設定の保存
+  - CSV/TSVインポート機能
+  - TSVファイルのcommit
+  - DBカラム追加
+  - DB制約変更
+  - `question_type` の追加
+  - `question_type` の復活
+  - `has_model_answer` を問題形式フィルタとして扱うこと
+  - `question_format` に `single_prompt` / `two_choice` 以外を追加すること
+  - OI-023 の確定
+  - OI-024 の確定
+  - OI-025 の確定
+  - OI-027 の確定
+  - OI-028 の確定
+  - Google OAuth / 認証章の追加変更
+  - remember me の追加
+  - Sanctum / personal access token
+  - `.env` 作成
+  - 実Secrets追加
+  - `docs/TASKS.md` 完了反映以外のdocs更新
+  - T005-01以降の実装
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php -l`: pass
+  - `composer dump-autoload -o --no-scripts`: pass
+  - `COMPOSER_MEMORY_LIMIT=-1` で実行
+  - 既存 vendor class ambiguity warning あり
+  - `php artisan route:list`: pass
+  - `npm.cmd run build`: pass
+  - `vendor\bin\pint --test ...`: pass
+  - `php artisan test tests/Feature/DashboardSelectedQuestionTest.php`: exit 0
+  - `.env` warning あり
+  - `php artisan test`: exit 0
+  - Feature tests は `.env` warning / DB driver 制約あり
+  - DB実確認: 未実施
+  - 理由: `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - Feature test 本実行: 未完了
+  - 理由: `pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - DB実確認と Feature test 本実行は、T004-03単体の未完了ではなく、環境整備後の横断確認事項として扱う
+- 申し送り:
+  - T004-03 は DashboardController、Dashboard表示、選択問題props、公開状態チェック、active categoryチェック、テスト定義まで完了
+  - `/dashboard` の route name `dashboard` は維持
+  - `/dashboard` の `verified` middleware は維持
+  - `question_id` は query parameter で受け取る
+  - 不正な `question_id` はB案で扱う
+  - dashboard表示
+  - `selectedQuestion = null`
+  - `selectedQuestionUnavailable = true`
+  - 非公開問題は表示しない
+  - inactive category の問題は表示しない
+  - `model_answer_text` は渡していない
+  - `question_type` は使用していない
+  - `has_model_answer` は問題形式として扱っていない
+  - 録音UIは実装していない
+  - 録音機能は後続タスクで実装する旨のプレースホルダーのみ表示
+  - T005-01以降は先取りしていない
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` 未有効のため未完了
+  - 実DB確認は T004-03 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - Feature test 本実行はDBドライバ有効化後に行う
+  - 次工程では CodeX 新規チャットで #5. ホーム・録音UI に移行する
+  - #5. ホーム・録音UI では、#6 音声提出バックエンド、#7 Python FastAPI音声評価サービスを同じチャットに含めない
+  - #6 / #7 は後続の別チャットで扱う
 
 ---
 
