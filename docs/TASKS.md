@@ -1936,7 +1936,7 @@
 
 ### T005-01: 録音画面レイアウト実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-09 確認済み）
 - 種別: UI
 - 目的:
   - ホーム画面の問題表示・録音操作領域を作る
@@ -1962,6 +1962,54 @@
 - CodeX投入時の注意:
   - デザイントークン具体値はOI-025確定値に従う
   - OI-025未確定の場合はTailwind標準値または最小限の仮配置に留め、色・フォント体系を勝手に確定しない
+- 実装commit:
+  - `2dcadd1042788a10228fafc284faf6a43e9edb87`
+  - commit message: `feat: implement recording layout UI`
+- 変更ファイル:
+  - `resources/js/Components/Recording/RecordingPanel.vue`
+  - `resources/js/Pages/Dashboard.vue`
+  - `tests/Feature/DashboardSelectedQuestionTest.php`
+- 実装結果:
+  - 選択問題表示を維持
+  - 録音操作レイアウト枠を追加
+  - `idle / recording / confirm / error` の最小ローカル状態を追加
+  - START / STOP ボタンを追加
+  - タイマー表示領域を追加
+  - 現在状態表示を追加
+  - 提出確認領域を追加
+  - エラー表示領域を追加
+  - 再録音導線を追加
+  - `RecordingPanel.vue` を追加
+  - `Dashboard.vue` から `RecordingPanel` を表示
+  - 主要文言の Feature test を更新
+- 実装していないこと:
+  - 実アップロード処理
+  - MediaRecorder本実装
+  - 録音Blob保持
+  - Laravel側の音声提出API
+  - Queue処理
+  - Python FastAPI音声評価サービス
+  - Azure連携
+  - ポーリング本実装
+  - 結果表示本実装
+  - Stripe
+  - 管理画面
+  - `docs/TASKS.md` 完了反映以外の docs 更新
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php -l`: success
+  - `php artisan route:list`: success
+  - `npm.cmd run build`: success
+  - `vendor\bin\pint --test resources/js/Pages/Dashboard.vue`: passed
+  - `php artisan test tests/Feature/DashboardSelectedQuestionTest.php`: success、既存 `.env` missing warning あり
+  - `php artisan test`: success、既存 `.env` missing warning あり
+  - 最終 `git status --short`: clean
+- 申し送り:
+  - `.env` 未作成 warning は既存の横断確認事項として継続
+  - `RecordingPanel.vue` は表示とローカル状態のみ
+  - API通信や録音実体は入れていない
+  - T005-02 以降は先取りしていない
 
 ### T005-02: MediaRecorder録音処理実装
 
