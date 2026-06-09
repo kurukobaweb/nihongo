@@ -1590,7 +1590,7 @@
 
 ### T004-02: 問題一覧UI実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-08 確認済み）
 - 種別: UI
 - 目的:
   - 問題一覧画面を実装する
@@ -1622,6 +1622,152 @@
 - CodeX投入時の注意:
   - UIラベルは仮表示または設定値参照に留める
   - OI-022確定後のラベル反映は T002-05 と整合させる
+- 実装commit:
+  - `b153548b4966f0e02561e2ec1ece0586e7c89398`
+  - commit message: `feat: implement question listing UI`
+- 変更ファイル:
+  - `routes/web.php`
+  - `resources/js/Pages/Dashboard.vue`
+  - `resources/js/Pages/Questions/Index.vue`
+  - `database/seeders/DatabaseSeeder.php`
+  - `database/seeders/MvpQuestionSeeder.php`
+  - `tests/Feature/QuestionPageTest.php`
+- 実装結果:
+  - `GET /questions` を追加
+  - route name は `questions.page`
+  - middleware は `web`, `auth`
+  - `resources/js/Pages/Questions/Index.vue` を追加
+  - Dashboard から `/questions` へのリンクを追加
+  - `/api/questions` を `fetch` で取得
+  - フィルタ変更時に自動で再取得
+  - difficulty フィルタを実装
+  - 全て
+  - 初級
+  - 中級
+  - 上級
+  - question_format フィルタを実装
+  - 全て
+  - 単体問題
+  - 二者択一
+  - 問題リストを実装
+  - 問題選択導線を実装
+  - 「この問題を選択」で `/dashboard?question_id={id}` へ遷移
+  - T004-03 の本格的な選択問題表示は未実装
+  - 読み込み中表示を実装
+  - 取得失敗時表示を実装
+  - 空データ表示を実装
+- 問題一覧表示項目:
+  - `title`
+  - `prompt_text`
+  - `difficulty`
+  - `question_format.label`
+  - `recommended_duration_seconds`
+  - `category.name`
+  - `tags`
+  - `has_model_answer`
+- Seeder:
+  - MVP確認用Seederとして `database/seeders/MvpQuestionSeeder.php` を追加
+  - `database/seeders/DatabaseSeeder.php` から `MvpQuestionSeeder` を呼び出す
+  - `japanese_speaking_questions.tsv` は入力元として使用
+  - `japanese_speaking_questions.tsv` 自体は commit していない
+  - TSVを本番運用方式として固定していない
+  - CSV/TSVインポート機能は実装していない
+  - Seederの配列へ反映した
+  - 登録カテゴリ数: 5
+  - 登録タグ数: 7
+  - 登録問題数: 50
+  - difficulty配分:
+  - beginner: 20
+  - intermediate: 18
+  - advanced: 12
+  - question_format配分:
+  - single_prompt: 35
+  - two_choice: 15
+  - `updateOrCreate` と `sync` により idempotent に実行可能
+  - `has_model_answer` は全件 false
+  - `model_answer_text` は null
+  - `is_published` は全件 true
+- 実装していないこと:
+  - T004-03 の本格実装
+  - ホーム画面への選択問題詳細表示の本実装
+  - 録音UI
+  - 音声アップロード
+  - 音声評価
+  - Azure連携
+  - Stripe
+  - 管理画面
+  - 問題CRUD
+  - 管理者向け問題作成・編集・削除
+  - 学習管理画面
+  - 統計カード
+  - カレンダー
+  - 連続日数
+  - 選択問題のDB保存
+  - ユーザー学習設定の保存
+  - CSV/TSVインポート機能
+  - TSVファイルのcommit
+  - TSVを本番運用方式として固定すること
+  - DBカラム追加
+  - DB制約変更
+  - `question_type` の追加
+  - `question_type` の復活
+  - `has_model_answer` を問題形式フィルタとして扱うこと
+  - `question_format` に `single_prompt` / `two_choice` 以外を追加すること
+  - OI-023 の確定
+  - OI-024 の確定
+  - OI-025 の確定
+  - OI-027 の確定
+  - OI-028 の確定
+  - Google OAuth / 認証章の追加変更
+  - remember me の追加
+  - Sanctum / personal access token
+  - `.env` 作成
+  - 実Secrets追加
+  - `docs/TASKS.md` 完了反映以外のdocs更新
+  - T004-03以降の実装
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php -l`: pass
+  - `composer dump-autoload -o --no-scripts`: pass
+  - `COMPOSER_MEMORY_LIMIT=-1` で実行
+  - 既存 vendor class ambiguity warning あり
+  - `php artisan route:list`: pass
+  - `GET|HEAD questions` を確認
+  - `GET|HEAD api/questions` を確認
+  - `npm.cmd run build`: pass
+  - `vendor\bin\pint --test ...`: pass
+  - `php artisan test tests/Feature/QuestionPageTest.php`: exit 0
+  - `.env` warning あり
+  - `php artisan test`: exit 0
+  - Feature tests は `.env` warning / DB driver 制約あり
+  - DB実確認: 未実施
+  - 理由: `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - Feature test 本実行: 未完了
+  - 理由: `pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - DB実確認と Feature test 本実行は、T004-02単体の未完了ではなく、環境整備後の横断確認事項として扱う
+- 申し送り:
+  - T004-02 は画面route、Vue画面、Dashboard導線、フィルタUI、問題リスト、問題選択導線、MVP確認用Seeder、テスト定義まで完了
+  - `GET /questions` は `auth` middleware 配下で実装済み
+  - `verified` middleware は未付与
+  - T004-02 の要件は「会員登録済みユーザー向け問題一覧UI」であり、現時点では `auth` で範囲内
+  - 将来「メール認証済みユーザーのみ」に絞る判断が出た場合は、別途 `verified` middleware 追加を検討する
+  - 問題選択導線は `/dashboard?question_id={id}` への遷移に留めている
+  - T004-03 の本格的なホーム画面への選択問題反映は未実装
+  - `question_format` は OI-022 確定値 `single_prompt` / `two_choice` のみ
+  - 表示ラベルは `単体問題` / `二者択一`
+  - `question_type` は使用していない
+  - `has_model_answer` は問題形式フィルタに使用していない
+  - `model_answer_text` は一覧表示していない
+  - MVP確認用問題データはSeeder配列に反映済み
+  - `japanese_speaking_questions.tsv` 自体はcommitしていない
+  - `japanese_speaking_questions.tsv` はローカル未追跡ファイルとして残っている可能性がある
+  - Seeder反映済みのため、次タスク開始前に `japanese_speaking_questions.tsv` は削除またはプロジェクト外へ退避してよい
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` 未有効のため未完了
+  - 実DB確認は T004-02 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - Feature test 本実行はDBドライバ有効化後に行う
 
 ### T004-03: ホーム画面への選択問題引き継ぎ
 
