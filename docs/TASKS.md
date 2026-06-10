@@ -2448,7 +2448,7 @@
 
 ### T007-02: `/evaluate` 入力受付と内部トークン検証
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-10 確認済み）
 - 種別: Python
 - 目的:
   - Laravelから音声評価リクエストを受け付ける
@@ -2478,6 +2478,89 @@
   - 必須パラメータ不足
 - CodeX投入時の注意:
   - Azure連携は次タスク以降で分ける
+- 確認結果:
+  - 実装commit: `74ef9275c52b5cf76552714b7e461f1d5bc662c0`
+  - 変更範囲は `python/` 配下のみ
+  - 追加ファイル:
+    - `python/app/routes/__init__.py`
+    - `python/app/routes/evaluate.py`
+    - `python/tests/test_evaluate.py`
+  - 変更ファイル:
+    - `python/README.md`
+    - `python/app/main.py`
+    - `python/app/settings.py`
+    - `python/requirements.txt`
+  - `POST /evaluate` を追加
+  - `multipart/form-data` で受付
+  - `X-Internal-Token` を `SPEECH_SERVICE_INTERNAL_TOKEN` と照合
+  - `SPEECH_SERVICE_INTERNAL_TOKEN` は本番用デフォルト値なし
+  - request field:
+    - `submission_id`
+    - `question_id`
+    - `expected_duration`
+    - `feature_flags`
+    - `audio_file`
+  - `submission_id` は string として受付
+  - `question_id` は int として受付
+  - `expected_duration` は int として受付
+  - `feature_flags` は JSON 文字列として受け取るのみ
+  - `audio_file` は必須で受け付けるが、保存・読み込み・検証・変換はしない
+  - 正常時 response:
+    - `{"status":"accepted","submission_id":"..."}`
+  - 正常時 status:
+    - `200`
+  - トークンなし:
+    - `401`
+  - 不正トークン:
+    - `401`
+  - 必須パラメータ不足:
+    - FastAPI 標準 `422`
+  - `python-multipart` を `requirements.txt` に追加
+  - FastAPI `TestClient` による `/evaluate` テストを追加
+  - テストでは monkeypatch で `SPEECH_SERVICE_INTERNAL_TOKEN` を設定
+  - 正常トークン、トークンなし、不正トークン、必須項目不足、`audio_file` 不足をテスト対象に追加
+  - ユーザー側 PowerShell + Docker Desktop で `/evaluate` の実動確認済み
+  - CodeX 側では Python / Docker daemon の実行確認は未実施
+  - 理由は CodeX 環境で `python` / `py` / `pip` 未検出、Docker daemon 接続不可だったため
+  - `__pycache__` / `.pyc` は削除し、commit 対象外
+  - `.env` / `.env.example` は変更していない
+  - Dockerfile / compose は作成していない
+  - Laravel 側コードは変更していない
+  - docs/TASKS.md 完了反映前の実装commitでは docs/TASKS.md は変更していない
+- 実装していないこと:
+  - Laravel `ProcessSpeechEvaluationJob::handle()` の実処理
+  - Laravel から `/evaluate` を呼ぶ処理
+  - DB接続
+  - Laravel DB 直接接続
+  - Azure接続
+  - Azure SDK
+  - WAV変換
+  - 音声ファイル保存
+  - 音声ファイル読み込み
+  - 音声ファイル検証
+  - STT
+  - Pronunciation Assessment
+  - evaluation結果保存
+  - Python側 Feature Flag 管理
+  - OI-007 のローテーション方針確定
+  - Dockerfile
+  - docker-compose.yml / compose.yml
+  - `.env` / `.env.example` 変更
+  - VPS接続
+  - VPS設定変更
+- 申し送り:
+  - T007-02 は `/evaluate` の入力受付と内部トークン検証までで完了
+  - `audio_file` は multipart で受付済みだが、保存・読み込み・検証・WAV変換は未実装
+  - T007-03 で WebM/Opus → WAV変換を扱う
+  - T007-04 以降で Azure SDK / STT / Pronunciation Assessment を扱う
+  - Laravel `ProcessSpeechEvaluationJob::handle()` から `/evaluate` を呼ぶ処理は後続タスクで扱う
+  - `feature_flags` は JSON 文字列として受け取るのみで、Python 側では管理・解釈しない
+  - OI-007 のトークンローテーション方針・頻度は未確定のまま維持する
+  - `SPEECH_SERVICE_INTERNAL_TOKEN` は実Secrets未投入であり、`.env` は作成・commitしない
+  - CodeX 側では Python / Docker daemon の実行確認ができなかったため、T007-02 の実動確認はユーザー側 PowerShell + Docker Desktop で実施済みとして記録する
+  - Dockerfile / compose / VPS 環境整備は後続タスクで扱う
+  - README / ARCHITECTURE に PostgreSQL 16 の記載が残っており、ユーザー共有済み実サーバー前提は PostgreSQL 17 のため、後続の Docker / VPS 環境整備前に文書整合確認が必要
+  - ただし、PostgreSQL 16/17 の表記差分は T007-02 の `/evaluate` 入力受付完了を止めるものではない
 
 ### T007-03: WebM/Opus → WAV変換実装
 
