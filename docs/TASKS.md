@@ -2265,7 +2265,7 @@
 
 ### T006-02: 音声提出Queue投入と202返却
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-10 確認済み）
 - 種別: Queue
 - 目的:
   - 音声提出後に評価JobをQueueへ投入し、202 Acceptedを返す
@@ -2294,6 +2294,64 @@
   - 重複提出
 - CodeX投入時の注意:
   - Job本体の外部通信は後続タスクで実装する
+- 確認結果:
+  - 実装commit: `d0c814e7c646f9d9fade770ea6c12ca5d75e823b`
+  - commit message: `feat: dispatch speech evaluation job`
+  - `ProcessSpeechEvaluationJob` を作成済み
+  - `ProcessSpeechEvaluationJob` は `ShouldQueue` の no-op 雛形
+  - `ProcessSpeechEvaluationJob` は `submissionId` のみ保持
+  - `handle()` は Python / Azure / WAV変換 / STT / 評価結果保存を行わない
+  - `SubmissionController` で submission 作成直後に `ProcessSpeechEvaluationJob::dispatch($submission->id)` を実行
+  - Queue へ渡す値は `submission_id`
+  - 成功時レスポンスを `202 Accepted` に変更済み
+  - レスポンス JSON は `submission_id`, `status`, `question_id`, `submitted_at`
+  - `submissions.status` は `pending` のまま維持
+  - route は既存の `POST /api/submissions` を継続利用
+  - 既存の `jobs` migration を利用
+  - 新規 migration は作成していない
+  - `.env` / 実Secrets は作成・変更していない
+  - 変更ファイル:
+    - `app/Http/Controllers/SubmissionController.php`
+    - `app/Jobs/ProcessSpeechEvaluationJob.php`
+    - `tests/Feature/SubmissionUploadTest.php`
+- テスト確認結果:
+  - `php -l`: 変更PHP 3ファイル OK
+  - `php artisan route:list`: `POST api/submissions` 登録確認済み
+  - `npm.cmd run build`: OK
+  - `php artisan test`: コマンド成功
+  - 変更対象 `vendor\bin\pint --test`: OK
+  - T006-02 用 Feature test では `202 Accepted`, `submission_id`, `pending` 維持, `ProcessSpeechEvaluationJob` dispatch, database queue payload, 複数 submit 時の別 submission / 別 Job を検証対象として追加・更新済み
+  - `.env` 未作成 warning により、個別 Feature test は `9 warnings / 0 assertions` で実質未検証
+  - `jobs` table への実投入確認テストコードは追加済み
+  - ただし現ローカルでは `.env` 未作成 warning により、jobs table 実投入確認は実質未検証
+- 実装していないこと:
+  - Python FastAPI 実装
+  - Python 連携本体
+  - Azure 連携
+  - Azure SDK / API 呼び出し
+  - WAV変換
+  - STT実行
+  - Pronunciation Assessment 実行
+  - Fluency Assessment 実行
+  - evaluation 結果保存
+  - ポーリング API
+  - 結果表示
+  - CleanupTempFilesJob
+  - Scheduler 追加
+  - 音声ファイル削除処理
+  - `processing` / `completed` / `failed` への状態遷移
+  - `evaluation_jobs` テーブル追加
+  - `attempt` テーブル追加
+  - 重複提出禁止仕様
+  - unique index 追加
+  - `.env` 作成・変更
+  - 実Secrets追加
+- 申し送り:
+  - T006-02 は Queue 投入と `202 Accepted + submission_id` 返却までで完了
+  - T007 以降では no-op の `ProcessSpeechEvaluationJob::handle()` に評価処理連携を追加する流れになる
+  - Python / Azure / WAV変換 / 評価結果保存 / ポーリング / 結果表示は後続タスクで扱う
+  - T007 以降に進む前に、`.env` 未作成 warning により T006-02 追加 Feature test が実質未検証である点を確認する
+  - 実DBまたは `.env` が整ったテスト環境で、database queue の `jobs` 実投入を再確認する
 
 ---
 
