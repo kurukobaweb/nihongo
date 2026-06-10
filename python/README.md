@@ -2,17 +2,30 @@
 
 This directory contains the Python speech evaluation service.
 
-At T007-02, the FastAPI foundation includes `GET /health` and the input-only `POST /evaluate` endpoint. The health endpoint is limited to process liveness for the FastAPI service.
+At T007-03, the FastAPI foundation includes `GET /health` and the internal `POST /evaluate` endpoint. The health endpoint is limited to process liveness for the FastAPI service.
 
-Not implemented after T007-02:
+`POST /evaluate` converts uploaded WebM/Opus audio to temporary WAV bytes before returning the accepted response. The generated WAV is not persisted and is discarded in T007-03.
+
+Not implemented after T007-03:
 
 - DB connection
 - Azure connection
-- Audio file processing
-- WAV conversion
 - STT
 - Pronunciation Assessment
 - Evaluation result persistence
+
+## Audio Conversion
+
+T007-03 adds WebM/Opus to WAV conversion for the uploaded `audio_file`. The service calls the system `ffmpeg` binary with `subprocess.run()` and does not use Python wrapper packages such as pydub, moviepy, or av.
+
+The conversion output format is:
+
+- PCM WAV
+- 16 kHz
+- 16-bit signed samples
+- mono
+
+Uploaded input and generated WAV output are stored only in temporary files during conversion. They are deleted after success or failure. The generated WAV bytes are discarded after conversion in T007-03; later tasks own Azure STT, Pronunciation Assessment, and persistence.
 
 ## Runtime Settings
 
@@ -68,11 +81,11 @@ In another PowerShell window:
 curl http://localhost:8101/health
 ```
 
-Dockerfile and compose files are intentionally not created in T007-01 or T007-02. Docker and VPS environment setup should be handled by later tasks.
+Dockerfile and compose files are intentionally not created in T007-01, T007-02, or T007-03. Docker and VPS environment setup should be handled by later tasks.
 
 ## Evaluate Endpoint
 
-T007-02 adds `POST /evaluate` as an internal API endpoint. It accepts `multipart/form-data` and checks the `X-Internal-Token` header against `SPEECH_SERVICE_INTERNAL_TOKEN`.
+T007-02 adds `POST /evaluate` as an internal API endpoint. It accepts `multipart/form-data` and checks the `X-Internal-Token` header against `SPEECH_SERVICE_INTERNAL_TOKEN`. T007-03 converts the uploaded audio file to temporary WAV bytes after token verification.
 
 Required form fields:
 
@@ -82,9 +95,9 @@ Required form fields:
 - `feature_flags`
 - `audio_file`
 
-The `audio_file` field is accepted but not saved, read, converted, or evaluated in T007-02. DB connection, Azure connection, WAV conversion, STT, Pronunciation Assessment, and evaluation result persistence are intentionally not implemented yet.
+The `audio_file` field must be convertible by `ffmpeg`. DB connection, Azure connection, STT, Pronunciation Assessment, and evaluation result persistence are intentionally not implemented yet.
 
-## Local Evaluate Check With Docker
+## Local Token Check With Docker
 
 Run this from PowerShell with Docker Desktop running:
 
@@ -93,26 +106,7 @@ cd C:\Projects\nihongo
 docker run --rm -it -p 8100:8100 -e SPEECH_SERVICE_INTERNAL_TOKEN=test-internal-token -v ${PWD}\python:/app -w /app python:3.12-slim sh -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8100"
 ```
 
-In another PowerShell window, check a valid token:
-
-```powershell
-curl.exe -X POST http://localhost:8100/evaluate `
-  -H "X-Internal-Token: test-internal-token" `
-  -F "submission_id=00000000-0000-0000-0000-000000000001" `
-  -F "question_id=1" `
-  -F "expected_duration=60" `
-  -F "feature_flags={""pronunciation"":true,""fluency"":true}" `
-  -F "audio_file=@python\README.md;type=audio/webm"
-```
-
-Expected response:
-
-```json
-{
-  "status": "accepted",
-  "submission_id": "00000000-0000-0000-0000-000000000001"
-}
-```
+This command does not install ffmpeg. It is useful for checking token rejection and request validation only. Use the ffmpeg check below for a valid audio conversion request.
 
 Check an invalid token:
 
@@ -141,4 +135,49 @@ curl.exe -X POST http://localhost:8100/evaluate `
 
 Expected status: `422`.
 
-The README file is used as a dummy upload file only for this local check. T007-02 does not inspect or process audio content.
+## Local Evaluate Check With Docker And Ffmpeg
+
+Run this from PowerShell with Docker Desktop running:
+
+```powershell
+cd C:\Projects\nihongo
+docker run --rm -it -p 8100:8100 `
+  -e SPEECH_SERVICE_INTERNAL_TOKEN=test-internal-token `
+  -v ${PWD}\python:/app `
+  -w /app `
+  python:3.12-slim `
+  sh -c "apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8100"
+```
+
+In another PowerShell window, generate a local sample file:
+
+```powershell
+cd C:\Projects\nihongo
+docker run --rm -v ${PWD}:/work -w /work jrottenberg/ffmpeg:6.1-alpine `
+  -y -f lavfi -i sine=frequency=440:duration=1 -c:a libopus sample.webm
+```
+
+Post the sample to `/evaluate`:
+
+```powershell
+curl.exe -i --max-time 30 -X POST http://localhost:8100/evaluate `
+  -H "X-Internal-Token: test-internal-token" `
+  -F "submission_id=00000000-0000-0000-0000-000000000001" `
+  -F "question_id=1" `
+  -F "expected_duration=60" `
+  -F "feature_flags={""pronunciation"":true,""fluency"":true}" `
+  -F "audio_file=@.\sample.webm;type=audio/webm"
+```
+
+Expected status: `200 OK`.
+
+Expected response:
+
+```json
+{
+  "status": "accepted",
+  "submission_id": "00000000-0000-0000-0000-000000000001"
+}
+```
+
+The generated `sample.webm` is local verification data only. Do not commit it. T007-03 does not persist generated WAV files.

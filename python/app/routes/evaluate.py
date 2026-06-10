@@ -5,6 +5,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile, status
 
+from app.services.audio_conversion import (
+    FfmpegNotFoundError,
+    InvalidAudioFileError,
+    convert_upload_to_wav,
+)
 from app.settings import load_settings
 
 
@@ -38,8 +43,21 @@ def evaluate(
 ) -> dict[str, str]:
     _verify_internal_token(internal_token)
 
-    # T007-02 only accepts the request. Later tasks handle audio processing and flags.
-    _ = (question_id, expected_duration, feature_flags, audio_file)
+    try:
+        convert_upload_to_wav(audio_file)
+    except FfmpegNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Audio conversion dependency is not available",
+        ) from exc
+    except InvalidAudioFileError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Audio conversion failed",
+        ) from exc
+
+    # Later tasks handle feature flags, Azure evaluation, and persistence.
+    _ = (question_id, expected_duration, feature_flags)
 
     return {
         "status": "accepted",
