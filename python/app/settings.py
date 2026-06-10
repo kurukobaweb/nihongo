@@ -14,6 +14,7 @@ class Settings:
     service_name: str
     host: str
     port: int
+    internal_token: str | None
 
 
 def _read_port(value: str | None) -> int:
@@ -36,5 +37,5 @@ def load_settings() -> Settings:
         service_name=os.getenv("PYTHON_SERVICE_NAME", DEFAULT_SERVICE_NAME),
         host=os.getenv("PYTHON_SERVICE_HOST", DEFAULT_HOST),
         port=_read_port(os.getenv("PYTHON_SERVICE_PORT")),
+        internal_token=os.getenv("SPEECH_SERVICE_INTERNAL_TOKEN"),
     )
-
