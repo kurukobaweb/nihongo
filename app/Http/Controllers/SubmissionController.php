@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreSubmissionRequest;
+use App\Jobs\ProcessSpeechEvaluationJob;
 use App\Models\Submission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -40,12 +41,13 @@ class SubmissionController extends Controller
             'submitted_at' => $submittedAt,
         ]);
 
+        ProcessSpeechEvaluationJob::dispatch($submission->id);
+
         return response()->json([
-            'id' => $submission->id,
+            'submission_id' => $submission->id,
             'status' => $submission->status,
             'question_id' => $submission->question_id,
-            'audio_path' => $submission->audio_path,
             'submitted_at' => $submission->submitted_at?->toJSON(),
-        ], 201);
+        ], 202);
     }
 }

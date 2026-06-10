@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessSpeechEvaluationJob;
 use App\Models\Category;
 use App\Models\Question;
 use App\Models\Submission;
@@ -45,16 +46,19 @@ class SubmissionUploadTest extends TestCase
             'user_id' => $user->id + 100,
         ]);
 
-        $response->assertCreated()
+        $response->assertAccepted()
+            ->assertJsonStructure(['submission_id', 'status', 'question_id', 'submitted_at'])
             ->assertJsonPath('status', 'pending')
             ->assertJsonPath('question_id', $question->id)
+            ->assertJsonMissingPath('id')
+            ->assertJsonMissingPath('audio_path')
             ->assertJsonMissingPath('processing')
             ->assertJsonMissingPath('polling_url')
             ->assertJsonMissingPath('redirect_url');
 
         $submission = Submission::query()->sole();
 
-        $this->assertSame($response->json('id'), $submission->id);
+        $this->assertSame($response->json('submission_id'), $submission->id);
         $this->assertSame($submission->id.'.webm', basename($submission->audio_path));
         $this->assertSame($user->id, $submission->user_id);
         $this->assertSame($question->id, $submission->question_id);
@@ -67,8 +71,65 @@ class SubmissionUploadTest extends TestCase
         );
 
         Storage::disk('local')->assertExists($submission->audio_path);
-        Bus::assertNothingDispatched();
-        $this->assertDirectoryDoesNotExist(app_path('Jobs'));
+        Bus::assertDispatched(ProcessSpeechEvaluationJob::class, function (ProcessSpeechEvaluationJob $job) use ($submission) {
+            return $job->submissionId === $submission->id;
+        });
+    }
+
+    public function test_upload_inserts_one_database_queue_job(): void
+    {
+        Storage::fake('local');
+
+        $user = $this->createUser();
+        $question = $this->createQuestion($this->createCategory());
+        $audio = UploadedFile::fake()->create('recording.webm', 64, 'audio/webm');
+
+        $response = $this->actingAs($user)->postJson(route('submissions.store'), [
+            'question_id' => $question->id,
+            'audio' => $audio,
+        ]);
+
+        $response->assertAccepted();
+
+        $submissionId = $response->json('submission_id');
+        $jobPayload = Schema::getConnection()
+            ->table('jobs')
+            ->sole();
+
+        $this->assertSame(1, Schema::getConnection()->table('jobs')->count());
+        $this->assertStringContainsString('ProcessSpeechEvaluationJob', $jobPayload->payload);
+        $this->assertStringContainsString($submissionId, $jobPayload->payload);
+    }
+
+    public function test_multiple_uploads_create_separate_submissions_and_jobs(): void
+    {
+        Storage::fake('local');
+        Bus::fake();
+
+        $user = $this->createUser();
+        $question = $this->createQuestion($this->createCategory());
+
+        $firstResponse = $this->actingAs($user)->postJson(route('submissions.store'), [
+            'question_id' => $question->id,
+            'audio' => UploadedFile::fake()->create('first.webm', 64, 'audio/webm'),
+        ]);
+
+        $secondResponse = $this->actingAs($user)->postJson(route('submissions.store'), [
+            'question_id' => $question->id,
+            'audio' => UploadedFile::fake()->create('second.webm', 64, 'audio/webm'),
+        ]);
+
+        $firstResponse->assertAccepted();
+        $secondResponse->assertAccepted();
+
+        $this->assertNotSame($firstResponse->json('submission_id'), $secondResponse->json('submission_id'));
+        $this->assertSame(2, Submission::query()->count());
+        $this->assertEqualsCanonicalizing(
+            [$firstResponse->json('submission_id'), $secondResponse->json('submission_id')],
+            Submission::query()->pluck('id')->all(),
+        );
+
+        Bus::assertDispatchedTimes(ProcessSpeechEvaluationJob::class, 2);
     }
 
     public function test_guest_cannot_upload_audio(): void
@@ -205,6 +266,16 @@ class SubmissionUploadTest extends TestCase
             $table->timestamp('submitted_at')->useCurrent();
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('jobs', function (Blueprint $table) {
+            $table->id();
+            $table->string('queue')->index();
+            $table->longText('payload');
+            $table->unsignedTinyInteger('attempts');
+            $table->unsignedInteger('reserved_at')->nullable();
+            $table->unsignedInteger('available_at');
+            $table->unsignedInteger('created_at');
         });
     }
 
