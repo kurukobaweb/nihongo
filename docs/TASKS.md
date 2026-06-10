@@ -2190,7 +2190,7 @@
 
 ### T006-01: 音声アップロードAPI作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-10 確認済み）
 - 種別: API
 - 目的:
   - 録音音声をLaravelへアップロードし、一時保存する
@@ -2223,6 +2223,45 @@
   - 他人のquestion_id
 - CodeX投入時の注意:
   - 評価Job投入は次タスクで分ける
+- 確認結果:
+  - 実装commit: `48f370da78e01ef5b5d507f775936b339a63e050`
+  - commit message: `feat: add audio upload submission API`
+  - 局所修正commit: `b84c79a9a3f004ed1ceaa8070dae49ccddd084d9`
+  - commit message: `fix: align submission id with audio path`
+  - 変更ファイル:
+    - `app/Http/Controllers/SubmissionController.php`
+    - `app/Http/Requests/StoreSubmissionRequest.php`
+    - `app/Models/Submission.php`
+    - `routes/web.php`
+    - `tests/Feature/SubmissionUploadTest.php`
+  - `POST /api/submissions` を追加済み
+  - 既存 `web.php` の `auth` middleware 配下で、セッション認証前提のまま実装済み
+  - `routes/api.php` は作成していない
+  - 音声は `local` disk の `audio/{Y}/{m}/{submission_id}.webm` に一時保存
+  - `submissions` は `status = pending` で作成
+  - `user_id` はログインユーザーから設定
+  - `question_id` は公開済み question のみ許可
+  - `audio_duration_seconds` は今回算出せず `null`
+  - 成功時は `201 Created` JSON を返却
+  - `submissions.id` と `audio_path` の `{submission_id}.webm` が一致するよう修正済み
+  - Queue投入は未実装
+  - `ProcessSpeechEvaluationJob` は未作成
+  - `202 Accepted` 返却は未実装
+  - Python FastAPI / Azure / WAV変換 / ポーリング / 結果表示は未実装
+  - `.env` / 実Secrets は作成・変更していない
+- テスト確認結果:
+  - `php -l`: 関連PHPファイル OK
+  - `php artisan route:list`: `POST api/submissions` 登録確認済み
+  - `npm.cmd run build`: OK
+  - `php artisan test`: コマンド成功
+  - `vendor\bin\pint --test`: 変更対象ファイルに絞った確認は OK
+  - 全体 `vendor\bin\pint --test` は既存未整形ファイルにより失敗
+  - `.env` 未作成 warning により、T006-01 追加 Feature test は `7 warnings / 0 assertions` で実質未検証
+- 申し送り:
+  - T006-01 は submission 作成と音声一時保存までで完了
+  - T006-02 では `ProcessSpeechEvaluationJob` 作成、Queue投入、`202 Accepted + submission_id` 返却を接続する
+  - T006-02 着手前に、`.env` 未作成 warning により追加 Feature test が実質未検証である点を確認する
+  - 実DBまたは `.env` が整ったテスト環境で、`response.id === submissions.id`、`basename(audio_path) === "{id}.webm"`、保存ファイルが `storage/app/audio/{Y}/{m}/{submission_id}.webm` に存在することを再確認する
 
 ### T006-02: 音声提出Queue投入と202返却
 
