@@ -2359,7 +2359,7 @@
 
 ### T007-01: FastAPI基盤と `/health` 作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-10 確認済み）
 - 種別: Python
 - 目的:
   - Python音声評価サービスの最小基盤を作る
@@ -2391,6 +2391,60 @@
 - CodeX投入時の注意:
   - Pythonサービスはステートレスにする
   - Azure接続状態の確認はT007-04以降で追加または拡張する
+- 確認結果:
+  - 実装commit: `e807627601b57778a2d3799593e64f03b6e4b353`
+  - 変更範囲は `python/` 配下のみ
+  - 追加ファイル:
+    - `python/README.md`
+    - `python/app/__init__.py`
+    - `python/app/main.py`
+    - `python/app/settings.py`
+    - `python/requirements.txt`
+    - `python/tests/__init__.py`
+    - `python/tests/test_health.py`
+  - FastAPI app は `app.main:app`
+  - `GET /health` を実装
+  - `/health` は FastAPI プロセス生存確認のみ
+  - response は `{"status":"ok","service":"speech-evaluation"}`
+  - `PYTHON_SERVICE_NAME` / `PYTHON_SERVICE_HOST` / `PYTHON_SERVICE_PORT` を Python 側 settings で扱う
+  - `PYTHON_SERVICE_PORT` のデフォルト `8100` は OI-002 確定前の仮前提であり、最終固定ではない
+  - `python/requirements.txt` に `fastapi`, `uvicorn[standard]`, `pytest`, `httpx` を追加
+  - FastAPI `TestClient` による `/health` テストを追加
+  - service name 環境変数変更のテストを追加
+  - `python/README.md` に PowerShell + Docker Desktop での 8100 / 8101 確認手順を記載
+  - ユーザー側 PowerShell + Docker Desktop で 8100 / 8101 の `/health` が `200 OK` で応答することを確認済み
+  - CodeX 側では Python / Docker daemon の実行確認は未実施
+  - 理由は CodeX 環境で `python` / `py` / `pip` 未検出、Docker daemon 接続不可だったため
+  - `__pycache__` / `.pyc` は削除し、commit 対象外
+  - `.env` / `.env.example` は変更していない
+  - Dockerfile / compose は作成していない
+  - Laravel 側コードは変更していない
+- 実装していないこと:
+  - `/evaluate`
+  - `X-Internal-Token`
+  - DB接続
+  - Laravel DB 直接接続
+  - Azure接続
+  - Azure SDK
+  - WAV変換
+  - STT
+  - Pronunciation Assessment
+  - evaluation結果保存
+  - Laravel `ProcessSpeechEvaluationJob::handle()` の実処理
+  - Dockerfile
+  - docker-compose.yml / compose.yml
+  - `.env` / `.env.example` 変更
+  - VPS接続
+  - VPS設定変更
+- 申し送り:
+  - T007-01 は FastAPI 最小基盤と `/health` 応答確認までで完了
+  - T007-02 以降で `/evaluate`、内部トークン、Laravel Job からの呼び出しを扱う
+  - Azure 接続状態の確認は T007-04 以降で追加または拡張する
+  - `PYTHON_SERVICE_PORT=8100` は OI-002 確定前の仮前提であり、最終固定扱いしない
+  - Dockerfile / compose / VPS 環境整備は後続タスクで扱う
+  - CodeX 側では Python / Docker daemon の実行確認ができなかったため、T007-01 の実動確認はユーザー側 PowerShell + Docker Desktop で実施済みとして記録する
+  - README / ARCHITECTURE に PostgreSQL 16 の記載が残っており、ユーザー共有済み実サーバー前提は PostgreSQL 17 のため、後続の Docker / VPS 環境整備前に文書整合確認が必要
+  - ただし、PostgreSQL 16/17 の表記差分は T007-01 の FastAPI `/health` 実装完了を止めるものではない
 
 ### T007-02: `/evaluate` 入力受付と内部トークン検証
 
