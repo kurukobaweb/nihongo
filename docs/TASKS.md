@@ -2564,7 +2564,7 @@
 
 ### T007-03: WebM/Opus → WAV変換実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-10 確認済み）
 - 種別: Python
 - 目的:
   - ブラウザ録音音声をAzure SDKに渡せるWAVへ変換する
@@ -2591,6 +2591,98 @@
   - 一時ファイル削除
 - CodeX投入時の注意:
   - ffmpeg依存の有無を明確にする
+- 確認結果:
+  - 実装commit: `d09ff798e25c943379cd799f1233f1655043e630`
+  - 変更範囲は `python/` 配下のみ
+  - 追加ファイル:
+    - `python/app/services/__init__.py`
+    - `python/app/services/audio_conversion.py`
+    - `python/tests/test_audio_conversion.py`
+  - 変更ファイル:
+    - `python/README.md`
+    - `python/app/routes/evaluate.py`
+    - `python/tests/test_evaluate.py`
+  - `ffmpeg` binary を Python から `subprocess.run()` で呼ぶ方式を採用
+  - `pydub` / `moviepy` / `av` は追加していない
+  - Python package dependency は追加していない
+  - WebM/Opus を一時WAVへ変換
+  - WAV形式:
+    - PCM
+    - 16kHz
+    - 16bit signed samples
+    - mono
+  - 入力ファイルは一時ファイルとして扱う
+  - 変換後WAVも一時ファイルとして扱う
+  - 成功時・失敗時とも cleanup される
+  - repository 配下へ一時音声を保存しない
+  - WAVファイルを永続保存しない
+  - T007-03 時点では変換後 WAV bytes は Azure に渡さず破棄
+  - `/evaluate` でトークン検証後に変換を実行
+  - 正常 WebM/Opus:
+    - `200`
+    - `{"status":"accepted","submission_id":"00000000-0000-0000-0000-000000000001"}`
+  - 不正ファイル:
+    - `422`
+    - `{"detail":"Audio conversion failed"}`
+  - 不正トークン:
+    - `401`
+    - `{"detail":"Invalid internal token"}`
+  - `/health`:
+    - `200`
+    - `{"status":"ok","service":"speech-evaluation"}`
+  - ユーザー側 PowerShell + Docker Desktop で実変換確認済み
+  - ffmpeg 入り Docker container で FastAPI を起動して確認済み
+  - `sample.webm` は確認用に生成し、削除済み
+  - `.wav` / `.pyc` / `__pycache__` 残存なし
+  - 最終 `git status --short`: clean
+  - CodeX 側では Python / pytest / Docker 実行確認は未実施
+  - 理由は CodeX 環境で `python` / `py` / `pip` 未検出、Docker daemon 接続不可だったため
+  - `git diff --check`: OK
+  - `.env` / `.env.example` は変更していない
+  - Dockerfile / compose は作成していない
+  - Laravel 側コードは変更していない
+  - docs/TASKS.md 完了反映前の実装commitでは docs/TASKS.md は変更していない
+- 実装していないこと:
+  - Laravel `ProcessSpeechEvaluationJob::handle()` の実処理
+  - Laravel から `/evaluate` を呼ぶ処理
+  - DB接続
+  - Laravel DB 直接接続
+  - Azure接続
+  - Azure SDK
+  - Azure STT
+  - Pronunciation Assessment
+  - evaluation結果保存
+  - `evaluations` insert
+  - `submissions.status` 更新
+  - Python側 Feature Flag 管理
+  - OI-007 のローテーション方針確定
+  - OI-010 の continuous recognition 検証
+  - OI-012 の Pronunciation Assessment PoC 判断
+  - OI-021 の CleanupTempFilesJob 実装
+  - Dockerfile
+  - docker-compose.yml / compose.yml
+  - `.env` / `.env.example` 変更
+  - VPS接続
+  - VPS設定変更
+  - 本番Secrets投入
+  - テスト用音声バイナリファイルの commit
+  - 一時WAVの永続保存
+  - repository 配下への一時音声保存
+- 申し送り:
+  - T007-03 は WebM/Opus → WAV 変換と即時 cleanup までで完了
+  - `ffmpeg` binary が実行環境に必要
+  - T007-03 では Dockerfile / compose を作成していない
+  - 後続 Docker / VPS 整備時に ffmpeg binary の導入が必要
+  - 変換後WAVは bytes として取得できるが、T007-03 時点では Azure に渡さず破棄している
+  - T007-04 以降で Azure SDK / STT / Pronunciation Assessment を扱う
+  - Laravel `ProcessSpeechEvaluationJob::handle()` から `/evaluate` を呼ぶ処理は後続タスクで扱う
+  - `feature_flags` は JSON 文字列として受け取るのみで、Python 側では管理・解釈しない
+  - OI-010 / OI-012 は Azure / Pronunciation Assessment 側の論点として後続へ残す
+  - OI-021 は残存ファイル削除ジョブの論点であり、T007-03 の一時ファイル即時 cleanup とは別論点として維持する
+  - CodeX 側では Python / Docker daemon の実行確認ができなかったため、T007-03 の実動確認はユーザー側 PowerShell + Docker Desktop で実施済みとして記録する
+  - 実変換確認では `sample.webm` を生成したが、確認後に削除済みで commit していない
+  - README / ARCHITECTURE に PostgreSQL 16 の記載が残っており、ユーザー共有済み実サーバー前提は PostgreSQL 17 のため、後続の Docker / VPS 環境整備前に文書整合確認が必要
+  - ただし、PostgreSQL 16/17 の表記差分は T007-03 の WebM/Opus → WAV 変換完了を止めるものではない
 
 ### T007-04: Azure STT連携実装
 
