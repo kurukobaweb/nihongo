@@ -13,6 +13,7 @@ class Submission extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
+        'id',
         'user_id',
         'question_id',
         'audio_path',

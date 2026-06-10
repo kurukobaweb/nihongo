@@ -55,6 +55,7 @@ class SubmissionUploadTest extends TestCase
         $submission = Submission::query()->sole();
 
         $this->assertSame($response->json('id'), $submission->id);
+        $this->assertSame($submission->id.'.webm', basename($submission->audio_path));
         $this->assertSame($user->id, $submission->user_id);
         $this->assertSame($question->id, $submission->question_id);
         $this->assertSame('pending', $submission->status);
