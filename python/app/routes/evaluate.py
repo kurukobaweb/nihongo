@@ -10,6 +10,14 @@ from app.services.audio_conversion import (
     InvalidAudioFileError,
     convert_upload_to_wav,
 )
+from app.services.azure_stt import (
+    AzureSttConfigError,
+    AzureSttNoMatchError,
+    AzureSttServiceUnavailableError,
+    AzureSttTimeoutError,
+    build_speech_rate,
+    transcribe_wav_bytes,
+)
 from app.settings import load_settings
 
 
@@ -40,11 +48,11 @@ def evaluate(
     feature_flags: Annotated[str, Form()],
     audio_file: Annotated[UploadFile, File()],
     internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
-) -> dict[str, str]:
+) -> dict[str, object]:
     _verify_internal_token(internal_token)
 
     try:
-        convert_upload_to_wav(audio_file)
+        wav_bytes = convert_upload_to_wav(audio_file)
     except FfmpegNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -56,10 +64,38 @@ def evaluate(
             detail="Audio conversion failed",
         ) from exc
 
-    # Later tasks handle feature flags, Azure evaluation, and persistence.
+    try:
+        stt_result = transcribe_wav_bytes(wav_bytes)
+    except AzureSttNoMatchError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Speech could not be recognized",
+        ) from exc
+    except AzureSttConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Azure Speech configuration is not available",
+        ) from exc
+    except (AzureSttTimeoutError, AzureSttServiceUnavailableError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Azure Speech service is unavailable",
+        ) from exc
+
+    # Later tasks handle feature flags, final response shaping, and persistence.
     _ = (question_id, expected_duration, feature_flags)
 
     return {
-        "status": "accepted",
+        "status": "success",
         "submission_id": submission_id,
+        "transcript": stt_result.transcript,
+        "audio_duration_seconds": stt_result.audio_duration_seconds,
+        "recognized_duration_seconds": stt_result.recognized_duration_seconds,
+        "speech_rate": build_speech_rate(
+            stt_result.transcript,
+            stt_result.recognized_duration_seconds,
+        ),
+        "azure_request_id": stt_result.azure_request_id,
+        "azure_session_id": stt_result.azure_session_id,
+        "raw_azure_response": stt_result.raw_azure_response,
     }

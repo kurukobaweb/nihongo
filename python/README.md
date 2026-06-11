@@ -2,17 +2,17 @@
 
 This directory contains the Python speech evaluation service.
 
-At T007-03, the FastAPI foundation includes `GET /health` and the internal `POST /evaluate` endpoint. The health endpoint is limited to process liveness for the FastAPI service.
+At T007-04, the FastAPI foundation includes `GET /health` and the internal `POST /evaluate` endpoint. The health endpoint is limited to process liveness for the FastAPI service.
 
-`POST /evaluate` converts uploaded WebM/Opus audio to temporary WAV bytes before returning the accepted response. The generated WAV is not persisted and is discarded in T007-03.
+`POST /evaluate` converts uploaded WebM/Opus audio to temporary WAV bytes, sends those bytes to Azure Speech-to-Text, and returns the transcript with recognition metadata. The generated WAV is not persisted.
 
-Not implemented after T007-03:
+Not implemented after T007-04:
 
 - DB connection
-- Azure connection
-- STT
 - Pronunciation Assessment
+- Fluency Assessment
 - Evaluation result persistence
+- Laravel job-to-Python HTTP client
 
 ## Audio Conversion
 
@@ -25,7 +25,23 @@ The conversion output format is:
 - 16-bit signed samples
 - mono
 
-Uploaded input and generated WAV output are stored only in temporary files during conversion. They are deleted after success or failure. The generated WAV bytes are discarded after conversion in T007-03; later tasks own Azure STT, Pronunciation Assessment, and persistence.
+Uploaded input and generated WAV output are stored only in temporary files during conversion. They are deleted after success or failure. The generated WAV bytes are passed to Azure STT in T007-04. Later tasks own Pronunciation Assessment, Fluency Assessment, and persistence.
+
+## Azure Speech-To-Text
+
+T007-04 adds Azure Speech-to-Text using the Azure Cognitive Services Speech SDK for Python. The service uses continuous recognition as the main path and sets the speech recognition language to `ja-JP`.
+
+`AZURE_SPEECH_ENDPOINT` is optional. When it is set, the service initializes the SDK with endpoint + key. Otherwise, it initializes the SDK with key + region. The default region is `japaneast`.
+
+Duration values are intentionally separated:
+
+- `audio_duration_seconds`: physical audio file duration; not derived in T007-04, so it is returned as `null`
+- `recognized_duration_seconds`: duration reported by Azure for recognized speech segments when available
+- `expected_duration`: request form field from the question; not used as a speed threshold in T007-04
+
+`speech_rate.characters_per_minute` is calculated only when `recognized_duration_seconds` is positive. The `slow` / `appropriate` / `fast` thresholds remain unresolved under OI-015.
+
+Continuous recognition stability for 40 / 60 / 90 / 120 second audio remains an OI-010 follow-up. T007-04 does not mark OI-010 as resolved. `raw_azure_response` is returned as minimal diagnostic JSON only; the 500KB retention policy remains OI-107.
 
 ## Runtime Settings
 
@@ -37,6 +53,9 @@ The service reads the following environment variables:
 | `PYTHON_SERVICE_HOST` | `127.0.0.1` | Local development host setting |
 | `PYTHON_SERVICE_PORT` | `8100` | Temporary development port |
 | `SPEECH_SERVICE_INTERNAL_TOKEN` | unset | Required token checked against `X-Internal-Token` for `/evaluate` |
+| `AZURE_SPEECH_KEY` | unset | Azure Speech key required for STT |
+| `AZURE_SPEECH_REGION` | `japaneast` | Azure Speech region used when endpoint is unset |
+| `AZURE_SPEECH_ENDPOINT` | unset | Optional Azure Speech endpoint; takes precedence over region when set |
 
 Port `8100` is a temporary default. It is not a final fixed port before OI-002 is resolved. Change `PYTHON_SERVICE_PORT` when checking another port.
 
@@ -81,11 +100,11 @@ In another PowerShell window:
 curl http://localhost:8101/health
 ```
 
-Dockerfile and compose files are intentionally not created in T007-01, T007-02, or T007-03. Docker and VPS environment setup should be handled by later tasks.
+Dockerfile and compose files are intentionally not created in T007-01, T007-02, T007-03, or T007-04. Docker and VPS environment setup should be handled by later tasks.
 
 ## Evaluate Endpoint
 
-T007-02 adds `POST /evaluate` as an internal API endpoint. It accepts `multipart/form-data` and checks the `X-Internal-Token` header against `SPEECH_SERVICE_INTERNAL_TOKEN`. T007-03 converts the uploaded audio file to temporary WAV bytes after token verification.
+T007-02 adds `POST /evaluate` as an internal API endpoint. It accepts `multipart/form-data` and checks the `X-Internal-Token` header against `SPEECH_SERVICE_INTERNAL_TOKEN`. T007-03 converts the uploaded audio file to temporary WAV bytes after token verification. T007-04 sends those WAV bytes to Azure STT and returns transcript metadata.
 
 Required form fields:
 
@@ -95,7 +114,7 @@ Required form fields:
 - `feature_flags`
 - `audio_file`
 
-The `audio_file` field must be convertible by `ffmpeg`. DB connection, Azure connection, STT, Pronunciation Assessment, and evaluation result persistence are intentionally not implemented yet.
+The `audio_file` field must be convertible by `ffmpeg` and recognizable by Azure STT. DB connection, Pronunciation Assessment, Fluency Assessment, and evaluation result persistence are intentionally not implemented yet.
 
 ## Local Token Check With Docker
 
@@ -135,7 +154,7 @@ curl.exe -X POST http://localhost:8100/evaluate `
 
 Expected status: `422`.
 
-## Local Evaluate Check With Docker And Ffmpeg
+## Local Evaluate Check With Docker, Ffmpeg, And Azure STT
 
 Run this from PowerShell with Docker Desktop running:
 
@@ -143,18 +162,20 @@ Run this from PowerShell with Docker Desktop running:
 cd C:\Projects\nihongo
 docker run --rm -it -p 8100:8100 `
   -e SPEECH_SERVICE_INTERNAL_TOKEN=test-internal-token `
+  -e AZURE_SPEECH_KEY=$env:AZURE_SPEECH_KEY `
+  -e AZURE_SPEECH_REGION=japaneast `
   -v ${PWD}\python:/app `
   -w /app `
   python:3.12-slim `
   sh -c "apt-get update && apt-get install -y ffmpeg && pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8100"
 ```
 
-In another PowerShell window, generate a local sample file:
+In another PowerShell window, prepare a local WebM/Opus file that contains short Japanese speech and name it `sample.webm`. Do not commit this file.
 
 ```powershell
 cd C:\Projects\nihongo
-docker run --rm -v ${PWD}:/work -w /work jrottenberg/ffmpeg:6.1-alpine `
-  -y -f lavfi -i sine=frequency=440:duration=1 -c:a libopus sample.webm
+# Place a local Japanese speech sample at .\sample.webm.
+# Tone, silence, and noise-only files may correctly return 422.
 ```
 
 Post the sample to `/evaluate`:
@@ -171,13 +192,34 @@ curl.exe -i --max-time 30 -X POST http://localhost:8100/evaluate `
 
 Expected status: `200 OK`.
 
-Expected response:
+Expected response shape:
 
 ```json
 {
-  "status": "accepted",
-  "submission_id": "00000000-0000-0000-0000-000000000001"
+  "status": "success",
+  "submission_id": "00000000-0000-0000-0000-000000000001",
+  "transcript": "...",
+  "audio_duration_seconds": null,
+  "recognized_duration_seconds": 1.0,
+  "speech_rate": {
+    "characters_per_minute": 300.0
+  },
+  "azure_request_id": null,
+  "azure_session_id": null,
+  "raw_azure_response": {}
 }
 ```
 
-The generated `sample.webm` is local verification data only. Do not commit it. T007-03 does not persist generated WAV files.
+Before running the container, set `AZURE_SPEECH_KEY` in the local PowerShell environment. Do not paste the key into repository files, command history intended for sharing, screenshots, tests, or logs. `AZURE_SPEECH_ENDPOINT` may be passed with another `-e` option when endpoint-based initialization needs to be checked; it is optional and should not be committed.
+
+The local `sample.webm` is verification data only. Do not commit it. T007-04 does not persist generated WAV files.
+
+## Azure STT Error Classes
+
+`/evaluate` maps the current minimum STT errors as follows:
+
+- `422`: Azure NoMatch, empty transcript, silence, noise, or otherwise unrecognized speech
+- `500`: missing Azure Speech configuration or SDK initialization configuration failure
+- `503`: Azure service unavailable, timeout, network, or SDK runtime failure
+
+Final Laravel-facing response shaping remains a T007-05 task.
