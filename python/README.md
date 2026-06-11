@@ -239,3 +239,7 @@ When the response is `422` with `diagnostic.category` set to `no_match`, check t
 Diagnostics intentionally report configuration booleans such as `key_configured`, `region_configured`, `endpoint_configured`, and `config_mode`. They do not include the Azure key, endpoint value, authorization headers, or environment variable values.
 
 Do not commit `sample.webm`, real Azure secrets, or generated WAV files.
+
+## FastAPI Startup Check
+
+Before running the `/evaluate` smoke test, confirm FastAPI starts successfully. If startup fails with `Invalid args for response field`, check the `/evaluate` route decorator and return annotation. Diagnostic responses should not use a `dict | JSONResponse` union return annotation; use `response_model=None` when FastAPI response model generation must be disabled.

@@ -1,7 +1,7 @@
 """Input route for speech evaluation requests."""
 
 from hmac import compare_digest
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
@@ -42,7 +42,7 @@ def _verify_internal_token(token: str | None) -> None:
         )
 
 
-@router.post("/evaluate")
+@router.post("/evaluate", response_model=None)
 def evaluate(
     submission_id: Annotated[str, Form()],
     question_id: Annotated[int, Form()],
@@ -50,7 +50,7 @@ def evaluate(
     feature_flags: Annotated[str, Form()],
     audio_file: Annotated[UploadFile, File()],
     internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
-) -> dict[str, object] | JSONResponse:
+) -> Any:
     _verify_internal_token(internal_token)
 
     try:
