@@ -4,6 +4,7 @@ from hmac import compare_digest
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile, status
+from fastapi.responses import JSONResponse
 
 from app.services.audio_conversion import (
     FfmpegNotFoundError,
@@ -11,6 +12,7 @@ from app.services.audio_conversion import (
     convert_upload_to_wav,
 )
 from app.services.azure_stt import (
+    AzureSttCanceledError,
     AzureSttConfigError,
     AzureSttNoMatchError,
     AzureSttServiceUnavailableError,
@@ -48,7 +50,7 @@ def evaluate(
     feature_flags: Annotated[str, Form()],
     audio_file: Annotated[UploadFile, File()],
     internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
-) -> dict[str, object]:
+) -> dict[str, object] | JSONResponse:
     _verify_internal_token(internal_token)
 
     try:
@@ -67,20 +69,29 @@ def evaluate(
     try:
         stt_result = transcribe_wav_bytes(wav_bytes)
     except AzureSttNoMatchError as exc:
-        raise HTTPException(
+        return _azure_error_response(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Speech could not be recognized",
-        ) from exc
+            diagnostic=exc.diagnostic,
+        )
+    except AzureSttCanceledError as exc:
+        return _azure_error_response(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Azure Speech recognition was canceled",
+            diagnostic=exc.diagnostic,
+        )
     except AzureSttConfigError as exc:
-        raise HTTPException(
+        return _azure_error_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Azure Speech configuration is not available",
-        ) from exc
+            diagnostic=exc.diagnostic,
+        )
     except (AzureSttTimeoutError, AzureSttServiceUnavailableError) as exc:
-        raise HTTPException(
+        return _azure_error_response(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Azure Speech service is unavailable",
-        ) from exc
+            detail="Azure Speech SDK error",
+            diagnostic=exc.diagnostic,
+        )
 
     # Later tasks handle feature flags, final response shaping, and persistence.
     _ = (question_id, expected_duration, feature_flags)
@@ -99,3 +110,17 @@ def evaluate(
         "azure_session_id": stt_result.azure_session_id,
         "raw_azure_response": stt_result.raw_azure_response,
     }
+
+
+def _azure_error_response(
+    status_code: int,
+    detail: str,
+    diagnostic: dict[str, object],
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "detail": detail,
+            "diagnostic": diagnostic,
+        },
+    )

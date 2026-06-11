@@ -4,10 +4,13 @@ import pytest
 
 from app.services import azure_stt
 from app.services.azure_stt import (
+    AzureSttCanceledError,
     AzureSttConfigError,
     AzureSttNoMatchError,
+    AzureSttServiceUnavailableError,
     AzureSttTimeoutError,
     build_speech_rate,
+    sanitize_diagnostic_message,
     transcribe_wav_bytes,
 )
 from app.settings import Settings
@@ -57,12 +60,18 @@ class _Result:
         duration: int = 0,
         offset: int = 0,
         raw_json: str = "",
+        cancellation_reason: str | None = None,
+        cancellation_error_code: str | None = None,
+        error_details: str | None = None,
     ) -> None:
         self.reason = reason
         self.text = text
         self.duration = duration
         self.offset = offset
         self.properties = _Properties(raw_json)
+        self.cancellation_reason = cancellation_reason
+        self.cancellation_error_code = cancellation_error_code
+        self.error_details = error_details
 
 
 class _SpeechConfig:
@@ -118,13 +127,48 @@ class _NoMatchRecognizer(_BaseRecognizer):
         self.session_stopped.emit(SimpleNamespace())
 
 
+class _CanceledRecognizer(_BaseRecognizer):
+    def start_continuous_recognition(self) -> None:
+        self.session_started.emit(SimpleNamespace(session_id="session-1"))
+        self.canceled.emit(
+            SimpleNamespace(
+                result=_Result(
+                    reason="Canceled",
+                    raw_json='{"Id":"request-2"}',
+                    cancellation_reason="Error",
+                    cancellation_error_code="AuthenticationFailure",
+                    error_details=(
+                        "failure for https://secret.example/speech "
+                        "with key=abcdefghijklmnopqrstuvwxyz123456"
+                    ),
+                ),
+            ),
+        )
+
+
 class _TimeoutRecognizer(_BaseRecognizer):
     def start_continuous_recognition(self) -> None:
         return None
 
 
+class _ExceptionRecognizer(_BaseRecognizer):
+    def start_continuous_recognition(self) -> None:
+        raise RuntimeError("connect failed at https://secret.example/speech")
+
+
+class _CancellationDetails:
+    @staticmethod
+    def from_result(result):
+        return SimpleNamespace(
+            reason=result.cancellation_reason,
+            error_code=result.cancellation_error_code,
+            error_details=result.error_details,
+        )
+
+
 class _SpeechSdk:
     SpeechConfig = _SpeechConfig
+    CancellationDetails = _CancellationDetails
     PropertyId = SimpleNamespace(SpeechServiceResponse_JsonResult="json")
     audio = SimpleNamespace(AudioConfig=_AudioConfig)
 
@@ -155,29 +199,85 @@ def test_transcribe_wav_bytes_uses_endpoint_first_and_returns_result(monkeypatch
 def test_transcribe_wav_bytes_requires_key(monkeypatch) -> None:
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
 
-    with pytest.raises(AzureSttConfigError):
+    with pytest.raises(AzureSttConfigError) as exc_info:
         transcribe_wav_bytes(b"wav bytes", settings=_settings(key=None))
+
+    assert exc_info.value.diagnostic["category"] == "config_error"
+    assert exc_info.value.diagnostic["config"]["key_configured"] is False
 
 
 def test_transcribe_wav_bytes_raises_no_match(monkeypatch) -> None:
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_NoMatchRecognizer))
 
-    with pytest.raises(AzureSttNoMatchError):
+    with pytest.raises(AzureSttNoMatchError) as exc_info:
         transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    assert exc_info.value.diagnostic["category"] == "no_match"
+    assert exc_info.value.diagnostic["result_reason"] == "NoMatch"
+
+
+def test_transcribe_wav_bytes_raises_canceled_with_sanitized_diagnostic(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_CanceledRecognizer))
+
+    with pytest.raises(AzureSttCanceledError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
+    assert diagnostic["category"] == "azure_canceled"
+    assert diagnostic["result_reason"] == "Canceled"
+    assert diagnostic["cancellation_reason"] == "Error"
+    assert diagnostic["cancellation_error_code"] == "AuthenticationFailure"
+    assert diagnostic["azure_request_id"] == "request-2"
+    assert diagnostic["azure_session_id"] == "session-1"
+    assert "secret.example" not in diagnostic["error_details"]
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in diagnostic["error_details"]
+
+
+def test_transcribe_wav_bytes_raises_sdk_exception_with_diagnostic(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_ExceptionRecognizer))
+
+    with pytest.raises(AzureSttServiceUnavailableError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
+    assert diagnostic["category"] == "sdk_exception"
+    assert diagnostic["exception_type"] == "RuntimeError"
+    assert "secret.example" not in diagnostic["message"]
 
 
 def test_transcribe_wav_bytes_raises_timeout(monkeypatch) -> None:
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_TimeoutRecognizer))
 
-    with pytest.raises(AzureSttTimeoutError):
+    with pytest.raises(AzureSttTimeoutError) as exc_info:
         transcribe_wav_bytes(
             b"wav bytes",
             settings=_settings(),
             timeout_seconds=0,
         )
 
+    assert exc_info.value.diagnostic["category"] == "azure_timeout"
+
 
 def test_build_speech_rate_requires_positive_recognized_duration() -> None:
     assert build_speech_rate("abc", None) == {"characters_per_minute": None}
     assert build_speech_rate("abc", 0) == {"characters_per_minute": None}
     assert build_speech_rate("abc", 30) == {"characters_per_minute": 6.0}
+
+
+def test_sanitize_diagnostic_message_redacts_sensitive_values() -> None:
+    message = (
+        "line1\n"
+        "https://secret.example/speech?region=japaneast "
+        "subscription-key=abcdefghijklmnopqrstuvwxyz123456"
+    )
+
+    sanitized = sanitize_diagnostic_message(message)
+
+    assert "\n" not in sanitized
+    assert "secret.example" not in sanitized
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in sanitized
+    assert "[redacted_url]" in sanitized

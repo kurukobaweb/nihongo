@@ -223,3 +223,19 @@ The local `sample.webm` is verification data only. Do not commit it. T007-04 doe
 - `503`: Azure service unavailable, timeout, network, or SDK runtime failure
 
 Final Laravel-facing response shaping remains a T007-05 task.
+
+## Azure STT Smoke Test Diagnostics
+
+When the local Azure smoke test returns `503`, inspect `diagnostic.category` in the `/evaluate` response body.
+
+- `azure_canceled`: check `cancellation_reason`, `cancellation_error_code`, and sanitized `error_details`
+- `AuthenticationFailure`: confirm the key, region, and Speech resource belong together
+- `ConnectionFailure` or `ServiceTimeout`: check network access from the container, Azure temporary availability, and Linux/container runtime dependencies
+- `sdk_exception`: check `exception_type` and sanitized `message`
+- `azure_timeout`: continuous recognition did not complete before the service timeout
+
+When the response is `422` with `diagnostic.category` set to `no_match`, check that `sample.webm` contains audible Japanese speech, has enough duration, is not silence/noise, and was recorded at a usable microphone level.
+
+Diagnostics intentionally report configuration booleans such as `key_configured`, `region_configured`, `endpoint_configured`, and `config_mode`. They do not include the Azure key, endpoint value, authorization headers, or environment variable values.
+
+Do not commit `sample.webm`, real Azure secrets, or generated WAV files.

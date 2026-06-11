@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.services.azure_stt import (
+    AzureSttCanceledError,
     AzureSttConfigError,
     AzureSttNoMatchError,
     AzureSttResult,
@@ -241,7 +242,16 @@ def test_evaluate_returns_500_when_ffmpeg_is_missing(monkeypatch) -> None:
 def test_evaluate_returns_422_when_speech_is_not_recognized(monkeypatch) -> None:
     monkeypatch.setenv("SPEECH_SERVICE_INTERNAL_TOKEN", TEST_TOKEN)
     _mock_audio_conversion(monkeypatch)
-    _mock_azure_stt(monkeypatch, exception=AzureSttNoMatchError("no speech"))
+    _mock_azure_stt(
+        monkeypatch,
+        exception=AzureSttNoMatchError(
+            "no speech",
+            diagnostic={
+                "category": "no_match",
+                "result_reason": "NoMatch",
+            },
+        ),
+    )
     client = TestClient(app)
 
     response = client.post(
@@ -252,7 +262,53 @@ def test_evaluate_returns_422_when_speech_is_not_recognized(monkeypatch) -> None
     )
 
     assert response.status_code == 422
-    assert response.json() == {"detail": "Speech could not be recognized"}
+    assert response.json() == {
+        "detail": "Speech could not be recognized",
+        "diagnostic": {
+            "category": "no_match",
+            "result_reason": "NoMatch",
+        },
+    }
+
+
+def test_evaluate_returns_diagnostic_when_azure_recognition_is_canceled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SPEECH_SERVICE_INTERNAL_TOKEN", TEST_TOKEN)
+    _mock_audio_conversion(monkeypatch)
+    _mock_azure_stt(
+        monkeypatch,
+        exception=AzureSttCanceledError(
+            "canceled",
+            diagnostic={
+                "category": "azure_canceled",
+                "result_reason": "Canceled",
+                "cancellation_reason": "Error",
+                "cancellation_error_code": "AuthenticationFailure",
+                "error_details": "safe diagnostic",
+            },
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/evaluate",
+        data=_valid_payload(),
+        files=_valid_files(),
+        headers={"X-Internal-Token": TEST_TOKEN},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Azure Speech recognition was canceled",
+        "diagnostic": {
+            "category": "azure_canceled",
+            "result_reason": "Canceled",
+            "cancellation_reason": "Error",
+            "cancellation_error_code": "AuthenticationFailure",
+            "error_details": "safe diagnostic",
+        },
+    }
 
 
 def test_evaluate_returns_500_when_azure_configuration_is_missing(
@@ -260,7 +316,21 @@ def test_evaluate_returns_500_when_azure_configuration_is_missing(
 ) -> None:
     monkeypatch.setenv("SPEECH_SERVICE_INTERNAL_TOKEN", TEST_TOKEN)
     _mock_audio_conversion(monkeypatch)
-    _mock_azure_stt(monkeypatch, exception=AzureSttConfigError("missing key"))
+    _mock_azure_stt(
+        monkeypatch,
+        exception=AzureSttConfigError(
+            "missing key",
+            diagnostic={
+                "category": "config_error",
+                "config": {
+                    "key_configured": False,
+                    "region_configured": True,
+                    "endpoint_configured": False,
+                    "config_mode": "key_region",
+                },
+            },
+        ),
+    )
     client = TestClient(app)
 
     response = client.post(
@@ -273,13 +343,32 @@ def test_evaluate_returns_500_when_azure_configuration_is_missing(
     assert response.status_code == 500
     assert response.json() == {
         "detail": "Azure Speech configuration is not available",
+        "diagnostic": {
+            "category": "config_error",
+            "config": {
+                "key_configured": False,
+                "region_configured": True,
+                "endpoint_configured": False,
+                "config_mode": "key_region",
+            },
+        },
     }
 
 
 def test_evaluate_returns_503_when_azure_is_unavailable(monkeypatch) -> None:
     monkeypatch.setenv("SPEECH_SERVICE_INTERNAL_TOKEN", TEST_TOKEN)
     _mock_audio_conversion(monkeypatch)
-    _mock_azure_stt(monkeypatch, exception=AzureSttServiceUnavailableError("timeout"))
+    _mock_azure_stt(
+        monkeypatch,
+        exception=AzureSttServiceUnavailableError(
+            "timeout",
+            diagnostic={
+                "category": "sdk_exception",
+                "exception_type": "RuntimeError",
+                "message": "safe message",
+            },
+        ),
+    )
     client = TestClient(app)
 
     response = client.post(
@@ -290,4 +379,11 @@ def test_evaluate_returns_503_when_azure_is_unavailable(monkeypatch) -> None:
     )
 
     assert response.status_code == 503
-    assert response.json() == {"detail": "Azure Speech service is unavailable"}
+    assert response.json() == {
+        "detail": "Azure Speech SDK error",
+        "diagnostic": {
+            "category": "sdk_exception",
+            "exception_type": "RuntimeError",
+            "message": "safe message",
+        },
+    }
