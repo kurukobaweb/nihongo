@@ -222,7 +222,17 @@ The local `sample.webm` is verification data only. Do not commit it. T007-04 doe
 - `500`: missing Azure Speech configuration or SDK initialization configuration failure
 - `503`: Azure service unavailable, timeout, network, or SDK runtime failure
 
-Final Laravel-facing response shaping remains a T007-05 task.
+## `/evaluate` Response Shape
+
+Successful responses keep the existing `status=success` body with transcript, duration, speech rate, Azure request/session metadata, and `raw_azure_response`.
+
+Error responses use `status=error` with `error_type`, `detail`, `retryable`, and `user_action`:
+
+- `422`: `retryable=false`, `user_action=rerecord`
+- `500`: `retryable=false`, `user_action=contact_admin`
+- `503`: `retryable=true`, `user_action=retry_later`
+
+Azure diagnostics are included in `diagnostic` when available. A `422` response is not a Laravel Job auto-retry target; it is for rerecording or noise/silence guidance, and it does not return empty evaluation data.
 
 ## Azure STT Smoke Test Diagnostics
 

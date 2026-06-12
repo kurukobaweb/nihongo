@@ -55,45 +55,63 @@ def evaluate(
 
     try:
         wav_bytes = convert_upload_to_wav(audio_file)
-    except FfmpegNotFoundError as exc:
-        raise HTTPException(
+    except FfmpegNotFoundError:
+        return _error_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_type="audio_conversion_dependency_missing",
             detail="Audio conversion dependency is not available",
-        ) from exc
-    except InvalidAudioFileError as exc:
-        raise HTTPException(
+            retryable=False,
+            user_action="contact_admin",
+        )
+    except InvalidAudioFileError:
+        return _error_response(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            error_type="audio_conversion_failed",
             detail="Audio conversion failed",
-        ) from exc
+            retryable=False,
+            user_action="rerecord",
+        )
 
     try:
         stt_result = transcribe_wav_bytes(wav_bytes)
     except AzureSttNoMatchError as exc:
-        return _azure_error_response(
+        return _error_response(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            error_type="speech_unrecognized",
             detail="Speech could not be recognized",
+            retryable=False,
+            user_action="rerecord",
             diagnostic=exc.diagnostic,
         )
     except AzureSttCanceledError as exc:
-        return _azure_error_response(
+        return _error_response(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            error_type="azure_canceled",
             detail="Azure Speech recognition was canceled",
+            retryable=True,
+            user_action="retry_later",
             diagnostic=exc.diagnostic,
         )
     except AzureSttConfigError as exc:
-        return _azure_error_response(
+        return _error_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            error_type="azure_configuration_unavailable",
             detail="Azure Speech configuration is not available",
+            retryable=False,
+            user_action="contact_admin",
             diagnostic=exc.diagnostic,
         )
     except (AzureSttTimeoutError, AzureSttServiceUnavailableError) as exc:
-        return _azure_error_response(
+        return _error_response(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            error_type="azure_service_unavailable",
             detail="Azure Speech SDK error",
+            retryable=True,
+            user_action="retry_later",
             diagnostic=exc.diagnostic,
         )
 
-    # Later tasks handle feature flags, final response shaping, and persistence.
+    # Later tasks handle feature flags and persistence.
     _ = (question_id, expected_duration, feature_flags)
 
     return {
@@ -112,15 +130,27 @@ def evaluate(
     }
 
 
-def _azure_error_response(
+def _error_response(
+    *,
     status_code: int,
+    error_type: str,
     detail: str,
-    diagnostic: dict[str, object],
+    retryable: bool,
+    user_action: str,
+    diagnostic: dict[str, object] | None = None,
 ) -> JSONResponse:
+    content: dict[str, object] = {
+        "status": "error",
+        "error_type": error_type,
+        "detail": detail,
+        "retryable": retryable,
+        "user_action": user_action,
+    }
+
+    if diagnostic is not None:
+        content["diagnostic"] = diagnostic
+
     return JSONResponse(
         status_code=status_code,
-        content={
-            "detail": detail,
-            "diagnostic": diagnostic,
-        },
+        content=content,
     )

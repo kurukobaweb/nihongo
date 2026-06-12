@@ -6,6 +6,7 @@ from app.services.azure_stt import (
     AzureSttNoMatchError,
     AzureSttResult,
     AzureSttServiceUnavailableError,
+    AzureSttTimeoutError,
 )
 from app.services.audio_conversion import FfmpegNotFoundError, InvalidAudioFileError
 from app.main import app
@@ -217,7 +218,15 @@ def test_evaluate_returns_422_when_audio_conversion_fails(monkeypatch) -> None:
     )
 
     assert response.status_code == 422
-    assert response.json() == {"detail": "Audio conversion failed"}
+    assert response.json() == {
+        "status": "error",
+        "error_type": "audio_conversion_failed",
+        "detail": "Audio conversion failed",
+        "retryable": False,
+        "user_action": "rerecord",
+    }
+    assert "transcript" not in response.json()
+    assert "speech_rate" not in response.json()
 
 
 def test_evaluate_returns_500_when_ffmpeg_is_missing(monkeypatch) -> None:
@@ -235,7 +244,11 @@ def test_evaluate_returns_500_when_ffmpeg_is_missing(monkeypatch) -> None:
 
     assert response.status_code == 500
     assert response.json() == {
+        "status": "error",
+        "error_type": "audio_conversion_dependency_missing",
         "detail": "Audio conversion dependency is not available",
+        "retryable": False,
+        "user_action": "contact_admin",
     }
 
 
@@ -263,12 +276,18 @@ def test_evaluate_returns_422_when_speech_is_not_recognized(monkeypatch) -> None
 
     assert response.status_code == 422
     assert response.json() == {
+        "status": "error",
+        "error_type": "speech_unrecognized",
         "detail": "Speech could not be recognized",
+        "retryable": False,
+        "user_action": "rerecord",
         "diagnostic": {
             "category": "no_match",
             "result_reason": "NoMatch",
         },
     }
+    assert "transcript" not in response.json()
+    assert "speech_rate" not in response.json()
 
 
 def test_evaluate_returns_422_for_end_of_stream_without_transcript(
@@ -305,8 +324,15 @@ def test_evaluate_returns_422_for_end_of_stream_without_transcript(
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Speech could not be recognized"
-    diagnostic = response.json()["diagnostic"]
+    body = response.json()
+    assert body["status"] == "error"
+    assert body["error_type"] == "speech_unrecognized"
+    assert body["detail"] == "Speech could not be recognized"
+    assert body["retryable"] is False
+    assert body["user_action"] == "rerecord"
+    assert "transcript" not in body
+    assert "speech_rate" not in body
+    diagnostic = body["diagnostic"]
     assert diagnostic["category"] == "speech_unrecognized"
     assert diagnostic["cancellation_reason"] == "EndOfStream"
     assert diagnostic["cancellation_error_code"] is None
@@ -345,7 +371,11 @@ def test_evaluate_returns_diagnostic_when_azure_recognition_is_canceled(
 
     assert response.status_code == 503
     assert response.json() == {
+        "status": "error",
+        "error_type": "azure_canceled",
         "detail": "Azure Speech recognition was canceled",
+        "retryable": True,
+        "user_action": "retry_later",
         "diagnostic": {
             "category": "azure_canceled",
             "result_reason": "Canceled",
@@ -390,7 +420,11 @@ def test_evaluate_returns_500_when_azure_configuration_is_missing(
 
     assert response.status_code == 500
     assert response.json() == {
+        "status": "error",
+        "error_type": "azure_configuration_unavailable",
         "detail": "Azure Speech configuration is not available",
+        "retryable": False,
+        "user_action": "contact_admin",
         "diagnostic": {
             "category": "config_error",
             "config": {
@@ -428,10 +462,50 @@ def test_evaluate_returns_503_when_azure_is_unavailable(monkeypatch) -> None:
 
     assert response.status_code == 503
     assert response.json() == {
+        "status": "error",
+        "error_type": "azure_service_unavailable",
         "detail": "Azure Speech SDK error",
+        "retryable": True,
+        "user_action": "retry_later",
         "diagnostic": {
             "category": "sdk_exception",
             "exception_type": "RuntimeError",
             "message": "safe message",
+        },
+    }
+
+
+def test_evaluate_returns_503_when_azure_times_out(monkeypatch) -> None:
+    monkeypatch.setenv("SPEECH_SERVICE_INTERNAL_TOKEN", TEST_TOKEN)
+    _mock_audio_conversion(monkeypatch)
+    _mock_azure_stt(
+        monkeypatch,
+        exception=AzureSttTimeoutError(
+            "timeout",
+            diagnostic={
+                "category": "azure_timeout",
+                "message": "Continuous recognition timed out",
+            },
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/evaluate",
+        data=_valid_payload(),
+        files=_valid_files(),
+        headers={"X-Internal-Token": TEST_TOKEN},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "error",
+        "error_type": "azure_service_unavailable",
+        "detail": "Azure Speech SDK error",
+        "retryable": True,
+        "user_action": "retry_later",
+        "diagnostic": {
+            "category": "azure_timeout",
+            "message": "Continuous recognition timed out",
         },
     }
