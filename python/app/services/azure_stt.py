@@ -321,31 +321,52 @@ def _cancellation_diagnostic(
     config_diagnostic: dict[str, Any],
 ) -> dict[str, Any]:
     result = getattr(event, "result", None)
-    details = _cancellation_details_from_result(result)
+    details, details_source, details_error = _cancellation_details_from_result(result)
+    cancellation_error_code = _reason_name(getattr(details, "error_code", None))
     error_details = getattr(details, "error_details", None)
+    sanitized_error_details = sanitize_diagnostic_message(error_details)
 
     diagnostic = {
         "category": "azure_canceled",
         "result_reason": "Canceled",
         "cancellation_reason": _reason_name(getattr(details, "reason", None)),
-        "cancellation_error_code": _reason_name(getattr(details, "error_code", None)),
-        "error_details": sanitize_diagnostic_message(error_details),
+        "cancellation_error_code": cancellation_error_code,
+        "cancellation_error_code_available": bool(cancellation_error_code),
+        "error_details": sanitized_error_details,
+        "error_details_available": bool(sanitized_error_details),
+        "cancellation_details_source": details_source,
+        "cancellation_details_error": details_error,
         "azure_request_id": _request_id_from_result(result),
         "config": config_diagnostic,
     }
 
-    return {key: value for key, value in diagnostic.items() if value is not None}
+    return {
+        key: value
+        for key, value in diagnostic.items()
+        if key
+        in {
+            "cancellation_error_code",
+            "error_details",
+            "cancellation_error_code_available",
+            "error_details_available",
+        }
+        or value is not None
+    }
 
 
-def _cancellation_details_from_result(result):
+def _cancellation_details_from_result(result) -> tuple[object, str, str | None]:
     cancellation_details = getattr(speechsdk, "CancellationDetails", None)
     if result is not None and cancellation_details is not None:
         try:
-            return cancellation_details.from_result(result)
-        except Exception:
-            pass
+            return cancellation_details.from_result(result), "sdk_cancellation_details", None
+        except Exception as exc:
+            return (
+                result,
+                "failed",
+                sanitize_diagnostic_message(str(exc)),
+            )
 
-    return result or object()
+    return result or object(), "result_fallback", None
 
 
 def _reason_name(reason) -> str | None:

@@ -285,7 +285,10 @@ def test_evaluate_returns_diagnostic_when_azure_recognition_is_canceled(
                 "result_reason": "Canceled",
                 "cancellation_reason": "Error",
                 "cancellation_error_code": "AuthenticationFailure",
+                "cancellation_error_code_available": True,
                 "error_details": "safe diagnostic",
+                "error_details_available": True,
+                "cancellation_details_source": "sdk_cancellation_details",
             },
         ),
     )
@@ -306,7 +309,10 @@ def test_evaluate_returns_diagnostic_when_azure_recognition_is_canceled(
             "result_reason": "Canceled",
             "cancellation_reason": "Error",
             "cancellation_error_code": "AuthenticationFailure",
+            "cancellation_error_code_available": True,
             "error_details": "safe diagnostic",
+            "error_details_available": True,
+            "cancellation_details_source": "sdk_cancellation_details",
         },
     }
 

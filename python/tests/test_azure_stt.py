@@ -146,6 +146,18 @@ class _CanceledRecognizer(_BaseRecognizer):
         )
 
 
+class _CanceledWithoutDetailsRecognizer(_BaseRecognizer):
+    def start_continuous_recognition(self) -> None:
+        self.canceled.emit(
+            SimpleNamespace(
+                result=_Result(
+                    reason="Canceled",
+                    cancellation_reason="Canceled",
+                ),
+            ),
+        )
+
+
 class _TimeoutRecognizer(_BaseRecognizer):
     def start_continuous_recognition(self) -> None:
         return None
@@ -166,6 +178,15 @@ class _CancellationDetails:
         )
 
 
+class _FailingCancellationDetails:
+    @staticmethod
+    def from_result(result):
+        raise RuntimeError(
+            "details failed at https://secret.example/speech "
+            "with token abcdefghijklmnopqrstuvwxyz123456"
+        )
+
+
 class _SpeechSdk:
     SpeechConfig = _SpeechConfig
     CancellationDetails = _CancellationDetails
@@ -174,6 +195,10 @@ class _SpeechSdk:
 
     def __init__(self, recognizer_class) -> None:
         self.SpeechRecognizer = recognizer_class
+
+
+class _SpeechSdkWithoutCancellationDetails(_SpeechSdk):
+    CancellationDetails = None
 
 
 def test_transcribe_wav_bytes_uses_endpoint_first_and_returns_result(monkeypatch) -> None:
@@ -229,10 +254,73 @@ def test_transcribe_wav_bytes_raises_canceled_with_sanitized_diagnostic(
     assert diagnostic["result_reason"] == "Canceled"
     assert diagnostic["cancellation_reason"] == "Error"
     assert diagnostic["cancellation_error_code"] == "AuthenticationFailure"
+    assert diagnostic["cancellation_error_code_available"] is True
+    assert diagnostic["error_details_available"] is True
+    assert diagnostic["cancellation_details_source"] == "sdk_cancellation_details"
     assert diagnostic["azure_request_id"] == "request-2"
     assert diagnostic["azure_session_id"] == "session-1"
     assert "secret.example" not in diagnostic["error_details"]
     assert "abcdefghijklmnopqrstuvwxyz123456" not in diagnostic["error_details"]
+
+
+def test_transcribe_wav_bytes_keeps_missing_cancellation_fields(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        azure_stt,
+        "speechsdk",
+        _SpeechSdk(_CanceledWithoutDetailsRecognizer),
+    )
+
+    with pytest.raises(AzureSttCanceledError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
+    assert "cancellation_error_code" in diagnostic
+    assert "error_details" in diagnostic
+    assert diagnostic["cancellation_error_code"] is None
+    assert diagnostic["error_details"] is None
+    assert diagnostic["cancellation_error_code_available"] is False
+    assert diagnostic["error_details_available"] is False
+    assert diagnostic["cancellation_details_source"] == "sdk_cancellation_details"
+
+
+def test_transcribe_wav_bytes_reports_cancellation_details_fallback(
+    monkeypatch,
+) -> None:
+    speech_sdk = _SpeechSdk(_CanceledRecognizer)
+    speech_sdk.CancellationDetails = _FailingCancellationDetails
+    monkeypatch.setattr(azure_stt, "speechsdk", speech_sdk)
+
+    with pytest.raises(AzureSttCanceledError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
+    assert diagnostic["cancellation_details_source"] == "failed"
+    assert "secret.example" not in diagnostic["cancellation_details_error"]
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in diagnostic[
+        "cancellation_details_error"
+    ]
+
+
+def test_transcribe_wav_bytes_reports_result_fallback_when_sdk_details_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        azure_stt,
+        "speechsdk",
+        _SpeechSdkWithoutCancellationDetails(_CanceledRecognizer),
+    )
+
+    with pytest.raises(AzureSttCanceledError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
+    assert diagnostic["cancellation_details_source"] == "result_fallback"
+    assert diagnostic["cancellation_error_code"] is None
+    assert diagnostic["error_details"] is None
+    assert diagnostic["cancellation_error_code_available"] is False
+    assert diagnostic["error_details_available"] is False
 
 
 def test_transcribe_wav_bytes_raises_sdk_exception_with_diagnostic(
