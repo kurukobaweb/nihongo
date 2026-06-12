@@ -231,17 +231,49 @@ def _run_continuous_recognition(
         except Exception:
             pass
 
+    transcript_parts = [segment["text"] for segment in segments if segment["text"]]
+    transcript = " ".join(transcript_parts).strip()
+    durations = [
+        segment["duration_seconds"]
+        for segment in segments
+        if segment["duration_seconds"] is not None
+    ]
+    recognized_duration_seconds = sum(durations) if durations else None
+
     if cancel_details:
         diagnostic = cancel_details[0]
+        diagnostic["transcript_available"] = bool(transcript)
+        diagnostic["recognized_text_length"] = len(transcript)
         if session_id:
             diagnostic["azure_session_id"] = session_id
+
+        if _is_end_of_stream_without_error(diagnostic):
+            diagnostic["end_of_stream_handling"] = (
+                "success_with_transcript" if transcript else "unrecognized_speech"
+            )
+            if transcript:
+                return _stt_result_from_segments(
+                    transcript,
+                    recognized_duration_seconds,
+                    session_id,
+                    segments,
+                    cancel_diagnostic=diagnostic,
+                )
+
+            raise AzureSttNoMatchError(
+                "Azure Speech ended without recognized transcript",
+                diagnostic={
+                    **diagnostic,
+                    "category": "speech_unrecognized",
+                },
+            )
+
+        diagnostic["end_of_stream_handling"] = "azure_canceled"
         raise AzureSttCanceledError(
             "Azure Speech recognition was canceled",
             diagnostic=diagnostic,
         )
 
-    transcript_parts = [segment["text"] for segment in segments if segment["text"]]
-    transcript = " ".join(transcript_parts).strip()
     if not transcript:
         raw_no_match = {"segments": no_match_segments}
         raise AzureSttNoMatchError(
@@ -254,12 +286,28 @@ def _run_continuous_recognition(
             },
         )
 
-    durations = [
-        segment["duration_seconds"]
-        for segment in segments
-        if segment["duration_seconds"] is not None
-    ]
-    recognized_duration_seconds = sum(durations) if durations else None
+    return _stt_result_from_segments(
+        transcript,
+        recognized_duration_seconds,
+        session_id,
+        segments,
+    )
+
+
+def _stt_result_from_segments(
+    transcript: str,
+    recognized_duration_seconds: float | None,
+    session_id: str | None,
+    segments: list[dict[str, Any]],
+    cancel_diagnostic: dict[str, Any] | None = None,
+) -> AzureSttResult:
+    raw_azure_response: dict[str, Any] = {
+        "recognition_mode": "continuous",
+        "language": SPEECH_LANGUAGE,
+        "segments": segments,
+    }
+    if cancel_diagnostic is not None:
+        raw_azure_response["cancellation_diagnostic"] = cancel_diagnostic
 
     return AzureSttResult(
         transcript=transcript,
@@ -269,11 +317,15 @@ def _run_continuous_recognition(
             segment.get("azure_request_id") for segment in segments
         ),
         azure_session_id=session_id,
-        raw_azure_response={
-            "recognition_mode": "continuous",
-            "language": SPEECH_LANGUAGE,
-            "segments": segments,
-        },
+        raw_azure_response=raw_azure_response,
+    )
+
+
+def _is_end_of_stream_without_error(diagnostic: dict[str, Any]) -> bool:
+    return (
+        diagnostic.get("cancellation_reason") == "EndOfStream"
+        and not diagnostic.get("cancellation_error_code_available")
+        and not diagnostic.get("error_details_available")
     )
 
 

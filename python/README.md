@@ -238,6 +238,8 @@ Azure Speech SDK may return a canceled result without `cancellation_error_code` 
 
 Cancellation details extraction depends on the installed Azure Speech SDK version. Use `cancellation_details_source` to confirm whether SDK details were read directly, a result fallback was used, or extraction failed.
 
+`Canceled` with `cancellation_reason=EndOfStream` is not always an Azure outage. If no transcript was recognized and no error details were returned, the service treats it as unrecognized speech and returns `422` with diagnostic details.
+
 When the response is `422` with `diagnostic.category` set to `no_match`, check that `sample.webm` contains audible Japanese speech, has enough duration, is not silence/noise, and was recorded at a usable microphone level.
 
 Diagnostics intentionally report configuration booleans such as `key_configured`, `region_configured`, `endpoint_configured`, and `config_mode`. They do not include the Azure key, endpoint value, authorization headers, or environment variable values.

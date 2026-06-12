@@ -271,6 +271,48 @@ def test_evaluate_returns_422_when_speech_is_not_recognized(monkeypatch) -> None
     }
 
 
+def test_evaluate_returns_422_for_end_of_stream_without_transcript(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SPEECH_SERVICE_INTERNAL_TOKEN", TEST_TOKEN)
+    _mock_audio_conversion(monkeypatch)
+    _mock_azure_stt(
+        monkeypatch,
+        exception=AzureSttNoMatchError(
+            "end of stream",
+            diagnostic={
+                "category": "speech_unrecognized",
+                "result_reason": "Canceled",
+                "cancellation_reason": "EndOfStream",
+                "cancellation_error_code": None,
+                "cancellation_error_code_available": False,
+                "error_details": "",
+                "error_details_available": False,
+                "cancellation_details_source": "sdk_cancellation_details",
+                "transcript_available": False,
+                "recognized_text_length": 0,
+                "end_of_stream_handling": "unrecognized_speech",
+            },
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/evaluate",
+        data=_valid_payload(),
+        files=_valid_files(),
+        headers={"X-Internal-Token": TEST_TOKEN},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Speech could not be recognized"
+    diagnostic = response.json()["diagnostic"]
+    assert diagnostic["category"] == "speech_unrecognized"
+    assert diagnostic["cancellation_reason"] == "EndOfStream"
+    assert diagnostic["cancellation_error_code"] is None
+    assert diagnostic["error_details"] == ""
+
+
 def test_evaluate_returns_diagnostic_when_azure_recognition_is_canceled(
     monkeypatch,
 ) -> None:

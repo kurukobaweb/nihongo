@@ -158,6 +158,59 @@ class _CanceledWithoutDetailsRecognizer(_BaseRecognizer):
         )
 
 
+class _EndOfStreamRecognizer(_BaseRecognizer):
+    def start_continuous_recognition(self) -> None:
+        self.canceled.emit(
+            SimpleNamespace(
+                result=_Result(
+                    reason="Canceled",
+                    cancellation_reason="EndOfStream",
+                    cancellation_error_code=None,
+                    error_details="",
+                ),
+            ),
+        )
+
+
+class _EndOfStreamWithTranscriptRecognizer(_BaseRecognizer):
+    def start_continuous_recognition(self) -> None:
+        self.session_started.emit(SimpleNamespace(session_id="session-1"))
+        self.recognized.emit(
+            SimpleNamespace(
+                result=_Result(
+                    reason="RecognizedSpeech",
+                    text="abcde",
+                    duration=30_000_000,
+                    raw_json='{"Id":"request-3","RecognitionStatus":"Success"}',
+                ),
+            ),
+        )
+        self.canceled.emit(
+            SimpleNamespace(
+                result=_Result(
+                    reason="Canceled",
+                    cancellation_reason="EndOfStream",
+                    cancellation_error_code=None,
+                    error_details="",
+                ),
+            ),
+        )
+
+
+class _EndOfStreamWithErrorRecognizer(_BaseRecognizer):
+    def start_continuous_recognition(self) -> None:
+        self.canceled.emit(
+            SimpleNamespace(
+                result=_Result(
+                    reason="Canceled",
+                    cancellation_reason="EndOfStream",
+                    cancellation_error_code=None,
+                    error_details="network failure",
+                ),
+            ),
+        )
+
+
 class _TimeoutRecognizer(_BaseRecognizer):
     def start_continuous_recognition(self) -> None:
         return None
@@ -306,6 +359,63 @@ def test_transcribe_wav_bytes_keeps_missing_cancellation_fields(
     assert diagnostic["cancellation_error_code_available"] is False
     assert diagnostic["error_details_available"] is False
     assert diagnostic["cancellation_details_source"] == "sdk_cancellation_details"
+
+
+def test_transcribe_wav_bytes_treats_end_of_stream_without_transcript_as_unrecognized(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_EndOfStreamRecognizer))
+
+    with pytest.raises(AzureSttNoMatchError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
+    assert diagnostic["category"] == "speech_unrecognized"
+    assert diagnostic["result_reason"] == "Canceled"
+    assert diagnostic["cancellation_reason"] == "EndOfStream"
+    assert diagnostic["cancellation_error_code"] is None
+    assert diagnostic["error_details"] == ""
+    assert diagnostic["transcript_available"] is False
+    assert diagnostic["recognized_text_length"] == 0
+    assert diagnostic["end_of_stream_handling"] == "unrecognized_speech"
+
+
+def test_transcribe_wav_bytes_treats_end_of_stream_with_transcript_as_success(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        azure_stt,
+        "speechsdk",
+        _SpeechSdk(_EndOfStreamWithTranscriptRecognizer),
+    )
+
+    result = transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    assert result.transcript == "abcde"
+    assert result.recognized_duration_seconds == 3.0
+    assert result.raw_azure_response["cancellation_diagnostic"][
+        "end_of_stream_handling"
+    ] == "success_with_transcript"
+
+
+def test_transcribe_wav_bytes_keeps_end_of_stream_with_error_as_canceled(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        azure_stt,
+        "speechsdk",
+        _SpeechSdk(_EndOfStreamWithErrorRecognizer),
+    )
+
+    with pytest.raises(AzureSttCanceledError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
+    assert diagnostic["category"] == "azure_canceled"
+    assert diagnostic["cancellation_reason"] == "EndOfStream"
+    assert diagnostic["error_details"] == "network failure"
+    assert diagnostic["error_details_available"] is True
+    assert diagnostic["end_of_stream_handling"] == "azure_canceled"
 
 
 def test_transcribe_wav_bytes_reports_cancellation_details_fallback(
