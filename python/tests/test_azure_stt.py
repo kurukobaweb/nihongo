@@ -158,6 +158,11 @@ class _CanceledWithoutDetailsRecognizer(_BaseRecognizer):
         )
 
 
+class _CanceledWithoutResultRecognizer(_BaseRecognizer):
+    def start_continuous_recognition(self) -> None:
+        self.canceled.emit(SimpleNamespace(result=None))
+
+
 class _EndOfStreamRecognizer(_BaseRecognizer):
     def start_continuous_recognition(self) -> None:
         self.canceled.emit(
@@ -429,11 +434,33 @@ def test_transcribe_wav_bytes_reports_cancellation_details_fallback(
         transcribe_wav_bytes(b"wav bytes", settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
+    assert diagnostic["cancellation_details_source"] == "result_fallback"
+    assert diagnostic.get("cancellation_details_error") is None
+    assert diagnostic["cancellation_reason"] == "Error"
+    assert diagnostic["cancellation_error_code"] == "AuthenticationFailure"
+    assert diagnostic["cancellation_error_code_available"] is True
+    assert diagnostic["error_details_available"] is True
+    assert "secret.example" not in diagnostic["error_details"]
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in diagnostic["error_details"]
+
+
+def test_transcribe_wav_bytes_reports_failed_when_result_unavailable(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        azure_stt,
+        "speechsdk",
+        _SpeechSdk(_CanceledWithoutResultRecognizer),
+    )
+
+    with pytest.raises(AzureSttCanceledError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
     assert diagnostic["cancellation_details_source"] == "failed"
-    assert "secret.example" not in diagnostic["cancellation_details_error"]
-    assert "abcdefghijklmnopqrstuvwxyz123456" not in diagnostic[
-        "cancellation_details_error"
-    ]
+    assert diagnostic["cancellation_details_error"] == (
+        "Cancellation result is not available"
+    )
 
 
 def test_transcribe_wav_bytes_reports_result_fallback_when_sdk_details_missing(
@@ -450,10 +477,13 @@ def test_transcribe_wav_bytes_reports_result_fallback_when_sdk_details_missing(
 
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["cancellation_details_source"] == "result_fallback"
-    assert diagnostic["cancellation_error_code"] is None
-    assert diagnostic["error_details"] is None
-    assert diagnostic["cancellation_error_code_available"] is False
-    assert diagnostic["error_details_available"] is False
+    assert diagnostic.get("cancellation_details_error") is None
+    assert diagnostic["cancellation_reason"] == "Error"
+    assert diagnostic["cancellation_error_code"] == "AuthenticationFailure"
+    assert diagnostic["cancellation_error_code_available"] is True
+    assert diagnostic["error_details_available"] is True
+    assert "secret.example" not in diagnostic["error_details"]
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in diagnostic["error_details"]
 
 
 def test_transcribe_wav_bytes_raises_sdk_exception_with_diagnostic(

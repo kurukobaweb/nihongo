@@ -374,14 +374,18 @@ def _cancellation_diagnostic(
 ) -> dict[str, Any]:
     result = getattr(event, "result", None)
     details, details_source, details_error = _cancellation_details_from_result(result)
-    cancellation_error_code = _reason_name(getattr(details, "error_code", None))
-    error_details = getattr(details, "error_details", None)
+    cancellation_error_code = _reason_name(
+        _diagnostic_value(details, "error_code", "cancellation_error_code")
+    )
+    error_details = _diagnostic_value(details, "error_details")
     sanitized_error_details = sanitize_diagnostic_message(error_details)
 
     diagnostic = {
         "category": "azure_canceled",
         "result_reason": "Canceled",
-        "cancellation_reason": _reason_name(getattr(details, "reason", None)),
+        "cancellation_reason": _reason_name(
+            _diagnostic_value(details, "reason", "cancellation_reason")
+        ),
         "cancellation_error_code": cancellation_error_code,
         "cancellation_error_code_available": bool(cancellation_error_code),
         "error_details": sanitized_error_details,
@@ -411,14 +415,21 @@ def _cancellation_details_from_result(result) -> tuple[object, str, str | None]:
     if result is not None and cancellation_details is not None:
         try:
             return cancellation_details(result), "sdk_cancellation_details", None
-        except Exception as exc:
-            return (
-                result,
-                "failed",
-                sanitize_diagnostic_message(str(exc)),
-            )
+        except Exception:
+            return result, "result_fallback", None
 
-    return result or object(), "result_fallback", None
+    if result is not None:
+        return result, "result_fallback", None
+
+    return object(), "failed", "Cancellation result is not available"
+
+
+def _diagnostic_value(details, *attribute_names: str):
+    for attribute_name in attribute_names:
+        value = getattr(details, attribute_name, None)
+        if value is not None:
+            return value
+    return None
 
 
 def _reason_name(reason) -> str | None:
