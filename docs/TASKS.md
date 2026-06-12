@@ -1,0 +1,4187 @@
+# TASKS.md
+
+> 目的: CodeX（ブラウザ版）でMVP実装を進めるための実行計画書  
+> 対象範囲: MVP（フェーズ①「MVPの作成とテスト環境の検証」）  
+> 最初の大マイルストーン: 課金なしで音声提出E2Eが動くこと  
+> 注意: 本文書は実装タスク定義であり、仕様書本文の代替ではない。
+
+---
+
+## CodeX 作業共通ルール
+
+- 1回のCodeX依頼では、原則1タスクのみ実施する
+- 1タスクは1〜3時間以内に収める
+- 変更対象ファイルを明示する
+- 実装してはいけない範囲を必ず確認する
+- 依存タスクが未完了の場合は、先に依存タスクを完了させる
+- Laravel / Vue / Python / Stripe を1タスクで横断しすぎない
+- 未確定事項は OI ID で参照し、CodeXに勝手に決めさせない
+- 不明点が出たら、実装を広げず原因特定タスクに切り替える
+- PythonからLaravel DBへ直接アクセスさせない
+- 音声ファイルを永続保存させない
+- `question_type` を復活させない
+- `questions.question_format` のDBカラム追加タスクは作成しない
+- `question_format` の具体値・値域は `single_prompt` / `two_choice` として確定済みで、T002-05で反映する
+- `has_model_answer` は模範解答有無として扱い、問題形式と混同しない
+- ユーザー設定保存先は OI-023 確定前に固定しない
+- Stripe Webhook対象イベントは OI-027 確定前に固定しない
+- 管理画面MVP範囲は OI-028 確定前に広げない
+- Feature Flag OFF前提の機能をデフォルトONにしない
+- 実Secretsをリポジトリへ書かない
+- DB変更は安易な rollback 前提にしない
+- UIタスクでDB設計や未確定事項を勝手に確定しない
+- 422音声認識不可は、空欄の結果画面ではなく再録音 / 再提出導線として扱う
+
+## 現在のリポジトリ実体と変更対象の読み方
+
+- T001-01着手前の時点では、リポジトリには仕様書Markdown群、`README.md`、`.env.example` が存在する
+- Laravelプロジェクト本体は未作成であり、`composer.json`、`package.json`、`vite.config.*`、`app/`、`routes/`、`resources/`、`config/` などは未生成である
+- これらのファイル・ディレクトリは、T001-01以降で生成または更新される対象として扱う
+- 各タスクの変更対象は、タスク開始時点で既存のファイルだけでなく、前タスク完了後に生成済みとなるファイル、または当該タスクで新規作成するファイルを含む
+- T001-02以降に記載される `config/`、`routes/`、`resources/`、`app/`、`database/`、`package.json` などは、T001-01完了後に生成済みとなる前提の変更対象であり、現時点で既存ファイルとして存在することを意味しない
+- CodeX投入時は、開始時点で存在するもの、このタスクで新規作成するもの、既存更新するものを区別し、存在しないファイルを既存ファイルとして扱わない
+
+## 実装順序の補足
+
+- 最初の大マイルストーンまでは、基盤 → DB → 認証 → 問題表示 → 録音UI → 音声提出 → Python評価 → Laravel ⇔ Python連携 → ポーリング → 結果表示 → Feature Flag表示制御 → 422再録音 / 再提出導線の順を維持する
+- Stripe、管理画面、設定保存先の永続化は、課金なし音声提出E2E成立後または該当OI確定後に進める
+- 依存タスク欄に複数IDがある場合、原則としてすべて完了してから着手する
+
+---
+
+# 0. 実装前確定タスク
+
+### T000-01: 実装ブロックOI確認
+
+- [x] 状態: 完了（2026-05-26 確認済み）
+- 種別: 設定
+- 目的:
+  - MVP実装開始前に、未確定だと実装が詰まるOIを確認する
+- 参照仕様書:
+  - `OPEN_ISSUES.md`
+  - `CONSISTENCY_CHECK.md`
+- 変更対象:
+  - なし
+- 依存タスク:
+  - なし
+- 実装内容:
+  - OI-006, OI-010, OI-011, OI-012, OI-015, OI-016, OI-018, OI-022, OI-023, OI-025, OI-027, OI-028, OI-104, OI-107 を確認する
+  - 「T001-01前に必須」「該当タスク着手前に必須」「PoC実施前に必須」「課金・管理画面・運用タスク前に必須」に分類する
+- 確認結果:
+  - T001-01前に必須: T001-01の着手可否を直接止める未確定OIはなし。未確定事項は各タスクでOI IDを参照して扱う
+  - 該当タスク着手前に必須: OI-006, OI-011, OI-015, OI-016, OI-022, OI-023, OI-025, OI-107
+  - PoC実施前に必須: OI-010, OI-012
+  - 課金・管理画面・運用タスク前に必須: OI-018, OI-027, OI-028, OI-104
+  - OI-023は設定保存実装前、OI-027はStripe Webhook前、OI-028は管理画面機能拡張前、OI-104はAdminUserSeeder前、OI-107はAzure STT / evaluation保存前に確認する
+  - 後続で反映可: 各実装タスクで該当OIの確定内容を参照し、未確定事項は確定扱いにしない
+- 実装してはいけないこと:
+  - 未確定事項を確定扱いにしない
+  - 仕様書本文を修正しない
+- 完了条件:
+  - 実装ブロック要因と後続反映事項が区別されている
+- テスト観点:
+  - OI ID の参照漏れがない
+- CodeX投入時の注意:
+  - 実装作業ではなく、確認・分類のみ行う
+
+### T000-02: Gitブランチ戦略確認
+
+- [x] 状態: 完了（2026-05-26 確認済み）
+- 種別: 設定
+- 目的:
+  - CodeX作業ブランチ、統合ブランチ、本番反映ブランチを実装前に明確にする
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-018
+  - `OPERATIONS.md`
+- 変更対象:
+  - なし
+- 依存タスク:
+  - T000-01
+- 実装内容:
+  - OI-018の確定状況を確認する
+  - CodeX作業単位のブランチ運用を確認する
+- 確認結果:
+  - 作業ディレクトリ: `C:\Projects\nihongo`
+  - Repository: `kurukobaweb/nihongo`
+  - 作業ブランチ: `codex/t000-setup`
+  - Remote: `origin https://github.com/kurukobaweb/nihongo.git`
+  - `git status --short` は出力なし（clean）
+  - OI-018 はブランチ戦略の管理IDとして継続参照し、本タスクでは Git 操作や仕様固定を行わない
+  - PR作成、mainへのmerge、mainへの直接pushは行わず、ユーザー判断で行う
+  - clean確認は2026-05-26時点の記録であり、T001-01着手直前の最新状態を保証しない
+  - 各CodeX投入前に、作業ブランチ、remote、`git status --short` を再確認する
+  - 未コミット差分がある場合は、勝手に上書き・破棄・commitせず停止して報告する
+- 実装してはいけないこと:
+  - OI-018未確定のままブランチ戦略を固定しない
+- 完了条件:
+  - 作業ブランチ、統合先、main反映フローが明確である
+- テスト観点:
+  - CodeX作業後のレビュー・マージ導線が説明できる
+- CodeX投入時の注意:
+  - Git操作の実装ではなく、作業前提確認として扱う
+
+### T000-03: `.env` / Secrets投入方針確認
+
+- [x] 状態: 完了（2026-05-26 確認済み）
+- 種別: 設定
+- 目的:
+  - Stripe、Azure、Google OAuth、内部通信トークン、DB接続情報の投入方針を確認する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-007, OI-013, OI-104
+- 変更対象:
+  - `.env.example`
+  - 設定ファイル
+- 依存タスク:
+  - T000-01
+- 実装内容:
+  - 必要な環境変数一覧を整理する
+  - 実値未投入項目を明確にする
+- 確認結果:
+  - `.env.example` を追加済み
+  - `.env` は作成・変更していない
+  - 実Secretsはリポジトリへ記載していない
+  - `.env.example` にMVP実装で必要な環境変数キーの雛形のみを整理済み
+  - 整理カテゴリ: Laravel基本設定、PostgreSQL DB接続、Queue / Cache / Session、Azure AI Speech、Laravel ⇔ Python 内部通信、Google OAuth、Stripe、Feature Flags、Mail
+  - Feature Flags はすべてデフォルト `false`
+  - OI-007 の内部通信トークンローテーション方針は未確定のまま維持する
+  - OI-013 の Azure APIキーローテーション手順は未確定のまま維持する
+  - OI-104 の管理者seed初期パスワード管理方式は未確定のまま維持する
+  - 管理者初期パスワード方式を固定するキーは `.env.example` に追加していない
+  - T001-01以降の実装には進んでいない
+- 実装してはいけないこと:
+  - 実Secretsをリポジトリへ記載しない
+  - 管理者初期パスワード方式を OI-104 確定前に固定しない
+- 完了条件:
+  - `.env.example` に必要キーの雛形だけがある
+- テスト観点:
+  - 実値が含まれていない
+  - Feature FlagのデフォルトがOFFである
+- CodeX投入時の注意:
+  - 実Secrets投入はCodeXに行わせない
+
+---
+
+# 1. プロジェクト基盤
+
+### T001-01: Laravel / Inertia / Vue / Tailwind 基盤作成
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: 実装
+- 目的:
+  - リポジトリ直下にMVPアプリのWeb基盤を新規作成する
+- 参照仕様書:
+  - `README.md`
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+- 変更対象:
+  - Laravelプロジェクト一式（新規生成）
+  - `package.json`（新規生成または更新）
+  - Inertia/Vue/Tailwind/Vite関連ファイル（新規生成または更新）
+- 依存タスク:
+  - T000-01
+  - T000-02
+  - T000-03
+- 実装内容:
+  - 既存Laravelプロジェクトへの追加修正ではなく、Laravel 11系を前提にリポジトリ直下へ新規初期化する
+  - Inertia.js + Vue 3 + Tailwind CSSを導入する
+  - SSRは前提にしない
+  - 既存の仕様書Markdown群、`README.md`、`.env.example` を不用意に上書きしない
+- 確認結果:
+  - 実装commit: `051709b8c6941c6a737979fc727268aefafed72b`
+  - Laravel 11 / Inertia.js / Vue 3 / Tailwind CSS 基盤を作成済み
+  - SSRなし構成である
+  - `/` は `Inertia::render('Welcome')` により Inertia root を返す
+  - `npm.cmd run build` 成功
+  - `php artisan route:list` 成功
+  - 初期画面はローカルHTTP確認で `STATUS=200`、Inertia root確認済み
+  - `php artisan test` は exit 0、1 passed / 1 warning
+  - warning は `.env` 未作成による読み込み警告であり、T001-01要件上は許容する
+  - `README.md`、`docs/`、`.env.example` は変更していない
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - 認証、録音、DBマイグレーション、Seeder、Queue、Python FastAPI、Azure、Stripe、管理画面には未着手
+- 申し送り:
+  - `config/session.php` の `SESSION_DRIVER` 未指定時デフォルトは `file`
+  - `.env.example` では `SESSION_DRIVER=database`
+  - この差分はT001-01完了を止める問題ではない
+  - T001-02以降で PostgreSQL 接続、session/cache/queue 方針、`sessions` テーブルとの整合を再確認する
+- 実装してはいけないこと:
+  - Reactや別SPA構成に変更しない
+  - 認証・録音・Stripeを同時実装しない
+  - Python FastAPI、DBマイグレーション、Seeder、Feature Flag本体を実装しない
+- 完了条件:
+  - 初期画面が表示される
+  - フロントエンドビルドが通る
+- テスト観点:
+  - `npm run build` が成功する
+  - Laravelの基本画面が表示できる
+- CodeX投入時の注意:
+  - 初期基盤に限定し、業務機能を入れない
+  - 開始時点ではLaravel関連ファイルが未生成であることを前提に、生成ファイルと既存文書ファイルを区別する
+
+### T001-02: PostgreSQL接続設定
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: DB
+- 目的:
+  - PostgreSQL 16 / UTF-8 前提でLaravelからDB接続できる状態にする
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - `.env.example`
+  - `config/database.php`
+- 依存タスク:
+  - T001-01
+  - T000-03
+- 実装内容:
+  - PostgreSQL接続を前提に設定する
+  - タイムゾーンはDB UTC保存、表示はアプリ層変換を前提にする
+- 確認結果:
+  - 実装commit: `99540623796bb01607ab9d4ef5ba6f5db8790a6c`
+  - 変更ファイルは `config/database.php` のみ
+  - Laravel側のDBデフォルトを PostgreSQL 前提に調整済み
+  - `DB_CONNECTION` 未指定時の default を `pgsql` に変更済み
+  - `pgsql` 接続の `DB_DATABASE` fallback を空文字に変更済み
+  - `pgsql` 接続の `DB_USERNAME` fallback を空文字に変更済み
+  - `.env.example` は確認のみで変更していない
+  - `.env.example` には PostgreSQL用の雛形、`SESSION_DRIVER=database`、Queue / Cache / Session 方針が既存どおり存在する
+  - `config/session.php` は確認のみで変更していない
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - DBスキーマ本体・マイグレーションは作成していない
+  - T001-03以降には未着手
+  - `npm.cmd run build` 成功
+  - `php artisan route:list` 成功
+  - `php artisan migrate:status` は実施したが完了不可
+  - `php artisan migrate:status` 完了不可の直接理由は、PHP側で `pdo_pgsql` driver が未有効であること
+  - 併せて `.env` 未作成、DB名 / ユーザー等が実値未投入であることを確認済み
+- 申し送り:
+  - 実DB接続確認前に、PHP側の `pdo_pgsql` driver を有効化する必要がある
+  - 実DB接続確認前に、`.env` にDB接続実値を投入する必要がある
+  - `.env` はリポジトリへcommitしない
+  - `config/session.php` の `SESSION_DRIVER` 未指定時 default は `file`
+  - `.env.example` では `SESSION_DRIVER=database`
+  - この差分はT001-02完了を止める問題ではない
+  - 後続のDBマイグレーション / `sessions` テーブル作成時に、session / cache / queue 方針と整合確認する
+  - `pdo_pgsql` 未有効はLaravelコードではなく、ローカルPHP実行環境側の前提として扱う
+- 実装してはいけないこと:
+  - MySQL前提へ変更しない
+  - DBスキーマ本体をこのタスクで作らない
+- 完了条件:
+  - LaravelからPostgreSQLへ接続確認できる
+- テスト観点:
+  - `php artisan migrate:status` 相当がDB接続エラーにならない
+- CodeX投入時の注意:
+  - 接続設定のみ。マイグレーション作成は後続タスクで行う
+
+### T001-03: Queue database driver 基盤作成
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: Queue
+- 目的:
+  - Laravel Queue database driver を使う基盤を作る
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - `config/queue.php`
+  - Queue関連マイグレーション
+- 依存タスク:
+  - T001-02
+- 実装内容:
+  - `jobs`, `failed_jobs` を使用する
+  - database queueをデフォルトにする
+- 確認結果:
+  - 実装commit: `4688ab83e26b98a0d500dbc76d34ef701759d1b5`
+  - 変更ファイル:
+    - `config/queue.php`
+    - `database/migrations/2026_06_05_050923_create_jobs_table.php`
+    - `database/migrations/2026_06_05_050929_create_failed_jobs_table.php`
+  - Queue database driver 基盤を作成済み
+  - `QUEUE_CONNECTION` 未指定時の fallback は `database` であることを確認済み
+  - `batching.database` / `failed.database` の `DB_CONNECTION` fallback を `pgsql` に変更済み
+  - Redis / SQS / sync をデフォルトにはしていない
+  - `.env.example` は確認のみで変更していない
+  - `.env.example` に `QUEUE_CONNECTION=database` と PostgreSQL接続キーが既存どおり存在する
+  - 実Secretsは追加していない
+  - `jobs` 用マイグレーションを作成済み
+  - `failed_jobs` 用マイグレーションを作成済み
+  - `job_batches` 用マイグレーションは作成していない
+  - `personal_access_tokens` 用マイグレーションは作成していない
+  - DBスキーマ本体や17テーブル作成には進んでいない
+  - Scheduler / Worker運用詳細には進んでいない
+  - T001-04以降には未着手
+  - `npm.cmd run build` 成功
+  - `php artisan route:list` 成功、5 routes表示
+  - `php artisan queue:work --once --stop-when-empty` 実施、exit 0
+  - 実DBへのQueue投入確認は未実施
+  - `php artisan migrate:status` は `pdo_pgsql` 未有効で失敗
+  - Queue投入確認未実施の理由は、実値未投入 / `pdo_pgsql` 未有効である
+  - `.env` は作成・commitしていない
+- 申し送り:
+  - 実DB上での Queue 投入確認は未実施
+  - 理由は、`pdo_pgsql` 未有効およびDB接続実値未投入のため
+  - `php artisan queue:work --once --stop-when-empty` の exit 0 は、Queue Worker コマンド実行確認として扱う
+  - ただし、実DB上の `jobs` / `failed_jobs` テーブルへの投入・処理確認完了とは扱わない
+  - 実DB接続確認前に、PHP側の `pdo_pgsql` driver を有効化する必要がある
+  - 実DB接続確認前に、`.env` にDB接続実値を投入する必要がある
+  - `.env` はリポジトリへcommitしない
+  - 後続のDBマイグレーション適用時に、`jobs` / `failed_jobs` のテーブル作成とQueue投入確認を再確認する
+- 実装してはいけないこと:
+  - Redis前提にしない
+  - `job_batches` をMVP前提で追加しない
+- 完了条件:
+  - QueueジョブをDBに投入できる
+- テスト観点:
+  - jobsテーブルにジョブが作成される
+  - failed_jobsが利用可能である
+- CodeX投入時の注意:
+  - Queue Worker運用詳細は後続タスクで扱う
+
+### T001-04: Scheduler基盤作成
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: 運用
+- 目的:
+  - CleanupTempFilesJobなどの定期ジョブを後続で登録できる基盤を用意する
+- 参照仕様書:
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-001, OI-021
+- 変更対象:
+  - Laravel Scheduler設定
+- 依存タスク:
+  - T001-03
+- 実装内容:
+  - Schedulerが動作確認できる最小構成を作る
+- 確認結果:
+  - 実装commit: `8a37c6c3d5492ad3c96b8d7b51a531d68df3d438`
+  - 変更ファイル:
+    - `routes/console.php`
+  - Scheduler基盤確認は完了
+  - Scheduler定義先は `routes/console.php`
+  - `bootstrap/app.php` から読み込み済み
+  - Laravel初期サンプルの `inspire` コマンドから `hourly()` を外した
+  - `hourly()` を外した理由は、未確定のScheduler頻度やジョブ一覧を固定しないためである
+  - `php artisan schedule:list` がDB/cache lockへ触らず実行できる状態にした
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `npm.cmd run build` 成功
+  - `php artisan route:list` 成功、5 routes表示
+  - CleanupTempFilesJob は作成していない
+  - 音声削除処理は実装していない
+  - OI-001 / OI-021 のジョブ一覧・頻度・削除条件を固定していない
+  - `.env` は作成・commitしていない
+  - `.env.example` は変更していない
+  - 実Secretsは追加していない
+  - DBマイグレーションは新規作成していない
+  - T001-05以降には未着手
+- 申し送り:
+  - 現時点では、Schedulerに業務ジョブは登録していない
+  - `php artisan schedule:list` の `No scheduled tasks have been defined.` は、T001-04時点では正常な状態として扱う
+  - Schedulerを使える土台はあるが、CleanupTempFilesJobなどの業務ジョブは後続タスクで扱う
+  - Scheduler の具体的なジョブ一覧の最終構成は OI-001 で管理する
+  - CleanupTempFilesJob の実行頻度および削除対象条件は OI-021 で管理する
+  - OI-001 / OI-021 確定前にジョブ一覧・頻度・削除条件を固定しない
+  - 本番cron設定、Supervisor設定、Queue Worker運用詳細はT001-04では扱っていない
+- 実装してはいけないこと:
+  - OI-001 / OI-021 未確定の頻度やジョブ一覧を固定しない
+- 完了条件:
+  - Schedulerへのジョブ登録が可能な状態である
+- テスト観点:
+  - schedule list相当で設定確認できる
+- CodeX投入時の注意:
+  - CleanupTempFilesJob本体は後続タスクで作る
+
+### T001-05: Feature Flag設定基盤作成
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: 設定
+- 目的:
+  - Pronunciation / Fluency / Content / LLM のFeature FlagをOFF前提で管理する
+- 参照仕様書:
+  - `ARCHITECTURE.md` §6
+  - `DESIGN.md`
+- 変更対象:
+  - `config/features.php`
+  - `.env.example`
+  - Inertia shared data
+- 依存タスク:
+  - T001-01
+  - T000-03
+- 実装内容:
+  - Feature Flagキーを設定ファイルに定義する
+  - デフォルトはすべてOFFにする
+  - Vue側へshared dataで配布できる土台を作る
+- 確認結果:
+  - 実装commit: `c2557593f852c1b52d29513136704c971b7ab653`
+  - 変更ファイル:
+    - `.env.example`
+    - `app/Http/Middleware/HandleInertiaRequests.php`
+    - `config/features.php`
+  - `config/features.php` を新規作成済み
+  - 既存仕様の Speech / Comment 系Flagと、表示・機能トグル用FlagをLaravel config化済み
+  - すべてのFeature Flagは default `false`
+  - アプリ側で `config('features')` により参照可能
+  - `.env.example` に `FEATURE_*` キーを追加済み
+  - 追加したFeature Flagはすべて `false`
+  - 既存の `SPEECH_*` / `COMMENT_LLM_GENERATION_ENABLED` は維持済み
+  - `HandleInertiaRequests.php` で `features` をInertia shared dataへ渡す土台を追加済み
+  - `config('features')` から読み込む構成である
+  - Feature Flagをbooleanとして共有する構成である
+  - DBアクセスは追加していない
+  - 外部APIアクセスは追加していない
+  - Feature FlagはONにしていない
+  - DB管理方式にはしていない
+  - Feature Flag管理画面は作成していない
+  - 表示制御本体は実装していない
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - DBマイグレーションは作成していない
+  - Azure / Python / LLM / Stripe / 管理画面には未着手
+  - T001-06以降には未着手
+  - `php artisan config:clear` 成功
+  - `php artisan config:cache` 成功
+  - 再度 `php artisan config:clear` 成功
+  - `php artisan config:show features` で全Feature Flagが `false`
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `php artisan route:list` 成功、5 routes表示
+  - `npm.cmd run build` 成功
+- 申し送り:
+  - Feature Flagは設定ファイル / `.env.example` ベースで管理する
+  - 現時点ではDB管理方式にしない
+  - Feature Flag管理画面は作成していない
+  - すべてのFeature Flagはdefault OFFである
+  - Feature FlagをONにする判断は後続タスクまたは未確定事項の解消後に行う
+  - 表示制御本体は未実装であり、後続のUI実装タスクで扱う
+  - Pronunciation / Accuracy / Fluency / Completeness / Prosody などの表示はONにしていない
+  - Azure / Python / LLM / Stripe / 管理画面には進んでいない
+  - OI-012 のPoC判断を先取りしていない
+  - `.env` はリポジトリへcommitしない
+- 実装してはいけないこと:
+  - Pronunciation / FluencyをデフォルトONにしない
+  - DB管理方式にしない
+- 完了条件:
+  - Laravel側でFeature Flagを参照できる
+  - Vue側へFlag状態を渡せる
+- テスト観点:
+  - OFF時にfalseとして取得できる
+- CodeX投入時の注意:
+  - 表示制御本体は結果画面タスクで実装する
+
+---
+
+# 2. DB・モデル・Seeder
+
+### T002-01: 17テーブル / 5カテゴリのマイグレーション作成
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: DB
+- 目的:
+  - `DB_SCHEMA.md` に基づくMVP DBスキーマを作成する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `CONSISTENCY_CHECK.md`
+- 変更対象:
+  - `database/migrations/`
+- 依存タスク:
+  - T001-02
+  - T001-03
+- 実装内容:
+  - 17テーブル / 5カテゴリを作成する
+  - `questions.question_format` はDB_SCHEMA.md反映済みの既存カラムとして含める
+  - `question_format` の具体値・CHECK制約値域は OI-022 確定後の反映対象として扱う
+  - `submissions.id` はUUID v4にする
+  - `evaluations.submission_id` はUNIQUEにする
+- 確認結果:
+  - 実装commit: `2c40f857db8bb00d4d550dd1f6e064c1b60aae0a`
+  - 変更範囲は `database/migrations/` のみ
+  - DB_SCHEMA.mdに基づき、17テーブル / 5カテゴリのマイグレーションを作成・整備済み
+  - User: `users`, `password_reset_tokens`, `sessions`
+  - Learning: `categories`, `tags`, `questions`, `question_tag`, `submissions`, `evaluations`
+  - Stripe: `customers`, `subscriptions`, `subscription_items`
+  - System: `jobs`, `failed_jobs`, `cache`, `cache_locks`
+  - Legal: `consents`
+  - 既存マイグレーションは `jobs` / `failed_jobs` の2本のみだった
+  - `jobs` / `failed_jobs` は重複作成していない
+  - `jobs.attempts` を `unsignedSmallInteger` + default `0` に調整済み
+  - `failed_jobs.failed_at` に代表インデックスを追加済み
+  - `job_batches` は作成していない
+  - `personal_access_tokens` は作成していない
+  - `questions.question_format` を追加済み
+  - `question_type` は追加していない
+  - `question_format` の具体値・CHECK制約値域は固定していない
+  - `submissions.id` はUUID主キー、default `gen_random_uuid()` とした
+  - `evaluations.submission_id` はUUID FKかつUNIQUEとした
+  - `question_tag` は複合主キーで重複防止している
+  - `evaluations` のJSON系はJSONBとして扱っている
+  - `users` に学習設定JSONBは追加していない
+  - `user_learning_settings` は作成していない
+  - OI-022 / OI-023 / OI-027 / OI-104 / OI-107 / OI-108 を先取りしていない
+  - `php -l` 全マイグレーション成功
+  - `php artisan route:list` 成功、5 routes表示
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `npm.cmd run build` 成功
+  - `php artisan migrate:status` は実施したが失敗
+  - `migrate:status` 失敗理由は `pdo_pgsql` 未有効 / DB接続実値未投入
+  - `.env` は作成・commitしていない
+- 申し送り:
+  - T002-01時点では、マイグレーションファイル作成・静的確認まで完了
+  - 実DBへの `migrate` 確認は未完了
+  - 理由は、`pdo_pgsql` 未有効およびDB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBで `php artisan migrate` または同等の適用確認が必要
+  - DB接続実値投入後に、17テーブル作成確認が必要
+  - `submissions.id` の default `gen_random_uuid()` が対象PostgreSQL環境で利用可能か確認が必要
+  - `.env` はリポジトリへcommitしない
+  - T002-02でCHECK制約・詳細インデックスを反映する前に、T002-01マイグレーションの実DB適用確認を行うのが望ましい
+- 実装してはいけないこと:
+  - `question_type` を追加しない
+  - `user_learning_settings` を OI-023 確定前に追加しない
+  - `users` JSONB 方式を OI-023 確定前に採用しない
+  - `personal_access_tokens` をMVP前提で追加しない
+- 完了条件:
+  - 全マイグレーションが成功する
+  - 17テーブル / 5カテゴリ構成と一致する
+- テスト観点:
+  - テーブル数・主要カラム・FK・UNIQUEが仕様通りである
+- CodeX投入時の注意:
+  - DB変更はrollback前提で雑に扱わず、仕様照合を優先する
+  - 最新版 `DB_SCHEMA.md §11.3` を正とし、旧版の「要確認」表現は参照しない
+
+### T002-02: CHECK制約・インデックス反映
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: DB
+- 目的:
+  - PostgreSQL CHECK制約と主要インデックスを反映する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `OPEN_ISSUES.md` OI-009, OI-015, OI-022
+- 変更対象:
+  - `database/migrations/`
+- 依存タスク:
+  - T002-01
+- 実装内容:
+  - `users.role`, `users.jlpt_level`, `questions.difficulty`, `submissions.status`, `evaluations.speed_assessment`, `consents.document_type` の値域を反映する
+  - 主要インデックスを反映する
+  - `question_format` のCHECK制約は、OI-022確定後のT002-05で反映する前提で保留する
+  - T002-02時点ではアプリ層バリデーションでも具体値を固定しない
+- 確認結果:
+  - 実装commit: `b24b73e68a3752c3a104c8ade3fa49b6c5e3932e`
+  - 変更範囲は `database/migrations/` のみ
+  - 変更ファイル:
+    - `database/migrations/2026_06_05_060000_create_user_tables.php`
+    - `database/migrations/2026_06_05_060010_create_learning_tables.php`
+    - `database/migrations/2026_06_05_060040_create_consents_table.php`
+  - CHECK制約・既存UNIQUE/代表インデックス確認は完了
+  - 実DB migrate確認は未完了
+  - 理由は `pdo_pgsql` 未有効 / DB接続実値未投入である
+  - 反映したCHECK制約:
+    - `users.role`: `admin`, `user`
+    - `users.jlpt_level`: `N1`〜`N5`, `unknown`, `not_specified`, またはNULL
+    - `questions.difficulty`: `beginner`, `intermediate`, `advanced`
+    - `submissions.status`: `pending`, `processing`, `completed`, `failed`
+    - `evaluations.speed_assessment`: `slow`, `appropriate`, `fast`, またはNULL
+    - `consents.document_type`: `terms_of_service`, `privacy_policy`
+  - UNIQUE制約・代表インデックスはT002-01時点の既存定義を確認済み
+  - 重複追加はしていない
+  - `users.email` / `users.google_id` の部分UNIQUEを維持している
+  - `evaluations.submission_id` UNIQUEを維持している
+  - `question_tag` 複合主キーを維持している
+  - `consents(user_id, document_type, document_version)` UNIQUEを維持している
+  - `questions.question_format` はT002-02時点では値域固定なし。OI-022確定後の正式値は `single_prompt` / `two_choice`
+  - `subscriptions.stripe_status` は Cashier互換性とOI-027未確定のため固定なし
+  - `raw_azure_response` は OI-107未確定のため500KB超過時扱いを固定なし
+  - `php -l` 全マイグレーション成功
+  - `php artisan route:list` 成功、5 routes表示
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `npm.cmd run build` 成功
+  - `php artisan migrate:status` は実施したが失敗
+  - `migrate:status` 失敗理由は `pdo_pgsql` 未有効 / DB接続実値未投入
+  - `question_format` の具体値・CHECK制約値域は固定していない
+  - `question_type` は追加していない
+  - `job_batches` は作成していない
+  - `personal_access_tokens` は作成していない
+  - `user_learning_settings` は作成していない
+  - `users` に学習設定JSONBは追加していない
+  - OI-022 / OI-023 / OI-027 / OI-104 / OI-107 / OI-108 を先取りしていない
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - Eloquentモデル、Seeder、Factoryは作成していない
+  - 認証、録音、Python、Azure、Stripe実装、管理画面には未着手
+  - T002-03以降には未着手
+- 申し送り:
+  - T002-02時点では、マイグレーションファイルへのCHECK制約反映と静的確認まで完了
+  - 実DBへの `migrate` 確認は未完了
+  - 理由は、`pdo_pgsql` 未有効およびDB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBで `php artisan migrate` または同等の適用確認が必要
+  - DB接続実値投入後に、追加CHECK制約が対象PostgreSQL環境で問題なく適用できるか確認が必要
+  - T002-01で追加済みの `submissions.id` default `gen_random_uuid()` も、実DB適用時に対象PostgreSQL環境で利用可能か確認が必要
+  - `.env` はリポジトリへcommitしない
+  - T002-02時点でOI未確定事項に関わるCHECK制約は固定していない
+- 実装してはいけないこと:
+  - T002-02時点では当時未確定だったOI-022の値域を決めない
+  - speed閾値をDB固定値にしない
+- 完了条件:
+  - 仕様にある確定済みCHECK制約とインデックスが反映されている
+- テスト観点:
+  - 不正値投入が制約で弾かれる
+  - OI管理項目が固定値化されていない
+- CodeX投入時の注意:
+  - `question_format` はカラム追加済み前提、T002-05で確定値域を反映する
+  - `has_model_answer` は模範解答有無であり、問題形式の代替として使わない
+
+### T002-03: Eloquentモデル・リレーション作成
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: 実装
+- 目的:
+  - DBスキーマに対応するEloquentモデルとリレーションを作成する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - `app/Models/`
+- 依存タスク:
+  - T002-01
+- 実装内容:
+  - User, Category, Tag, Question, Submission, Evaluation, Consent, Customer, Subscription, SubscriptionItemを作成する
+  - Question-TagのN:Nを定義する
+  - Submission-Evaluationの1:1を定義する
+- 確認結果:
+  - 実装commit: `4caef550c83b4f55b1bc374af15f9103e782ce22`
+  - 変更範囲は `app/Models/` の10モデルのみ
+  - 変更ファイル:
+    - `app/Models/User.php`
+    - `app/Models/Category.php`
+    - `app/Models/Tag.php`
+    - `app/Models/Question.php`
+    - `app/Models/Submission.php`
+    - `app/Models/Evaluation.php`
+    - `app/Models/Customer.php`
+    - `app/Models/Subscription.php`
+    - `app/Models/SubscriptionItem.php`
+    - `app/Models/Consent.php`
+  - Eloquentモデル・主要リレーション作成は完了
+  - 実DB接続確認は未実施
+  - 理由は `pdo_pgsql` 未有効 / DB接続実値未投入である
+  - 作成・整備したモデルは `User`, `Category`, `Tag`, `Question`, `Submission`, `Evaluation`, `Customer`, `Subscription`, `SubscriptionItem`, `Consent`
+  - `User` は既存の `Authenticatable` 継承を維持している
+  - `User` は `HasFactory`、`Notifiable`、`SoftDeletes` を使用している
+  - `User` のみSoftDeletes対象である
+  - `User` に `submissions()` / `consents()` リレーションを追加済み
+  - `Category` / `Tag` / `Question` に、カテゴリ、タグ、問題、N:N `question_tag`、提出へのリレーションを定義済み
+  - `Submission` にUUID主キー設定として `$keyType = 'string'`, `$incrementing = false` を設定済み
+  - `Submission` に `user()` / `question()` / `evaluation()` リレーションを定義済み
+  - `Evaluation` に `submission()` リレーションを定義済み
+  - `Evaluation` のJSONB相当カラムを `array` cast済み
+  - `Customer` / `Subscription` / `SubscriptionItem` はStripe系テーブル対応のリレーションのみを定義済み
+  - `Consent` に `user()` リレーションを定義済み
+  - fillable / casts はマイグレーション実体に合わせて最小限設定済み
+  - `php -l` 全モデル成功
+  - `composer dump-autoload -o --no-scripts` 成功
+  - 既存vendor由来の ambiguous class warning は出たが、モデルautoloadは成功
+  - DB接続なしの `class_exists` 確認で全モデル `ok`
+  - `php artisan route:list` 成功、5 routes表示
+  - `php artisan schedule:list` 成功
+  - `php artisan schedule:list` の結果は `No scheduled tasks have been defined.`
+  - `npm.cmd run build` 成功
+  - `question_type` は追加していない
+  - `question_format` の値域・enum・定数は固定していない
+  - `user_learning_settings` モデルは作成していない
+  - `job_batches` / `personal_access_tokens` モデルは作成していない
+  - Seeder、Factoryは作成していない
+  - 認証、録音、Python、Azure、Stripe実装、管理画面には未着手
+  - `.env` は作成・commitしていない
+  - 実Secretsは追加していない
+  - `database/migrations/` は変更していない
+  - T002-04以降には未着手
+- 申し送り:
+  - T002-03時点では、Eloquentモデル・主要リレーション作成と静的確認まで完了
+  - 実DB接続確認は未実施
+  - 理由は、`pdo_pgsql` 未有効およびDB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBでモデルとマイグレーションの整合確認が必要
+  - DB接続実値投入後に、主要リレーションが実DB上で問題なく利用できるか確認が必要
+  - `composer dump-autoload` は成功しているが、既存vendor由来の ambiguous class warning が出ている
+  - ambiguous class warning はT002-03の失敗とは扱わないが、後続で必要に応じて確認する
+  - `.env` はリポジトリへcommitしない
+- 実装してはいけないこと:
+  - PythonサービスからDBアクセスする前提のモデルを作らない
+  - `question_type` を参照しない
+- 完了条件:
+  - 主要リレーションがEloquentで取得できる
+- テスト観点:
+  - リレーションの取得・保存が仕様通り動く
+- CodeX投入時の注意:
+  - ビジネスロジックはService層の後続タスクへ分離する
+
+### T002-04: Seeder基盤作成
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: DB
+- 目的:
+  - MVP初期データ投入用Seederを作成する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `OPEN_ISSUES.md` OI-009, OI-022, OI-104
+- 変更対象:
+  - `database/seeders/`
+- 依存タスク:
+  - T002-02
+  - T002-03
+- 実装内容:
+  - `CategorySeeder`
+  - `TagSeeder`
+  - `QuestionSeeder`
+  - `AdminUserSeeder`
+  - 冪等性を担保する
+- 確認結果:
+  - 実装commit: `3777f316841a97e862298b32009022483c4fe8eb`
+  - 変更範囲は `database/seeders/` の4件のみ
+  - 変更ファイル:
+    - `database/seeders/DatabaseSeeder.php`
+    - `database/seeders/CategorySeeder.php`
+    - `database/seeders/TagSeeder.php`
+    - `database/seeders/QuestionSeeder.php`
+  - Seeder基盤作成は完了
+  - MVP検証用の最小Learning master seedに限定して実装
+  - 作成・整備したSeeder:
+    - `DatabaseSeeder`
+    - `CategorySeeder`
+    - `TagSeeder`
+    - `QuestionSeeder`
+  - `DatabaseSeeder` は `CategorySeeder` → `TagSeeder` → `QuestionSeeder` の順に呼び出す構成
+  - categories は3件
+  - tags は5件
+  - questions は3件
+  - 冪等性確保のため `updateOrCreate()` を使用
+  - `question_tag` の紐付けは `syncWithoutDetaching()` を使用し、重複しない構成
+  - `php -l`: 全Seeder成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存vendor由来の ambiguous class warning あり
+  - Seederクラスautoload確認: 4クラスすべて `ok`
+  - `php artisan route:list`: 成功、5 routes
+  - `php artisan schedule:list`: 成功
+  - `php artisan schedule:list` の結果: `No scheduled tasks have been defined.`
+  - `npm.cmd run build`: 成功
+  - `php artisan db:seed`: 未実施
+  - `db:seed` 未実施理由は、`pdo_pgsql` 未有効、かつ `.env` / DB接続実値未投入のため
+  - Factoryは作成していない
+  - `Model::factory()` は使用していない
+  - 管理者ユーザーseedは作成していない
+  - 固定パスワードは投入していない
+  - 実Secretsは追加していない
+  - Stripe / Legal / User / Submission / Evaluation系seedには進んでいない
+  - `question_type` は追加していない
+  - T002-04時点では `question_format` のenum・値域・定数は固定していない
+  - `user_learning_settings` は作成していない
+  - 認証、録音、Python、Azure、Stripe実装、管理画面には進んでいない
+  - `.env` は作成・commitしていない
+  - `database/migrations/` は変更していない
+  - `app/Models/` は変更していない
+  - T002-05以降には未着手
+- 申し送り:
+  - T002-04時点では、Seeder基盤作成と静的確認まで完了
+  - 実DBでの `php artisan db:seed` 実行確認は未完了
+  - 理由は、`pdo_pgsql` 未有効および `.env` / DB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBで `php artisan migrate` および `php artisan db:seed` の確認が必要
+  - DB接続実値投入後に、categories / tags / questions / question_tag が問題なく投入されるか確認が必要
+  - `composer dump-autoload` は成功しているが、既存vendor由来の ambiguous class warning が出ている
+  - ambiguous class warning はT002-04の失敗とは扱わないが、後続で必要に応じて確認する
+  - `.env` はリポジトリへcommitしない
+  - `question_format` のenum・値域・定数は固定していない
+  - OI-022確定値 `single_prompt` / `two_choice` はT002-05でSeederへ反映する
+- 実装してはいけないこと:
+  - OI-104確定前に初期管理者パスワードを固定しない
+  - T002-04時点で当時未確定だったOI-022の具体値を勝手に入れない
+  - `question_format` を `has_model_answer` から推定しない
+  - `question_type` を投入しない
+- 完了条件:
+  - Seederを複数回実行しても重複しない
+- テスト観点:
+  - カテゴリ・タグ・問題・管理者の初期投入が成立する
+- CodeX投入時の注意:
+  - `QuestionSeeder` の `question_format` 具体値はT002-05で反映する
+  - T002-04時点ではSeederの `question_format` は暫定値であり、正式値はT002-05で反映する
+
+### T002-05: OI-022確定後の question_format 値域反映タスク
+
+- [x] 状態: 完了（2026-06-05 確認済み）
+- 種別: DB
+- 目的:
+  - OI-022確定済みの `question_format` 値域とUIラベルを反映する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-022
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+- 変更対象:
+  - マイグレーション
+  - `QuestionSeeder`
+  - 問題一覧UI
+  - バリデーション
+- 依存タスク:
+  - T002-02
+  - T002-04
+  - T004-02
+- 実装内容:
+  - CHECK制約に値域 `single_prompt` / `two_choice` を反映する
+  - CHECK制約は `question_format IN ('single_prompt', 'two_choice')` とする
+  - アプリ層バリデーションに値域 `single_prompt` / `two_choice` を反映する
+  - `QuestionSeeder` の暫定値 `mvp_verification` を正式値へ置換する
+  - 問題一覧UIラベルを `single_prompt` = `単体問題`、`two_choice` = `二者択一` として反映する
+  - UIラベル変換方針を整理する
+- 確認結果:
+  - 実装commit: `7b2819631faa622548a406759da6cbbd594bb158`
+  - 変更範囲はT002-05実装に必要な3ファイルのみ
+  - 変更ファイル:
+    - `database/migrations/2026_06_05_060010_create_learning_tables.php`
+    - `database/seeders/QuestionSeeder.php`
+    - `app/Models/Question.php`
+  - OI-022確定値のコード反映は完了
+  - `questions.question_format` にCHECK制約を追加
+  - CHECK制約の値域は `single_prompt` / `two_choice`
+  - CHECK制約方針は `question_format IN ('single_prompt', 'two_choice')`
+  - PostgreSQL ENUM型は使用していない
+  - PHP enumは使用していない
+  - `question_type` は追加していない
+  - `difficulty` 値域は変更していない
+  - `has_model_answer` の意味は変更していない
+  - `QuestionSeeder` の暫定値 `mvp_verification` は削除済み
+  - 既存3問すべての `question_format` を `single_prompt` に置換済み
+  - T002-05時点の既存3問はすべて単体問題相当であるため `single_prompt` を使用している
+  - Seeder内の `question_format` 値は `single_prompt` / `two_choice` の値域に収まる
+  - `Question` モデルにvalidation / UIラベル変換で参照できる最小定義を追加
+  - 追加した定義:
+    - `QUESTION_FORMATS`
+    - `QUESTION_FORMAT_LABELS`
+  - 許可値:
+    - `single_prompt`
+    - `two_choice`
+  - UIラベル:
+    - `single_prompt` => `単体問題`
+    - `two_choice` => `二者択一`
+  - 後続のLaravel validationでは `QUESTION_FORMATS` を参照できる
+  - 後続のUI表示では `QUESTION_FORMAT_LABELS` を参照できる
+  - FormRequest / Controller / API route / UI本体は作成していない
+  - docsはT002-05実装時には変更していない
+  - `.env` / `.env.example` は変更していない
+  - 実Secretsは追加していない
+  - Factoryは作成していない
+  - `Model::factory()` は使用していない
+  - 管理者seedは作成していない
+  - OI-023 / OI-027 / OI-104 / OI-105 / OI-107 / OI-108 は先取りしていない
+  - T002-06以降には未着手
+  - `php -l`: 対象3ファイルすべて成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存vendor由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、5 routes
+  - `php artisan schedule:list`: 成功
+  - `php artisan schedule:list` の結果: `No scheduled tasks have been defined.`
+  - `npm.cmd run build`: 成功
+  - `php artisan migrate:status`: 実施したが失敗
+  - `migrate:status` 失敗理由は `pdo_pgsql` 未有効 / `.env`・DB接続実値未投入
+  - `php artisan db:seed`: 未実施
+  - `db:seed` 未実施理由は DB接続不可、かつ書き込み系コマンドのため
+- 申し送り:
+  - T002-05時点では、OI-022確定値のコード反映と静的確認まで完了
+  - 実DBでの `php artisan migrate` / `php artisan db:seed` 実行確認は未完了
+  - 理由は、`pdo_pgsql` 未有効および `.env` / DB接続実値未投入のため
+  - `pdo_pgsql` 有効化後に、実DBで `php artisan migrate` および `php artisan db:seed` の確認が必要
+  - DB接続実値投入後に、`questions.question_format` CHECK制約が期待どおり機能するか確認が必要
+  - DB接続実値投入後に、`QuestionSeeder` の `single_prompt` 値が問題なく投入されるか確認が必要
+  - `composer dump-autoload` は成功しているが、既存vendor由来の ambiguous class warning が出ている
+  - ambiguous class warning はT002-05の失敗とは扱わないが、後続で必要に応じて確認する
+  - `.env` はリポジトリへcommitしない
+  - `question_format` の値域は `single_prompt` / `two_choice` に確定済み
+  - `mvp_verification` は暫定値として削除済み
+- 実装してはいけないこと:
+  - DBカラム追加タスクにしない
+  - OI-022で確定した `single_prompt` / `two_choice` 以外の値を追加しない
+  - `question_type` を復活させない
+  - PostgreSQL ENUM型を採用しない
+- 完了条件:
+  - `question_format` の値域・Seeder・UIが一致している
+- テスト観点:
+  - 不正な `question_format` が保存できない
+  - UIフィルタが確定ラベルで表示される
+- CodeX投入時の注意:
+  - OI-022は確定済みとして扱う
+  - このタスクはDBカラム追加ではなく、値域・CHECK制約・Seeder・UIラベル・バリデーションの反映である
+  - T002-05は実装・静的確認まで完了。実DB確認は環境整備後に行う
+
+---
+
+# 3. 認証・ユーザー導線
+
+### T003-01: メール登録・ログイン・ログアウト実装
+
+- [x] 状態: 完了（2026-06-08 確認済み）
+- 種別: 実装
+- 目的:
+  - メール/パスワードによる基本認証を実装する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - Auth Controller
+  - Auth Request
+  - Vue認証画面
+  - routes
+- 依存タスク:
+  - T001-01
+  - T002-03
+- 実装内容:
+  - 新規登録
+  - ログイン
+  - ログアウト
+  - セッション認証
+- 確認結果:
+  - 実装commit: `13066128bf6e759eca218bef43bdcfcf09c92557`
+  - commit message: `feat: implement basic email authentication`
+  - 変更ファイル:
+    - `app/Http/Controllers/Auth/AuthenticatedSessionController.php`
+    - `app/Http/Controllers/Auth/RegisteredUserController.php`
+    - `app/Http/Requests/Auth/LoginRequest.php`
+    - `app/Http/Middleware/HandleInertiaRequests.php`
+    - `routes/web.php`
+    - `resources/js/Pages/Auth/Login.vue`
+    - `resources/js/Pages/Auth/Register.vue`
+    - `resources/js/Pages/Dashboard.vue`
+    - `tests/Feature/AuthenticationTest.php`
+    - `phpunit.xml`
+  - メール/パスワードの新規登録を実装
+  - メール/パスワードのログインを実装
+  - ログアウト時のセッション破棄とCSRF token再生成を実装
+  - auth / guest middleware による導線制御を実装
+  - 保護ページ `/dashboard` を追加
+  - Inertia共有propsへ最小の認証ユーザー情報を追加
+  - ログイン画面を追加
+  - 新規登録画面を追加
+  - 最小Dashboard画面を追加
+  - soft deleted user がログイン対象外になる前提のFeature testを追加
+  - `phpunit.xml` に testing専用ダミー `APP_KEY` を追加
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - Google OAuth / Socialite は実装していない
+  - メール認証 / パスワード再設定は実装していない
+  - 利用規約同意保存 / `consents` 連携は実装していない
+  - remember me / セッション期限方針は確定していない
+  - Sanctum / personal access token は実装していない
+  - Stripe、Azure、録音、問題一覧、管理画面には未着手
+  - `php -l`: 対象PHPファイル成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存vendor由来の ambiguous class warning あり
+  - `composer dump-autoload -o --no-scripts` の初回は120秒でtimeout
+  - `composer dump-autoload -o --no-scripts` は240秒で再実行して成功
+  - `php artisan route:list`: 成功、11 routes
+  - `npm.cmd run build`: 成功
+  - `php artisan test`: exit 0
+  - Unitはpass
+  - 認証Feature testは現環境でDBドライバ不足のため実DB相当の検証は未実行扱い
+  - `.env` 未作成 warning あり
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため
+- 申し送り:
+  - T003-01 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-01 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - `phpunit.xml` の `APP_KEY` は testing専用のダミー値であり、実Secretsではない
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、`.env` / Secrets未commitをまとめて確認する
+- 実装してはいけないこと:
+  - Sanctumトークン認証をMVP前提で入れない
+  - Google OAuthを同時実装しない
+- 完了条件:
+  - メール/パスワードで登録・ログイン・ログアウトできる
+- テスト観点:
+  - バリデーション
+  - セッション作成
+  - soft deleted userの扱い
+- CodeX投入時の注意:
+  - 利用規約同意は別タスクで扱う
+
+### T003-02: メール認証・パスワード再設定実装
+
+- [x] 状態: 完了（2026-06-08 確認済み）
+- 種別: 実装
+- 目的:
+  - メール認証とパスワード再設定を実装する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - Auth Controller
+  - Mail設定
+  - Vue認証画面
+- 依存タスク:
+  - T003-01
+- 実装内容:
+  - メール認証
+  - 認証メール再送
+  - パスワードリセット
+- 確認結果:
+  - 実装commit: `25d1d875943b090d427d4346e6578db9eadbc6cf`
+  - commit message: `feat: implement email verification and password reset`
+  - Laravel標準のメール認証を追加
+  - 登録後の認証メール通知を追加
+  - メール認証案内画面を追加
+  - 認証メール再送導線を追加
+  - 署名付き認証リンク処理を追加
+  - `User` モデルに `MustVerifyEmail` を追加
+  - `/dashboard` を `auth` + `verified` 前提に調整
+  - Laravel標準のパスワードリセット導線を追加
+  - パスワード再設定メール送信リクエスト画面を追加
+  - パスワード再設定メール送信処理を追加
+  - パスワードリセット画面を追加
+  - パスワード更新処理を追加
+  - `ForgotPassword` / `ResetPassword` / `VerifyEmail` の Inertia Vue 画面を追加
+  - T003-01 の登録・ログイン・ログアウト導線に合わせて Feature test を拡張
+  - 既存 `password_reset_tokens` テーブル前提で実装
+  - 変更ファイル:
+    - `app/Http/Controllers/Auth/AuthenticatedSessionController.php`
+    - `app/Http/Controllers/Auth/EmailVerificationNotificationController.php`
+    - `app/Http/Controllers/Auth/EmailVerificationPromptController.php`
+    - `app/Http/Controllers/Auth/NewPasswordController.php`
+    - `app/Http/Controllers/Auth/PasswordResetLinkController.php`
+    - `app/Http/Controllers/Auth/RegisteredUserController.php`
+    - `app/Http/Controllers/Auth/VerifyEmailController.php`
+    - `app/Models/User.php`
+    - `routes/web.php`
+    - `resources/js/Pages/Auth/ForgotPassword.vue`
+    - `resources/js/Pages/Auth/Login.vue`
+    - `resources/js/Pages/Auth/Register.vue`
+    - `resources/js/Pages/Auth/ResetPassword.vue`
+    - `resources/js/Pages/Auth/VerifyEmail.vue`
+    - `tests/Feature/AuthenticationTest.php`
+  - 実装していないこと:
+    - Google OAuth / Socialite
+    - 利用規約同意保存 / `consents` 連携
+    - remember me / セッション期限方針確定
+    - Sanctum / personal access token
+    - Stripe
+    - Azure
+    - 録音
+    - 問題一覧
+    - 管理画面
+    - `.env` 作成
+    - 実Secrets追加
+    - 外部メール配信サービスの固定
+    - `docs/TASKS.md` 完了反映以外のdocs更新
+  - `php -l` 対象PHPファイル: 成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存vendor由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、18 routes
+  - `npm.cmd run build`: 成功
+  - `php artisan test`: exit 0
+  - `php artisan test` は 1 passed / 22 warnings
+  - warning は `.env` 未作成による読み込み警告
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため
+- 申し送り:
+  - T003-02 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - メール認証とパスワード再設定は Laravel標準機構を前提に実装済み
+  - 実SMTPのSecretsは実値未投入として扱っている
+  - 外部メール配信サービスは固定していない
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成を継続
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-02 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、`.env` / Secrets未commitをまとめて確認する
+- 実装してはいけないこと:
+  - メール配信サービスを仕様外で固定しない
+- 完了条件:
+  - 認証メール・再設定メールの送信導線が動く
+- テスト観点:
+  - 未認証ユーザーのアクセス制御
+  - トークン期限
+- CodeX投入時の注意:
+  - 実SMTPのSecretsは実値未投入として扱う
+
+### T003-03: 利用規約同意記録実装
+
+- [x] 状態: 完了（2026-06-08 確認済み）
+- 種別: 実装
+- 目的:
+  - 新規登録時に利用規約・プライバシーポリシー同意を記録する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+  - `OPEN_ISSUES.md` OI-108
+- 変更対象:
+  - 登録処理
+  - `consents` モデル
+  - 登録画面
+- 依存タスク:
+  - T003-01
+- 実装内容:
+  - 同意チェックを必須にする
+  - `consents` に `terms_of_service` / `privacy_policy` を記録する
+- 確認結果:
+  - 実装commit: `30f5b34b4ebd1602df97a5c98b484ea7b12f0d1b`
+  - commit message: `feat: record registration consents`
+  - 変更ファイル:
+    - `app/Http/Controllers/Auth/RegisteredUserController.php`
+    - `config/legal.php`
+    - `resources/js/Pages/Auth/Register.vue`
+    - `tests/Feature/AuthenticationTest.php`
+  - 登録画面に「利用規約」「プライバシーポリシー」の同意チェックを追加
+  - 登録処理に `terms_of_service` / `privacy_policy` の `accepted` バリデーションを追加
+  - ユーザー作成と同意2件保存を DB transaction 内で実行
+  - `consents` に `terms_of_service` / `privacy_policy` の2件を保存
+  - `document_version` を設定値から保存
+  - `agreed_at` を保存
+  - `ip_address` を保存
+  - `user_agent` を保存
+  - `config/legal.php` に MVP 用バージョン値を追加
+  - Feature test に同意必須・同意保存・重複しない2件保存の観点を追加
+  - soft deleted user の再登録テストにも同意チェックを反映
+  - 実装していないこと:
+    - OI-108 の確定
+    - 利用規約 / プライバシーポリシー最新バージョン管理専用テーブル
+    - 規約更新時の再同意フロー
+    - OI-106 の実装
+    - 管理画面での規約バージョン管理
+    - Google OAuth / Socialite
+    - メール認証・パスワード再設定の追加変更
+    - remember me / セッション期限方針確定
+    - Sanctum / personal access token
+    - Stripe
+    - Azure
+    - 録音
+    - 問題一覧
+    - 管理画面
+    - `.env` 作成
+    - 実Secrets追加
+    - `docs/TASKS.md` 完了反映以外のdocs更新
+  - `php -l` 対象PHPファイル: 成功
+  - `composer dump-autoload -o --no-scripts`: 初回240秒 timeout
+  - `composer dump-autoload -o --no-scripts`: 再実行成功
+  - 既存vendor由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、18 routes
+  - `npm.cmd run build`: 成功
+  - `php artisan test tests\Feature\AuthenticationTest.php`: exit 0
+  - `php artisan test tests\Feature\AuthenticationTest.php` は `.env` 未作成 warning あり
+  - `php artisan test tests\Feature\AuthenticationTest.php` は DBドライバ制約により Feature は実質未実行
+  - `php artisan test`: exit 0
+  - `php artisan test` は 1 passed / 24 warnings
+  - `php -m | rg "pdo|sqlite|pgsql"` は `pdo_mysql` のみ
+  - `pdo_sqlite` / `pdo_pgsql` なし
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` が未有効のため
+- 申し送り:
+  - T003-03 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - `consents` への同意記録は新規登録時のみ取得する
+  - `terms_of_service` と `privacy_policy` の2件を登録時に保存する
+  - `document_version` は `config/legal.php` の設定値として扱う
+  - OI-108 は未確定のまま維持しており、永続管理方式は確定していない
+  - 規約更新時の再同意フローは MVP 対象外として実装していない
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成を継続
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-03 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、同意記録、`.env` / Secrets未commitをまとめて確認する
+- 実装してはいけないこと:
+  - 規約更新時の再同意フローをMVPで実装しない
+  - OI-108未確定の専用テーブルを追加しない
+- 完了条件:
+  - 登録時に同意記録が残る
+- テスト観点:
+  - 未チェック時に登録不可
+  - 同意履歴の一意性
+- CodeX投入時の注意:
+  - 最新バージョン値は設定値として扱い、永続管理方式はOI-108に委ねる
+
+### T003-04: Google OAuth基盤実装
+
+- [x] 状態: 完了（2026-06-08 確認済み）
+- 種別: 実装
+- 目的:
+  - Google OAuthログイン導線を実装する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `OPEN_ISSUES.md` OI-016
+- 変更対象:
+  - OAuth Controller
+  - routes
+  - 認証画面
+  - `.env.example`
+- 依存タスク:
+  - T003-01
+- 実装内容:
+  - Google OAuth開始・callbackを実装する
+  - `google_id` 保存に対応する
+- 確認結果:
+  - 実装commit: `5e21bedd61abde3e81d6a4de6f6b93d59188f369`
+  - commit message: `feat: implement google oauth login`
+  - 変更ファイル:
+    - `app/Http/Controllers/Auth/GoogleOAuthController.php`
+    - `composer.json`
+    - `composer.lock`
+    - `config/services.php`
+    - `resources/js/Pages/Auth/Login.vue`
+    - `resources/js/Pages/Auth/Register.vue`
+    - `routes/web.php`
+    - `tests/Feature/AuthenticationTest.php`
+  - `laravel/socialite` を追加
+  - Google OAuth redirect / callback route を追加
+  - Google OAuth Controller を追加
+  - Google認可開始処理を追加
+  - Google OAuth callback処理を追加
+  - 既存 `google_id` ユーザーのログインを実装
+  - 新規Googleユーザー作成を実装
+  - 新規Googleユーザー作成時に `google_id` を保存
+  - 新規Googleユーザー作成時に `avatar_url` を保存
+  - Google側でメール検証済みの場合に `email_verified_at` を保存
+  - 新規Googleユーザー作成時に `consents` へ `terms_of_service` / `privacy_policy` を保存
+  - 既存メール一致時は自動リンクせず、ログイン画面へ安全停止
+  - 既存メール一致時に `google_id` を自動保存しない
+  - soft deleted user は有効ユーザーとして扱わない
+  - ログイン画面に Google ログイン導線と同意表示を追加
+  - 登録画面に Google ログイン導線と同意表示を追加
+  - `config/services.php` に Google OAuth env 参照を追加
+  - Feature test に OAuth 分岐観点を追加
+  - 実装していないこと:
+    - OI-016 の確定
+    - 既存メール一致ユーザーの自動リンク
+    - 既存メール一致ユーザーへの `google_id` 自動保存
+    - OI-017 の確定
+    - remember me / セッション期限方針確定
+    - OI-108 の確定
+    - 規約更新時の再同意フロー
+    - Google以外のOAuth
+    - Sanctum / personal access token
+    - Stripe
+    - Azure
+    - 録音
+    - 問題一覧
+    - 管理画面
+    - `.env` 作成
+    - 実Secrets追加
+    - Google OAuth 実値投入
+    - `docs/TASKS.md` 完了反映以外のdocs更新
+    - PR作成
+    - main merge
+  - `php -l` 対象PHPファイル: 成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存 vendor 由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、20 routes
+  - `php artisan route:list` で Google OAuth 2 routes を確認
+  - `npm.cmd run build`: 成功
+  - `php artisan test tests\Feature\AuthenticationTest.php`: exit 0
+  - `php artisan test tests\Feature\AuthenticationTest.php` は 29 warnings
+  - `php artisan test tests\Feature\AuthenticationTest.php` は `.env` 未作成 warning あり
+  - `php artisan test tests\Feature\AuthenticationTest.php` は DBドライバ制約により Feature は実質未実行
+  - `php artisan test`: exit 0
+  - `php artisan test` は 1 passed / 30 warnings
+  - `php -m | rg "pdo|sqlite|pgsql"` は `pdo_mysql` のみ
+  - `pdo_sqlite` / `pdo_pgsql` なし
+  - Google OAuth 実疎通確認は未実施
+  - Google OAuth 実疎通確認未実施理由は、`.env` 未作成、Google Client ID / Secret / Redirect URI 実値未投入のため
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` が未有効のため
+- 申し送り:
+  - T003-04 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - Google OAuth 実値は投入していない
+  - Google OAuth 実疎通確認は未完了
+  - Google OAuth 実疎通確認は T003-04 単体の未完了ではなく、環境設定後の確認事項として扱う
+  - OI-016 は未確定のまま維持している
+  - 既存メール一致ユーザーは自動リンクしない
+  - 既存メール一致ユーザーに `google_id` を自動保存しない
+  - 既存メール一致時はログイン画面へ安全停止する
+  - 新規Googleユーザー作成時は `consents` へ `terms_of_service` / `privacy_policy` の2件を保存する
+  - `document_version` は `config/legal.php` の設定値として扱う
+  - OI-108 は未確定のまま維持しており、永続管理方式は確定していない
+  - 規約更新時の再同意フローは MVP 対象外として実装していない
+  - soft deleted user は Laravel SoftDeletes の通常クエリ上、有効ユーザーとして扱わない
+  - soft deleted user のOAuth扱いは T003-05完了後の「認証章まとめ確認」で再確認する
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成を継続
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-04 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、Google OAuth実疎通確認、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、同意記録、`.env` / Secrets未commitをまとめて確認する
+- 実装してはいけないこと:
+  - 既存メール一致ユーザーの自動リンクを OI-016 確定前に固定しない
+- 完了条件:
+  - 新規Googleユーザーでログインできる
+  - 既存メール一致時は未確定方針に従い安全に止める
+- テスト観点:
+  - OAuth callback
+  - 既存メール重複
+  - soft deleted user
+- CodeX投入時の注意:
+  - OI-016の未確定範囲を明示して実装する
+
+### T003-05: セッション管理方針反映
+
+- [x] 状態: 完了（2026-06-08 確認済み）
+- 種別: 設定
+- 目的:
+  - セッション有効期限とremember me運用を設定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-017
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - `config/session.php`
+  - ログイン画面
+- 依存タスク:
+  - T003-01
+- 実装内容:
+  - OI-017確定内容に従いセッション設定を反映する
+- 確認結果:
+  - 実装commit: `1f03906a9a285340717e87fdfd2967153d16170b`
+  - commit message: `feat: apply session policy`
+  - 変更ファイル:
+    - `.env.example`
+  - OI-017 確定方針に従ってセッション管理方針を確認
+  - `config/session.php` は変更なし
+  - `config/session.php` の `SESSION_LIFETIME` default が 120 であることを確認
+  - `config/session.php` の `SESSION_EXPIRE_ON_CLOSE` default が `false` であることを確認
+  - `.env.example` に `SESSION_LIFETIME=120` を追加
+  - `.env.example` に `SESSION_EXPIRE_ON_CLOSE=false` を追加
+  - remember me UI は追加していない
+  - `Login.vue` に remember me チェックボックスが存在しないことを確認
+  - メール/パスワードログインは `Auth::attempt($this->only('email', 'password'))` のままで remember 引数なし
+  - Google OAuthログインは `Auth::login($user)` のままで remember 引数なし
+  - ログアウト時の `session()->invalidate()` / `session()->regenerateToken()` を維持
+  - OI-017 の確定方針は変更していない
+  - 実装していないこと:
+    - remember me の採用
+    - remember me チェックボックス追加
+    - 「ログイン状態を保持する」UI追加
+    - `Auth::attempt` の remember 引数 true
+    - `Auth::login($user, true)`
+    - セッション有効期限を120分以外に変更
+    - `SESSION_EXPIRE_ON_CLOSE=true`
+    - ブラウザ終了時の強制ログアウト
+    - OI-017 の再変更
+    - OI-016 の確定
+    - OI-108 の確定
+    - Google OAuth実値投入
+    - Google OAuth既存メール自動リンク
+    - Google以外のOAuth
+    - Sanctum / personal access token
+    - Stripe
+    - Azure
+    - 録音
+    - 問題一覧
+    - 管理画面
+    - `.env` 作成
+    - 実Secrets追加
+    - `docs/TASKS.md` 完了反映以外のdocs更新
+    - PR作成
+    - main merge
+  - `php -l` 対象PHPファイル: 成功
+  - `composer dump-autoload -o --no-scripts`: 成功
+  - 既存 vendor 由来の ambiguous class warning あり
+  - `php artisan route:list`: 成功、20 routes
+  - `npm.cmd run build`: 成功
+  - `php artisan test tests\Feature\AuthenticationTest.php`: exit 0
+  - `php artisan test tests\Feature\AuthenticationTest.php` は 29 warnings
+  - `php artisan test tests\Feature\AuthenticationTest.php` は `.env` 未作成 warning あり
+  - `php artisan test tests\Feature\AuthenticationTest.php` は DBドライバ制約により Feature は実質未実行
+  - `php artisan test`: exit 0
+  - `php artisan test` は 1 passed / 30 warnings
+  - `php -m | rg "pdo|sqlite|pgsql"` は `pdo_mysql` のみ
+  - `pdo_sqlite` / `pdo_pgsql` なし
+  - `git diff --name-only`: `.env.example`
+  - 実DB確認は未実施
+  - 実DB確認未実施理由は、`.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` が未有効のため
+  - Google OAuth 実疎通確認は未実施
+  - Google OAuth 実疎通確認未実施理由は、`.env` 未作成、Google Client ID / Secret / Redirect URI 実値未投入のため
+- 申し送り:
+  - T003-05 はセッション管理方針の確認・必要最小限の反映まで完了
+  - OI-017 は 2026-06-08 に確定済み
+  - MVPでは remember me は採用しない
+  - セッション有効期限は 120分
+  - `SESSION_EXPIRE_ON_CLOSE` は `false`
+  - ブラウザ終了時の強制ログアウトは行わない
+  - `users.remember_token` は Laravel 標準カラムとして維持する
+  - MVP UIでは remember me チェックボックスを表示しない
+  - `config/session.php` は既に方針どおりだったため変更なし
+  - `.env.example` に `SESSION_LIFETIME=120` / `SESSION_EXPIRE_ON_CLOSE=false` を明示した
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - Google OAuth 実値は投入していない
+  - Google OAuth 実疎通確認は未完了
+  - Google OAuth 実疎通確認は環境設定後の確認事項として扱う
+  - 認証Feature test は `pdo_sqlite` が未有効の場合 skip する構成を継続
+  - 認証Feature test の本実行はDBドライバ有効化後に行う
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_pgsql` / `pdo_sqlite` 未有効のため未完了
+  - 実DB確認は T003-05 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - T003-05完了後に、必ず「認証章まとめ確認」を入れる
+  - 「認証章まとめ確認」では、T003-01〜T003-05の認証導線、メール/パスワード認証、メール認証、パスワード再設定、同意記録、Google OAuth、セッション方針、Google OAuth実疎通確認、認証Feature test、実DBでの migrate / seed / 認証確認、soft deleted user の扱い、`.env` / Secrets未commitをまとめて確認する
+- 実装してはいけないこと:
+  - OI-017未確定の値を勝手に決めない
+- 完了条件:
+  - セッション設定が確認済みである
+- テスト観点:
+  - ログイン維持
+  - ログアウト時のセッション破棄
+- CodeX投入時の注意:
+  - OI-017確定後に実施する
+
+---
+
+# 4. 問題管理・問題選択
+
+### T004-01: 問題取得API / Controller作成
+
+- [x] 状態: 完了（2026-06-08 確認済み）
+- 種別: API
+- 目的:
+  - 公開済み問題を取得するサーバー側処理を作る
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+- 変更対象:
+  - Question Controller
+  - routes
+  - Query Service
+- 依存タスク:
+  - T002-03
+  - T003-01
+- 実装内容:
+  - 公開済み問題一覧取得
+  - difficulty / question_format フィルタ
+  - カテゴリ・タグ情報取得
+- 実装してはいけないこと:
+  - `has_model_answer` を問題形式フィルタに使わない
+  - `question_type` を使わない
+- 完了条件:
+  - 問題一覧に必要なデータを取得できる
+- テスト観点:
+  - difficulty条件
+  - question_format条件
+  - is_published条件
+- CodeX投入時の注意:
+  - question_formatの具体ラベルはOI-022に従う
+  - OI-022確定値 `single_prompt` / `two_choice` と表示ラベル `単体問題` / `二者択一` に従う
+- 実装commit:
+  - `81add45b62f7db0648e6dd454c9a3c3c2f7a2786`
+  - commit message: `feat: implement question listing API`
+- 変更ファイル:
+  - `app/Http/Controllers/QuestionController.php`
+  - `app/Http/Requests/QuestionIndexRequest.php`
+  - `app/Services/QuestionQueryService.php`
+  - `routes/web.php`
+  - `tests/Feature/QuestionListingTest.php`
+- 実装結果:
+  - `GET /api/questions` を追加
+  - route name は `questions.index`
+  - middleware は `web`, `auth`
+  - `QuestionController` を追加
+  - `QuestionIndexRequest` を追加
+  - `QuestionQueryService` を追加
+  - 公開済み問題一覧取得を実装
+  - `questions.is_published = true` のみ取得
+  - `categories.is_active = true` のカテゴリに属する問題のみ取得
+  - `display_order ASC, id ASC` の安定ソートを実装
+  - `difficulty` フィルタを実装
+  - `question_format` フィルタを実装
+  - `category` フィルタを実装
+  - `tag` フィルタを実装
+  - `category` / `tag` は slug と id の両方に対応
+  - `question_format` は `single_prompt` / `two_choice` のみ許可
+  - `question_format` の表示ラベルは `single_prompt = 単体問題`, `two_choice = 二者択一`
+  - `has_model_answer` は模範解答有無として返却のみ
+  - `has_model_answer` は問題形式フィルタには未使用
+  - `question_type` は未参照
+  - `model_answer_text` は一覧 response に含めていない
+- Response項目:
+  - `id`
+  - `title`
+  - `prompt_text`
+  - `difficulty`
+  - `question_format.value`
+  - `question_format.label`
+  - `recommended_duration_seconds`
+  - `has_model_answer`
+  - `display_order`
+  - `category`
+  - `tags`
+- 実装していないこと:
+  - 問題一覧UI
+  - Vue画面
+  - 録音画面
+  - 音声アップロード
+  - 音声評価
+  - Azure連携
+  - Stripe
+  - 管理画面
+  - 問題CRUD
+  - 管理者向け問題作成・編集・削除
+  - Seederの大規模変更
+  - DBカラム追加
+  - `question_type` の追加
+  - `question_type` の復活
+  - `has_model_answer` を問題形式フィルタに使うこと
+  - `question_format` に `single_prompt` / `two_choice` 以外を追加すること
+  - OI-023 の確定
+  - OI-024 の確定
+  - OI-025 の確定
+  - OI-027 の確定
+  - OI-028 の確定
+  - Google OAuth / 認証章の追加変更
+  - remember me の追加
+  - Sanctum / personal access token
+  - `.env` 作成
+  - 実Secrets追加
+  - `docs/TASKS.md` 完了反映以外のdocs更新
+  - T004-02以降の実装
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php -l` 対象PHPファイル: 全て pass
+  - `composer dump-autoload -o --no-scripts`: pass
+  - 既存 vendor class ambiguity warning あり
+  - `php artisan route:list`: pass
+  - `GET|HEAD api/questions` を確認
+  - `npm.cmd run build`: pass
+  - `vendor\bin\pint --test ...`: pass
+  - `php artisan test tests/Feature/QuestionListingTest.php`: exit 0
+  - `.env` 未作成 warning あり
+  - `pdo_sqlite` 不足により実質未確認
+  - `php artisan test`: exit 0
+  - Feature tests は同じく `.env` warning / DB driver 制約あり
+  - 実DB確認: 未実施
+  - 理由: `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - Feature test 本実行: 未完了
+  - 理由: `pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - 実DB確認と Feature test 本実行は、T004-01単体の未完了ではなく、環境整備後の横断確認事項として扱う
+- 申し送り:
+  - T004-01 はコード実装・静的確認・ビルド確認・テスト定義まで完了
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` 未有効のため未完了
+  - 実DB確認は T004-01 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - Feature test 本実行はDBドライバ有効化後に行う
+  - `GET /api/questions` は `auth` middleware 配下で実装済み
+  - `verified` middleware は未付与
+  - T004-01 の要件は「会員登録済みユーザーのみ」であり、現時点では `auth` で範囲内
+  - 将来「メール認証済みユーザーのみ」に絞る判断が出た場合は、別途 `verified` middleware 追加を検討する
+  - `question_format` は OI-022 確定値 `single_prompt` / `two_choice` のみ
+  - 表示ラベルは `単体問題` / `二者択一`
+  - `question_type` は使用していない
+  - `has_model_answer` は問題形式フィルタに使用していない
+  - `model_answer_text` は一覧 response に含めていない
+  - `category` / `tag` フィルタは slug と id の両方に対応
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - T004-02 の問題一覧UI実装には進んでいない
+
+### T004-02: 問題一覧UI実装
+
+- [x] 状態: 完了（2026-06-08 確認済み）
+- 種別: UI
+- 目的:
+  - 問題一覧画面を実装する
+- 参照仕様書:
+  - `DESIGN.md`
+  - `DB_SCHEMA.md`
+  - `OPEN_ISSUES.md` OI-022
+- 変更対象:
+  - Vue page
+  - Components
+  - routes
+- 依存タスク:
+  - T004-01
+- 実装内容:
+  - difficultyフィルタ
+  - question_formatフィルタ
+  - 問題リスト
+  - 問題選択導線
+- 実装してはいけないこと:
+  - OI-022確定値 `single_prompt` / `two_choice` と表示ラベル `単体問題` / `二者択一` に従う
+  - UIタスク内でDB制約やSeeder値を勝手に変更しない
+  - `has_model_answer` を問題形式フィルタとして扱わない
+  - 学習管理画面を混ぜない
+- 完了条件:
+  - 一覧から問題を選択できる
+- テスト観点:
+  - フィルタ適用
+  - 選択後のホーム遷移
+- CodeX投入時の注意:
+  - UIラベルは仮表示または設定値参照に留める
+  - OI-022確定後のラベル反映は T002-05 と整合させる
+- 実装commit:
+  - `b153548b4966f0e02561e2ec1ece0586e7c89398`
+  - commit message: `feat: implement question listing UI`
+- 変更ファイル:
+  - `routes/web.php`
+  - `resources/js/Pages/Dashboard.vue`
+  - `resources/js/Pages/Questions/Index.vue`
+  - `database/seeders/DatabaseSeeder.php`
+  - `database/seeders/MvpQuestionSeeder.php`
+  - `tests/Feature/QuestionPageTest.php`
+- 実装結果:
+  - `GET /questions` を追加
+  - route name は `questions.page`
+  - middleware は `web`, `auth`
+  - `resources/js/Pages/Questions/Index.vue` を追加
+  - Dashboard から `/questions` へのリンクを追加
+  - `/api/questions` を `fetch` で取得
+  - フィルタ変更時に自動で再取得
+  - difficulty フィルタを実装
+  - 全て
+  - 初級
+  - 中級
+  - 上級
+  - question_format フィルタを実装
+  - 全て
+  - 単体問題
+  - 二者択一
+  - 問題リストを実装
+  - 問題選択導線を実装
+  - 「この問題を選択」で `/dashboard?question_id={id}` へ遷移
+  - T004-03 の本格的な選択問題表示は未実装
+  - 読み込み中表示を実装
+  - 取得失敗時表示を実装
+  - 空データ表示を実装
+- 問題一覧表示項目:
+  - `title`
+  - `prompt_text`
+  - `difficulty`
+  - `question_format.label`
+  - `recommended_duration_seconds`
+  - `category.name`
+  - `tags`
+  - `has_model_answer`
+- Seeder:
+  - MVP確認用Seederとして `database/seeders/MvpQuestionSeeder.php` を追加
+  - `database/seeders/DatabaseSeeder.php` から `MvpQuestionSeeder` を呼び出す
+  - `japanese_speaking_questions.tsv` は入力元として使用
+  - `japanese_speaking_questions.tsv` 自体は commit していない
+  - TSVを本番運用方式として固定していない
+  - CSV/TSVインポート機能は実装していない
+  - Seederの配列へ反映した
+  - 登録カテゴリ数: 5
+  - 登録タグ数: 7
+  - 登録問題数: 50
+  - difficulty配分:
+  - beginner: 20
+  - intermediate: 18
+  - advanced: 12
+  - question_format配分:
+  - single_prompt: 35
+  - two_choice: 15
+  - `updateOrCreate` と `sync` により idempotent に実行可能
+  - `has_model_answer` は全件 false
+  - `model_answer_text` は null
+  - `is_published` は全件 true
+- 実装していないこと:
+  - T004-03 の本格実装
+  - ホーム画面への選択問題詳細表示の本実装
+  - 録音UI
+  - 音声アップロード
+  - 音声評価
+  - Azure連携
+  - Stripe
+  - 管理画面
+  - 問題CRUD
+  - 管理者向け問題作成・編集・削除
+  - 学習管理画面
+  - 統計カード
+  - カレンダー
+  - 連続日数
+  - 選択問題のDB保存
+  - ユーザー学習設定の保存
+  - CSV/TSVインポート機能
+  - TSVファイルのcommit
+  - TSVを本番運用方式として固定すること
+  - DBカラム追加
+  - DB制約変更
+  - `question_type` の追加
+  - `question_type` の復活
+  - `has_model_answer` を問題形式フィルタとして扱うこと
+  - `question_format` に `single_prompt` / `two_choice` 以外を追加すること
+  - OI-023 の確定
+  - OI-024 の確定
+  - OI-025 の確定
+  - OI-027 の確定
+  - OI-028 の確定
+  - Google OAuth / 認証章の追加変更
+  - remember me の追加
+  - Sanctum / personal access token
+  - `.env` 作成
+  - 実Secrets追加
+  - `docs/TASKS.md` 完了反映以外のdocs更新
+  - T004-03以降の実装
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php -l`: pass
+  - `composer dump-autoload -o --no-scripts`: pass
+  - `COMPOSER_MEMORY_LIMIT=-1` で実行
+  - 既存 vendor class ambiguity warning あり
+  - `php artisan route:list`: pass
+  - `GET|HEAD questions` を確認
+  - `GET|HEAD api/questions` を確認
+  - `npm.cmd run build`: pass
+  - `vendor\bin\pint --test ...`: pass
+  - `php artisan test tests/Feature/QuestionPageTest.php`: exit 0
+  - `.env` warning あり
+  - `php artisan test`: exit 0
+  - Feature tests は `.env` warning / DB driver 制約あり
+  - DB実確認: 未実施
+  - 理由: `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - Feature test 本実行: 未完了
+  - 理由: `pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - DB実確認と Feature test 本実行は、T004-02単体の未完了ではなく、環境整備後の横断確認事項として扱う
+- 申し送り:
+  - T004-02 は画面route、Vue画面、Dashboard導線、フィルタUI、問題リスト、問題選択導線、MVP確認用Seeder、テスト定義まで完了
+  - `GET /questions` は `auth` middleware 配下で実装済み
+  - `verified` middleware は未付与
+  - T004-02 の要件は「会員登録済みユーザー向け問題一覧UI」であり、現時点では `auth` で範囲内
+  - 将来「メール認証済みユーザーのみ」に絞る判断が出た場合は、別途 `verified` middleware 追加を検討する
+  - 問題選択導線は `/dashboard?question_id={id}` への遷移に留めている
+  - T004-03 の本格的なホーム画面への選択問題反映は未実装
+  - `question_format` は OI-022 確定値 `single_prompt` / `two_choice` のみ
+  - 表示ラベルは `単体問題` / `二者択一`
+  - `question_type` は使用していない
+  - `has_model_answer` は問題形式フィルタに使用していない
+  - `model_answer_text` は一覧表示していない
+  - MVP確認用問題データはSeeder配列に反映済み
+  - `japanese_speaking_questions.tsv` 自体はcommitしていない
+  - `japanese_speaking_questions.tsv` はローカル未追跡ファイルとして残っている可能性がある
+  - Seeder反映済みのため、次タスク開始前に `japanese_speaking_questions.tsv` は削除またはプロジェクト外へ退避してよい
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` 未有効のため未完了
+  - 実DB確認は T004-02 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - Feature test 本実行はDBドライバ有効化後に行う
+
+### T004-03: ホーム画面への選択問題引き継ぎ
+
+- [x] 状態: 完了（2026-06-08 確認済み）
+- 種別: UI
+- 目的:
+  - 問題一覧で選択した問題をホーム画面に反映する
+- 参照仕様書:
+  - `DESIGN.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - Home Controller
+  - Home Vue page
+  - routes
+- 依存タスク:
+  - T004-02
+- 実装内容:
+  - 選択中の問題を表示する
+  - 問題タイトル、問題文、カテゴリ、難易度、推奨秒数を表示する
+- 実装してはいけないこと:
+  - 録音UIを同時に本実装しない
+- 完了条件:
+  - 問題一覧からホームに戻った際に選択問題が表示される
+- テスト観点:
+  - 不正なquestion_id
+  - 非公開問題アクセス不可
+- CodeX投入時の注意:
+  - 認可と公開状態のチェックを忘れない
+- 実装commit:
+  - `285af15b6dae0f5ef7de39ce4ca491b3f7ca9f1f`
+  - commit message: `feat: display selected question on dashboard`
+- 変更ファイル:
+  - `app/Http/Controllers/DashboardController.php`
+  - `resources/js/Pages/Dashboard.vue`
+  - `routes/web.php`
+  - `tests/Feature/DashboardSelectedQuestionTest.php`
+- 実装結果:
+  - `DashboardController` を追加
+  - `/dashboard` を closure から Controller に移行
+  - `/dashboard` の route name `dashboard` を維持
+  - `/dashboard` の `verified` middleware を維持
+  - `question_id` を query parameter で受け取る
+  - 不正な `question_id` はB案で扱う
+  - dashboardを表示する
+  - `selectedQuestion = null`
+  - `selectedQuestionUnavailable = true`
+  - 公開済みかつ active category の問題のみ `selectedQuestion` として表示
+  - 非公開問題は表示不可扱い
+  - inactive category の問題は表示不可扱い
+  - `model_answer_text` は渡していない
+  - `question_type` は使用していない
+  - `has_model_answer` は「模範解答あり / なし」表示のみ
+  - 問題一覧から `/dashboard?question_id={id}` へ戻った際に、選択問題をDashboardへ表示
+- selectedQuestion props:
+  - `id`
+  - `title`
+  - `prompt_text`
+  - `difficulty`
+  - `question_format.value`
+  - `question_format.label`
+  - `recommended_duration_seconds`
+  - `has_model_answer`
+  - `category.id`
+  - `category.name`
+  - `category.slug`
+  - `tags.id`
+  - `tags.name`
+  - `tags.slug`
+- Dashboard表示内容:
+  - 問題タイトルを表示
+  - 問題文を表示
+  - カテゴリ名を表示
+  - 難易度を表示
+  - `question_format.label` を表示
+  - 推奨秒数を表示
+  - タグを表示
+  - 模範解答あり / なしを表示
+  - 未選択時は「問題一覧から問題を選択してください」と問題一覧への導線を表示
+  - 不正ID時は「選択した問題は表示できません」を表示
+  - 録音機能は後続タスクで実装する旨のプレースホルダー文言のみ表示
+- 実装していないこと:
+  - 録音UI
+  - 録音開始ボタン
+  - 録音停止ボタン
+  - 音声アップロード
+  - 音声評価
+  - Azure連携
+  - Stripe
+  - 管理画面
+  - 問題CRUD
+  - 管理者向け問題作成・編集・削除
+  - 学習管理画面
+  - 統計カード
+  - カレンダー
+  - 連続日数
+  - 選択問題のDB保存
+  - ユーザー学習設定の保存
+  - CSV/TSVインポート機能
+  - TSVファイルのcommit
+  - DBカラム追加
+  - DB制約変更
+  - `question_type` の追加
+  - `question_type` の復活
+  - `has_model_answer` を問題形式フィルタとして扱うこと
+  - `question_format` に `single_prompt` / `two_choice` 以外を追加すること
+  - OI-023 の確定
+  - OI-024 の確定
+  - OI-025 の確定
+  - OI-027 の確定
+  - OI-028 の確定
+  - Google OAuth / 認証章の追加変更
+  - remember me の追加
+  - Sanctum / personal access token
+  - `.env` 作成
+  - 実Secrets追加
+  - `docs/TASKS.md` 完了反映以外のdocs更新
+  - T005-01以降の実装
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php -l`: pass
+  - `composer dump-autoload -o --no-scripts`: pass
+  - `COMPOSER_MEMORY_LIMIT=-1` で実行
+  - 既存 vendor class ambiguity warning あり
+  - `php artisan route:list`: pass
+  - `npm.cmd run build`: pass
+  - `vendor\bin\pint --test ...`: pass
+  - `php artisan test tests/Feature/DashboardSelectedQuestionTest.php`: exit 0
+  - `.env` warning あり
+  - `php artisan test`: exit 0
+  - Feature tests は `.env` warning / DB driver 制約あり
+  - DB実確認: 未実施
+  - 理由: `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - Feature test 本実行: 未完了
+  - 理由: `pdo_sqlite` / `pdo_pgsql` が未有効のため
+  - DB実確認と Feature test 本実行は、T004-03単体の未完了ではなく、環境整備後の横断確認事項として扱う
+- 申し送り:
+  - T004-03 は DashboardController、Dashboard表示、選択問題props、公開状態チェック、active categoryチェック、テスト定義まで完了
+  - `/dashboard` の route name `dashboard` は維持
+  - `/dashboard` の `verified` middleware は維持
+  - `question_id` は query parameter で受け取る
+  - 不正な `question_id` はB案で扱う
+  - dashboard表示
+  - `selectedQuestion = null`
+  - `selectedQuestionUnavailable = true`
+  - 非公開問題は表示しない
+  - inactive category の問題は表示しない
+  - `model_answer_text` は渡していない
+  - `question_type` は使用していない
+  - `has_model_answer` は問題形式として扱っていない
+  - 録音UIは実装していない
+  - 録音機能は後続タスクで実装する旨のプレースホルダーのみ表示
+  - T005-01以降は先取りしていない
+  - `.env` は作成していない
+  - 実Secretsは追加していない
+  - 実DB確認は `.env` 未作成、DB接続実値未投入、`pdo_sqlite` / `pdo_pgsql` 未有効のため未完了
+  - 実DB確認は T004-03 単体の未完了ではなく、環境整備後の横断確認事項として扱う
+  - Feature test 本実行はDBドライバ有効化後に行う
+  - 次工程では CodeX 新規チャットで #5. ホーム・録音UI に移行する
+  - #5. ホーム・録音UI では、#6 音声提出バックエンド、#7 Python FastAPI音声評価サービスを同じチャットに含めない
+  - #6 / #7 は後続の別チャットで扱う
+
+---
+
+# 5. ホーム・録音UI
+
+### T005-01: 録音画面レイアウト実装
+
+- [x] 状態: 完了（2026-06-09 確認済み）
+- 種別: UI
+- 目的:
+  - ホーム画面の問題表示・録音操作領域を作る
+- 参照仕様書:
+  - `DESIGN.md`
+- 変更対象:
+  - Home Vue page
+  - Recording components
+- 依存タスク:
+  - T004-03
+- 実装内容:
+  - 問題カード
+  - START / STOPボタン
+  - タイマー表示領域
+  - 提出確認領域
+  - エラー表示領域
+- 実装してはいけないこと:
+  - 実アップロード処理を同時に実装しない
+- 完了条件:
+  - UI上の状態遷移の枠が表示される
+- テスト観点:
+  - PC / Mobile / Tabletの崩れ確認
+- CodeX投入時の注意:
+  - デザイントークン具体値はOI-025確定値に従う
+  - OI-025未確定の場合はTailwind標準値または最小限の仮配置に留め、色・フォント体系を勝手に確定しない
+- 実装commit:
+  - `2dcadd1042788a10228fafc284faf6a43e9edb87`
+  - commit message: `feat: implement recording layout UI`
+- 変更ファイル:
+  - `resources/js/Components/Recording/RecordingPanel.vue`
+  - `resources/js/Pages/Dashboard.vue`
+  - `tests/Feature/DashboardSelectedQuestionTest.php`
+- 実装結果:
+  - 選択問題表示を維持
+  - 録音操作レイアウト枠を追加
+  - `idle / recording / confirm / error` の最小ローカル状態を追加
+  - START / STOP ボタンを追加
+  - タイマー表示領域を追加
+  - 現在状態表示を追加
+  - 提出確認領域を追加
+  - エラー表示領域を追加
+  - 再録音導線を追加
+  - `RecordingPanel.vue` を追加
+  - `Dashboard.vue` から `RecordingPanel` を表示
+  - 主要文言の Feature test を更新
+- 実装していないこと:
+  - 実アップロード処理
+  - MediaRecorder本実装
+  - 録音Blob保持
+  - Laravel側の音声提出API
+  - Queue処理
+  - Python FastAPI音声評価サービス
+  - Azure連携
+  - ポーリング本実装
+  - 結果表示本実装
+  - Stripe
+  - 管理画面
+  - `docs/TASKS.md` 完了反映以外の docs 更新
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php -l`: success
+  - `php artisan route:list`: success
+  - `npm.cmd run build`: success
+  - `vendor\bin\pint --test resources/js/Pages/Dashboard.vue`: passed
+  - `php artisan test tests/Feature/DashboardSelectedQuestionTest.php`: success、既存 `.env` missing warning あり
+  - `php artisan test`: success、既存 `.env` missing warning あり
+  - 最終 `git status --short`: clean
+- 申し送り:
+  - `.env` 未作成 warning は既存の横断確認事項として継続
+  - `RecordingPanel.vue` は表示とローカル状態のみ
+  - API通信や録音実体は入れていない
+  - T005-02 以降は先取りしていない
+
+### T005-02: MediaRecorder録音処理実装
+
+- [x] 状態: 完了（2026-06-09 確認済み）
+- 種別: UI
+- 目的:
+  - ブラウザで音声録音できるようにする
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+- 変更対象:
+  - `useAudioRecorder`
+  - `useRecordingStore`
+  - Recording components
+- 依存タスク:
+  - T005-01
+- 実装内容:
+  - MediaRecorder APIラッパー
+  - START / STOP
+  - Blob保持
+  - 録音許可エラー表示
+- 実装してはいけないこと:
+  - 音声をブラウザ側で永続保存しない
+  - 評価処理まで同時実装しない
+- 完了条件:
+  - 録音開始・停止・Blob取得ができる
+- テスト観点:
+  - マイク許可拒否
+  - ブラウザ非対応
+  - 録音中の二重開始防止
+- CodeX投入時の注意:
+  - WebM/Opus前提。WAV変換はPython側で行う
+- 実装commit:
+  - `f5a75101cd8061c07a4a6af91d602e3142e49b0b`
+  - commit message: `feat: implement MediaRecorder recording flow`
+- 変更ファイル:
+  - `resources/js/Components/Recording/RecordingPanel.vue`
+  - `resources/js/Composables/useAudioRecorder.js`
+  - `resources/js/Stores/useRecordingStore.js`
+  - `tests/Feature/DashboardSelectedQuestionTest.php`
+- 実装結果:
+  - `useAudioRecorder` で MediaRecorder API ラッパーを追加
+  - WebM/Opus優先のMIME type選択を追加
+  - getUserMediaによるマイク許可要求を追加
+  - START / STOP を実録音処理に接続
+  - 停止後に音声Blobを取得
+  - `useRecordingStore` で `idle / recording / recorded / error` を管理
+  - 録音時間を管理
+  - BlobとBlob URLを管理
+  - Blob URLを reset / 再録音時に revoke
+  - 録音中の二重開始防止を追加
+  - マイク許可拒否表示を追加
+  - ブラウザ非対応表示を追加
+  - 録音後にBlob取得済み表示を追加
+  - audio previewを追加
+  - 提出ボタンは後続タスク表示として disabled のまま維持
+  - 主要文言と禁止実装の Feature test を更新
+- 実装していないこと:
+  - 音声アップロード
+  - Laravel側の音声提出API
+  - Submission Controller
+  - attempt / evaluation_job 作成
+  - 音声ファイル保存
+  - Queue処理
+  - Python FastAPI音声評価サービス
+  - Azure連携
+  - WAV変換
+  - ポーリング本実装
+  - 結果表示本実装
+  - Stripe
+  - 管理画面
+  - `docs/TASKS.md` 完了反映以外の docs 更新
+  - PR作成
+  - main merge
+- 確認結果:
+  - `php artisan route:list`: success
+  - `npm.cmd run build`: success
+  - pint: passed
+  - `php artisan test tests/Feature/DashboardSelectedQuestionTest.php`: success、既存 `.env` missing warning あり
+  - `php artisan test`: success、既存 `.env` missing warning あり
+  - 最終 `git status --short`: clean
+- 申し送り:
+  - 録音BlobとBlob URLはメモリ上のみ
+  - 永続保存やAPI通信は入れていない
+  - 提出ボタンは後続タスク表示として disabled のまま
+  - 視覚的確認は今回対象外
+  - T005-03 以降は先取りしていない
+
+### T005-03: タイマー・提出確認UI実装
+
+- [x] 状態: 完了（2026-06-09 確認済み）
+- 種別: UI
+- 目的:
+  - 録音時間表示と提出確認導線を実装する
+- 参照仕様書:
+  - `DESIGN.md`
+  - `OPEN_ISSUES.md` OI-023
+- 変更対象:
+  - `useCountdown`
+  - Recording components
+- 依存タスク:
+  - T005-02
+- 実装内容:
+  - 録音時間表示
+  - STOP後の提出確認
+  - キャンセルで録音破棄
+- 実装してはいけないこと:
+  - 設定画面の保存先を勝手に使わない
+  - 強制終了ON/OFFの永続化をここで実装しない
+- 完了条件:
+  - 録音後に提出確認へ進める
+- テスト観点:
+  - 録音キャンセル
+  - 再録音
+  - タイマー表示
+- CodeX投入時の注意:
+  - 設定項目はUI上の初期値またはpropsに留める
+  - OI-023未確定の保存先を前提に、録音UI側から設定永続化を実装しない
+- 実装扱いcommit:
+  - `f5a75101cd8061c07a4a6af91d602e3142e49b0b`
+  - commit message: `feat: implement MediaRecorder recording flow`
+- 完了反映理由:
+  - T005-03 の要求範囲は T005-02 実装内で既に満たされている
+  - 追加実装は行っていない
+- 既に満たされている内容:
+  - 録音時間表示
+  - `elapsedSeconds` による録音時間管理
+  - `setInterval` / `clearInterval` による timer 管理
+  - STOP後の提出確認領域
+  - 録音後のBlob取得済み表示
+  - audio preview
+  - キャンセルで `recordingStore.reset` を呼び、録音Blob / Blob URL を破棄
+  - 再録音で `recordingStore.reset` を呼び、録音Blob / Blob URL を破棄
+  - `URL.revokeObjectURL` によるBlob URL破棄
+  - 提出ボタンは後続タスク表示として disabled
+- `useCountdown` について:
+  - T005-03 の変更対象には `useCountdown` がある
+  - ただし現時点では `useRecordingStore` の timer / `elapsedSeconds` で完了条件を満たしている
+  - そのため、分離だけを目的とした `useCountdown` 新規作成は行っていない
+- 実装していないこと:
+  - `useCountdown` 新規作成
+  - 追加UI実装
+  - 音声アップロード
+  - Laravel側の音声提出API
+  - Submission Controller
+  - attempt / evaluation_job 作成
+  - 音声ファイル保存
+  - Queue処理
+  - Python FastAPI音声評価サービス
+  - Azure連携
+  - WAV変換
+  - ポーリング本実装
+  - 結果表示本実装
+  - Stripe
+  - 管理画面
+  - 設定保存先の確定
+  - 強制終了ON/OFFの永続化
+  - `docs/TASKS.md` 完了反映以外の docs 更新
+  - PR作成
+  - main merge
+- 確認結果:
+  - T005-03 開始前確認で、録音時間表示・STOP後の提出確認・キャンセル破棄・再録音は既存実装で満たされている可能性が高いことを確認
+  - `useCountdown.js` は未作成
+  - OI-023 保存先には影響なし
+  - 視覚的確認は今回対象外
+  - 最終 `git status --short`: clean
+- 申し送り:
+  - T005-03 は T005-02 実装内で要件充足と判断
+  - 追加実装なし
+  - `useCountdown` 分離は、将来タイマー責務が複雑化した時点で再検討
+  - #5 ホーム・録音UI はここまでで完了扱い
+  - 次工程は #6 音声提出バックエンドの開始前確認
+  - #6 では音声アップロードAPIに入る前に、T006-01の依存関係と既存DB/API構成を確認する
+
+---
+
+# 6. 音声提出バックエンド
+
+### T006-01: 音声アップロードAPI作成
+
+- [x] 状態: 完了（2026-06-10 確認済み）
+- 種別: API
+- 目的:
+  - 録音音声をLaravelへアップロードし、一時保存する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - Submission Controller
+  - FormRequest
+  - Storage設定
+  - routes
+- 依存タスク:
+  - T002-03
+  - T005-03
+- 実装内容:
+  - multipart音声アップロード
+  - ファイルバリデーション
+  - `storage/app/audio/{Y}/{m}/{submission_id}.webm` への一時保存
+  - `submissions` 作成
+- 実装してはいけないこと:
+  - 音声ファイルを永続保存扱いにしない
+  - S3前提にしない
+- 完了条件:
+  - アップロード後にsubmissionがpendingで作成される
+- テスト観点:
+  - ファイルサイズ
+  - MIME
+  - 未ログイン
+  - 他人のquestion_id
+- CodeX投入時の注意:
+  - 評価Job投入は次タスクで分ける
+- 確認結果:
+  - 実装commit: `48f370da78e01ef5b5d507f775936b339a63e050`
+  - commit message: `feat: add audio upload submission API`
+  - 局所修正commit: `b84c79a9a3f004ed1ceaa8070dae49ccddd084d9`
+  - commit message: `fix: align submission id with audio path`
+  - 変更ファイル:
+    - `app/Http/Controllers/SubmissionController.php`
+    - `app/Http/Requests/StoreSubmissionRequest.php`
+    - `app/Models/Submission.php`
+    - `routes/web.php`
+    - `tests/Feature/SubmissionUploadTest.php`
+  - `POST /api/submissions` を追加済み
+  - 既存 `web.php` の `auth` middleware 配下で、セッション認証前提のまま実装済み
+  - `routes/api.php` は作成していない
+  - 音声は `local` disk の `audio/{Y}/{m}/{submission_id}.webm` に一時保存
+  - `submissions` は `status = pending` で作成
+  - `user_id` はログインユーザーから設定
+  - `question_id` は公開済み question のみ許可
+  - `audio_duration_seconds` は今回算出せず `null`
+  - 成功時は `201 Created` JSON を返却
+  - `submissions.id` と `audio_path` の `{submission_id}.webm` が一致するよう修正済み
+  - Queue投入は未実装
+  - `ProcessSpeechEvaluationJob` は未作成
+  - `202 Accepted` 返却は未実装
+  - Python FastAPI / Azure / WAV変換 / ポーリング / 結果表示は未実装
+  - `.env` / 実Secrets は作成・変更していない
+- テスト確認結果:
+  - `php -l`: 関連PHPファイル OK
+  - `php artisan route:list`: `POST api/submissions` 登録確認済み
+  - `npm.cmd run build`: OK
+  - `php artisan test`: コマンド成功
+  - `vendor\bin\pint --test`: 変更対象ファイルに絞った確認は OK
+  - 全体 `vendor\bin\pint --test` は既存未整形ファイルにより失敗
+  - `.env` 未作成 warning により、T006-01 追加 Feature test は `7 warnings / 0 assertions` で実質未検証
+- 申し送り:
+  - T006-01 は submission 作成と音声一時保存までで完了
+  - T006-02 では `ProcessSpeechEvaluationJob` 作成、Queue投入、`202 Accepted + submission_id` 返却を接続する
+  - T006-02 着手前に、`.env` 未作成 warning により追加 Feature test が実質未検証である点を確認する
+  - 実DBまたは `.env` が整ったテスト環境で、`response.id === submissions.id`、`basename(audio_path) === "{id}.webm"`、保存ファイルが `storage/app/audio/{Y}/{m}/{submission_id}.webm` に存在することを再確認する
+
+### T006-02: 音声提出Queue投入と202返却
+
+- [x] 状態: 完了（2026-06-10 確認済み）
+- 種別: Queue
+- 目的:
+  - 音声提出後に評価JobをQueueへ投入し、202 Acceptedを返す
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - Submission Controller
+  - `ProcessSpeechEvaluationJob`
+  - routes
+- 依存タスク:
+  - T006-01
+  - T001-03
+- 実装内容:
+  - `ProcessSpeechEvaluationJob` の雛形作成
+  - submission_idをQueueへ渡す
+  - 202 Accepted + submission_id返却
+- 実装してはいけないこと:
+  - Python連携本体を同時実装しない
+  - 同期処理で評価完了まで待たない
+- 完了条件:
+  - 音声提出後にjobsへJobが投入される
+- テスト観点:
+  - 202レスポンス
+  - pending状態
+  - 重複提出
+- CodeX投入時の注意:
+  - Job本体の外部通信は後続タスクで実装する
+- 確認結果:
+  - 実装commit: `d0c814e7c646f9d9fade770ea6c12ca5d75e823b`
+  - commit message: `feat: dispatch speech evaluation job`
+  - `ProcessSpeechEvaluationJob` を作成済み
+  - `ProcessSpeechEvaluationJob` は `ShouldQueue` の no-op 雛形
+  - `ProcessSpeechEvaluationJob` は `submissionId` のみ保持
+  - `handle()` は Python / Azure / WAV変換 / STT / 評価結果保存を行わない
+  - `SubmissionController` で submission 作成直後に `ProcessSpeechEvaluationJob::dispatch($submission->id)` を実行
+  - Queue へ渡す値は `submission_id`
+  - 成功時レスポンスを `202 Accepted` に変更済み
+  - レスポンス JSON は `submission_id`, `status`, `question_id`, `submitted_at`
+  - `submissions.status` は `pending` のまま維持
+  - route は既存の `POST /api/submissions` を継続利用
+  - 既存の `jobs` migration を利用
+  - 新規 migration は作成していない
+  - `.env` / 実Secrets は作成・変更していない
+  - 変更ファイル:
+    - `app/Http/Controllers/SubmissionController.php`
+    - `app/Jobs/ProcessSpeechEvaluationJob.php`
+    - `tests/Feature/SubmissionUploadTest.php`
+- テスト確認結果:
+  - `php -l`: 変更PHP 3ファイル OK
+  - `php artisan route:list`: `POST api/submissions` 登録確認済み
+  - `npm.cmd run build`: OK
+  - `php artisan test`: コマンド成功
+  - 変更対象 `vendor\bin\pint --test`: OK
+  - T006-02 用 Feature test では `202 Accepted`, `submission_id`, `pending` 維持, `ProcessSpeechEvaluationJob` dispatch, database queue payload, 複数 submit 時の別 submission / 別 Job を検証対象として追加・更新済み
+  - `.env` 未作成 warning により、個別 Feature test は `9 warnings / 0 assertions` で実質未検証
+  - `jobs` table への実投入確認テストコードは追加済み
+  - ただし現ローカルでは `.env` 未作成 warning により、jobs table 実投入確認は実質未検証
+- 実装していないこと:
+  - Python FastAPI 実装
+  - Python 連携本体
+  - Azure 連携
+  - Azure SDK / API 呼び出し
+  - WAV変換
+  - STT実行
+  - Pronunciation Assessment 実行
+  - Fluency Assessment 実行
+  - evaluation 結果保存
+  - ポーリング API
+  - 結果表示
+  - CleanupTempFilesJob
+  - Scheduler 追加
+  - 音声ファイル削除処理
+  - `processing` / `completed` / `failed` への状態遷移
+  - `evaluation_jobs` テーブル追加
+  - `attempt` テーブル追加
+  - 重複提出禁止仕様
+  - unique index 追加
+  - `.env` 作成・変更
+  - 実Secrets追加
+- 申し送り:
+  - T006-02 は Queue 投入と `202 Accepted + submission_id` 返却までで完了
+  - T007 以降では no-op の `ProcessSpeechEvaluationJob::handle()` に評価処理連携を追加する流れになる
+  - Python / Azure / WAV変換 / 評価結果保存 / ポーリング / 結果表示は後続タスクで扱う
+  - T007 以降に進む前に、`.env` 未作成 warning により T006-02 追加 Feature test が実質未検証である点を確認する
+  - 実DBまたは `.env` が整ったテスト環境で、database queue の `jobs` 実投入を再確認する
+
+---
+
+# 7. Python FastAPI音声評価サービス
+
+### T007-01: FastAPI基盤と `/health` 作成
+
+- [x] 状態: 完了（2026-06-10 確認済み）
+- 種別: Python
+- 目的:
+  - Python音声評価サービスの最小基盤を作る
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-002
+- 変更対象:
+  - Python service directory
+  - FastAPI app
+  - dependency files
+- 依存タスク:
+  - T001-01
+  - T000-03
+- 実装内容:
+  - FastAPIアプリ作成
+  - `/health` 実装
+  - localhost port 8100仮前提を環境変数化
+  - `/health` はまずFastAPIプロセス生存確認を目的とする
+- 実装してはいけないこと:
+  - ポート番号を OI-002 確定前に固定しない
+  - DB接続を追加しない
+  - T007-01時点の `/health` でAzure接続確認まで必須にしない
+- 完了条件:
+  - `/health` が応答する
+- テスト観点:
+  - 起動確認
+  - 環境変数変更
+- CodeX投入時の注意:
+  - Pythonサービスはステートレスにする
+  - Azure接続状態の確認はT007-04以降で追加または拡張する
+- 確認結果:
+  - 実装commit: `e807627601b57778a2d3799593e64f03b6e4b353`
+  - 変更範囲は `python/` 配下のみ
+  - 追加ファイル:
+    - `python/README.md`
+    - `python/app/__init__.py`
+    - `python/app/main.py`
+    - `python/app/settings.py`
+    - `python/requirements.txt`
+    - `python/tests/__init__.py`
+    - `python/tests/test_health.py`
+  - FastAPI app は `app.main:app`
+  - `GET /health` を実装
+  - `/health` は FastAPI プロセス生存確認のみ
+  - response は `{"status":"ok","service":"speech-evaluation"}`
+  - `PYTHON_SERVICE_NAME` / `PYTHON_SERVICE_HOST` / `PYTHON_SERVICE_PORT` を Python 側 settings で扱う
+  - `PYTHON_SERVICE_PORT` のデフォルト `8100` は OI-002 確定前の仮前提であり、最終固定ではない
+  - `python/requirements.txt` に `fastapi`, `uvicorn[standard]`, `pytest`, `httpx` を追加
+  - FastAPI `TestClient` による `/health` テストを追加
+  - service name 環境変数変更のテストを追加
+  - `python/README.md` に PowerShell + Docker Desktop での 8100 / 8101 確認手順を記載
+  - ユーザー側 PowerShell + Docker Desktop で 8100 / 8101 の `/health` が `200 OK` で応答することを確認済み
+  - CodeX 側では Python / Docker daemon の実行確認は未実施
+  - 理由は CodeX 環境で `python` / `py` / `pip` 未検出、Docker daemon 接続不可だったため
+  - `__pycache__` / `.pyc` は削除し、commit 対象外
+  - `.env` / `.env.example` は変更していない
+  - Dockerfile / compose は作成していない
+  - Laravel 側コードは変更していない
+- 実装していないこと:
+  - `/evaluate`
+  - `X-Internal-Token`
+  - DB接続
+  - Laravel DB 直接接続
+  - Azure接続
+  - Azure SDK
+  - WAV変換
+  - STT
+  - Pronunciation Assessment
+  - evaluation結果保存
+  - Laravel `ProcessSpeechEvaluationJob::handle()` の実処理
+  - Dockerfile
+  - docker-compose.yml / compose.yml
+  - `.env` / `.env.example` 変更
+  - VPS接続
+  - VPS設定変更
+- 申し送り:
+  - T007-01 は FastAPI 最小基盤と `/health` 応答確認までで完了
+  - T007-02 以降で `/evaluate`、内部トークン、Laravel Job からの呼び出しを扱う
+  - Azure 接続状態の確認は T007-04 以降で追加または拡張する
+  - `PYTHON_SERVICE_PORT=8100` は OI-002 確定前の仮前提であり、最終固定扱いしない
+  - Dockerfile / compose / VPS 環境整備は後続タスクで扱う
+  - CodeX 側では Python / Docker daemon の実行確認ができなかったため、T007-01 の実動確認はユーザー側 PowerShell + Docker Desktop で実施済みとして記録する
+  - README / ARCHITECTURE に PostgreSQL 16 の記載が残っており、ユーザー共有済み実サーバー前提は PostgreSQL 17 のため、後続の Docker / VPS 環境整備前に文書整合確認が必要
+  - ただし、PostgreSQL 16/17 の表記差分は T007-01 の FastAPI `/health` 実装完了を止めるものではない
+
+### T007-02: `/evaluate` 入力受付と内部トークン検証
+
+- [x] 状態: 完了（2026-06-10 確認済み）
+- 種別: Python
+- 目的:
+  - Laravelから音声評価リクエストを受け付ける
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-007
+- 変更対象:
+  - FastAPI routes
+  - settings
+- 依存タスク:
+  - T007-01
+- 実装内容:
+  - POST `/evaluate`
+  - multipart/form-data受付
+  - `X-Internal-Token` 検証
+  - submission_id, question_id, expected_duration, feature_flags受付
+- 実装してはいけないこと:
+  - Laravel DBへ直接アクセスしない
+  - Python側にFeature Flag管理を持たせない
+- 完了条件:
+  - 正しい内部トークンで受付できる
+  - 不正トークンは401になる
+- テスト観点:
+  - トークンなし
+  - 不正トークン
+  - 必須パラメータ不足
+- CodeX投入時の注意:
+  - Azure連携は次タスク以降で分ける
+- 確認結果:
+  - 実装commit: `74ef9275c52b5cf76552714b7e461f1d5bc662c0`
+  - 変更範囲は `python/` 配下のみ
+  - 追加ファイル:
+    - `python/app/routes/__init__.py`
+    - `python/app/routes/evaluate.py`
+    - `python/tests/test_evaluate.py`
+  - 変更ファイル:
+    - `python/README.md`
+    - `python/app/main.py`
+    - `python/app/settings.py`
+    - `python/requirements.txt`
+  - `POST /evaluate` を追加
+  - `multipart/form-data` で受付
+  - `X-Internal-Token` を `SPEECH_SERVICE_INTERNAL_TOKEN` と照合
+  - `SPEECH_SERVICE_INTERNAL_TOKEN` は本番用デフォルト値なし
+  - request field:
+    - `submission_id`
+    - `question_id`
+    - `expected_duration`
+    - `feature_flags`
+    - `audio_file`
+  - `submission_id` は string として受付
+  - `question_id` は int として受付
+  - `expected_duration` は int として受付
+  - `feature_flags` は JSON 文字列として受け取るのみ
+  - `audio_file` は必須で受け付けるが、保存・読み込み・検証・変換はしない
+  - 正常時 response:
+    - `{"status":"accepted","submission_id":"..."}`
+  - 正常時 status:
+    - `200`
+  - トークンなし:
+    - `401`
+  - 不正トークン:
+    - `401`
+  - 必須パラメータ不足:
+    - FastAPI 標準 `422`
+  - `python-multipart` を `requirements.txt` に追加
+  - FastAPI `TestClient` による `/evaluate` テストを追加
+  - テストでは monkeypatch で `SPEECH_SERVICE_INTERNAL_TOKEN` を設定
+  - 正常トークン、トークンなし、不正トークン、必須項目不足、`audio_file` 不足をテスト対象に追加
+  - ユーザー側 PowerShell + Docker Desktop で `/evaluate` の実動確認済み
+  - CodeX 側では Python / Docker daemon の実行確認は未実施
+  - 理由は CodeX 環境で `python` / `py` / `pip` 未検出、Docker daemon 接続不可だったため
+  - `__pycache__` / `.pyc` は削除し、commit 対象外
+  - `.env` / `.env.example` は変更していない
+  - Dockerfile / compose は作成していない
+  - Laravel 側コードは変更していない
+  - docs/TASKS.md 完了反映前の実装commitでは docs/TASKS.md は変更していない
+- 実装していないこと:
+  - Laravel `ProcessSpeechEvaluationJob::handle()` の実処理
+  - Laravel から `/evaluate` を呼ぶ処理
+  - DB接続
+  - Laravel DB 直接接続
+  - Azure接続
+  - Azure SDK
+  - WAV変換
+  - 音声ファイル保存
+  - 音声ファイル読み込み
+  - 音声ファイル検証
+  - STT
+  - Pronunciation Assessment
+  - evaluation結果保存
+  - Python側 Feature Flag 管理
+  - OI-007 のローテーション方針確定
+  - Dockerfile
+  - docker-compose.yml / compose.yml
+  - `.env` / `.env.example` 変更
+  - VPS接続
+  - VPS設定変更
+- 申し送り:
+  - T007-02 は `/evaluate` の入力受付と内部トークン検証までで完了
+  - `audio_file` は multipart で受付済みだが、保存・読み込み・検証・WAV変換は未実装
+  - T007-03 で WebM/Opus → WAV変換を扱う
+  - T007-04 以降で Azure SDK / STT / Pronunciation Assessment を扱う
+  - Laravel `ProcessSpeechEvaluationJob::handle()` から `/evaluate` を呼ぶ処理は後続タスクで扱う
+  - `feature_flags` は JSON 文字列として受け取るのみで、Python 側では管理・解釈しない
+  - OI-007 のトークンローテーション方針・頻度は未確定のまま維持する
+  - `SPEECH_SERVICE_INTERNAL_TOKEN` は実Secrets未投入であり、`.env` は作成・commitしない
+  - CodeX 側では Python / Docker daemon の実行確認ができなかったため、T007-02 の実動確認はユーザー側 PowerShell + Docker Desktop で実施済みとして記録する
+  - Dockerfile / compose / VPS 環境整備は後続タスクで扱う
+  - README / ARCHITECTURE に PostgreSQL 16 の記載が残っており、ユーザー共有済み実サーバー前提は PostgreSQL 17 のため、後続の Docker / VPS 環境整備前に文書整合確認が必要
+  - ただし、PostgreSQL 16/17 の表記差分は T007-02 の `/evaluate` 入力受付完了を止めるものではない
+
+### T007-03: WebM/Opus → WAV変換実装
+
+- [x] 状態: 完了（2026-06-10 確認済み）
+- 種別: Python
+- 目的:
+  - ブラウザ録音音声をAzure SDKに渡せるWAVへ変換する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPEN_ISSUES.md` OI-005 解消済み前提
+- 変更対象:
+  - Python audio service
+  - dependency files
+- 依存タスク:
+  - T007-02
+- 実装内容:
+  - WebM/Opusを一時WAVへ変換
+  - PCM 16kHz 16bit mono前提
+  - 処理後の一時WAV削除
+- 実装してはいけないこと:
+  - WAVファイルを永続保存しない
+  - Laravel側でWAV変換しない
+- 完了条件:
+  - 入力WebMからWAVが生成され、処理後削除される
+- テスト観点:
+  - 変換失敗
+  - 不正ファイル
+  - 一時ファイル削除
+- CodeX投入時の注意:
+  - ffmpeg依存の有無を明確にする
+- 確認結果:
+  - 実装commit: `d09ff798e25c943379cd799f1233f1655043e630`
+  - 変更範囲は `python/` 配下のみ
+  - 追加ファイル:
+    - `python/app/services/__init__.py`
+    - `python/app/services/audio_conversion.py`
+    - `python/tests/test_audio_conversion.py`
+  - 変更ファイル:
+    - `python/README.md`
+    - `python/app/routes/evaluate.py`
+    - `python/tests/test_evaluate.py`
+  - `ffmpeg` binary を Python から `subprocess.run()` で呼ぶ方式を採用
+  - `pydub` / `moviepy` / `av` は追加していない
+  - Python package dependency は追加していない
+  - WebM/Opus を一時WAVへ変換
+  - WAV形式:
+    - PCM
+    - 16kHz
+    - 16bit signed samples
+    - mono
+  - 入力ファイルは一時ファイルとして扱う
+  - 変換後WAVも一時ファイルとして扱う
+  - 成功時・失敗時とも cleanup される
+  - repository 配下へ一時音声を保存しない
+  - WAVファイルを永続保存しない
+  - T007-03 時点では変換後 WAV bytes は Azure に渡さず破棄
+  - `/evaluate` でトークン検証後に変換を実行
+  - 正常 WebM/Opus:
+    - `200`
+    - `{"status":"accepted","submission_id":"00000000-0000-0000-0000-000000000001"}`
+  - 不正ファイル:
+    - `422`
+    - `{"detail":"Audio conversion failed"}`
+  - 不正トークン:
+    - `401`
+    - `{"detail":"Invalid internal token"}`
+  - `/health`:
+    - `200`
+    - `{"status":"ok","service":"speech-evaluation"}`
+  - ユーザー側 PowerShell + Docker Desktop で実変換確認済み
+  - ffmpeg 入り Docker container で FastAPI を起動して確認済み
+  - `sample.webm` は確認用に生成し、削除済み
+  - `.wav` / `.pyc` / `__pycache__` 残存なし
+  - 最終 `git status --short`: clean
+  - CodeX 側では Python / pytest / Docker 実行確認は未実施
+  - 理由は CodeX 環境で `python` / `py` / `pip` 未検出、Docker daemon 接続不可だったため
+  - `git diff --check`: OK
+  - `.env` / `.env.example` は変更していない
+  - Dockerfile / compose は作成していない
+  - Laravel 側コードは変更していない
+  - docs/TASKS.md 完了反映前の実装commitでは docs/TASKS.md は変更していない
+- 実装していないこと:
+  - Laravel `ProcessSpeechEvaluationJob::handle()` の実処理
+  - Laravel から `/evaluate` を呼ぶ処理
+  - DB接続
+  - Laravel DB 直接接続
+  - Azure接続
+  - Azure SDK
+  - Azure STT
+  - Pronunciation Assessment
+  - evaluation結果保存
+  - `evaluations` insert
+  - `submissions.status` 更新
+  - Python側 Feature Flag 管理
+  - OI-007 のローテーション方針確定
+  - OI-010 の continuous recognition 検証
+  - OI-012 の Pronunciation Assessment PoC 判断
+  - OI-021 の CleanupTempFilesJob 実装
+  - Dockerfile
+  - docker-compose.yml / compose.yml
+  - `.env` / `.env.example` 変更
+  - VPS接続
+  - VPS設定変更
+  - 本番Secrets投入
+  - テスト用音声バイナリファイルの commit
+  - 一時WAVの永続保存
+  - repository 配下への一時音声保存
+- 申し送り:
+  - T007-03 は WebM/Opus → WAV 変換と即時 cleanup までで完了
+  - `ffmpeg` binary が実行環境に必要
+  - T007-03 では Dockerfile / compose を作成していない
+  - 後続 Docker / VPS 整備時に ffmpeg binary の導入が必要
+  - 変換後WAVは bytes として取得できるが、T007-03 時点では Azure に渡さず破棄している
+  - T007-04 以降で Azure SDK / STT / Pronunciation Assessment を扱う
+  - Laravel `ProcessSpeechEvaluationJob::handle()` から `/evaluate` を呼ぶ処理は後続タスクで扱う
+  - `feature_flags` は JSON 文字列として受け取るのみで、Python 側では管理・解釈しない
+  - OI-010 / OI-012 は Azure / Pronunciation Assessment 側の論点として後続へ残す
+  - OI-021 は残存ファイル削除ジョブの論点であり、T007-03 の一時ファイル即時 cleanup とは別論点として維持する
+  - CodeX 側では Python / Docker daemon の実行確認ができなかったため、T007-03 の実動確認はユーザー側 PowerShell + Docker Desktop で実施済みとして記録する
+  - 実変換確認では `sample.webm` を生成したが、確認後に削除済みで commit していない
+  - README / ARCHITECTURE に PostgreSQL 16 の記載が残っており、ユーザー共有済み実サーバー前提は PostgreSQL 17 のため、後続の Docker / VPS 環境整備前に文書整合確認が必要
+  - ただし、PostgreSQL 16/17 の表記差分は T007-03 の WebM/Opus → WAV 変換完了を止めるものではない
+
+### T007-04: Azure STT連携実装
+
+- [x] 状態: 完了（2026-06-12 確認済み）
+- 種別: Python
+- 目的:
+  - Azure AI Speech STTを呼び出してtranscriptを取得する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `README.md`
+  - `OPEN_ISSUES.md` OI-010, OI-107
+- 変更対象:
+  - Python Azure client
+  - settings
+- 依存タスク:
+  - T007-03
+- 実装内容:
+  - Azure Speech SDK連携
+  - 環境変数から Azure Speech key / region / endpoint を読み込む
+  - Azure Speech key / region 未投入時の失敗を明示する
+  - Azure接続疎通確認をSTT実行と分けて扱う
+  - japaneast / S0前提の設定
+  - transcript, duration, azure_request_id, raw_azure_response取得
+  - 422認識不可の判定
+  - 実Azure接続テストとモック/スタブテストを分離する
+- 実装してはいけないこと:
+  - Pronunciation AssessmentをFeature Flag OFFのまま有効化しない
+  - Fluency / Content AssessmentをMVP必須STTと混同しない
+  - raw_azure_response 500KB超過方針を勝手に決めない
+- 完了条件:
+  - STT結果をJSONで返せる
+- テスト観点:
+  - 正常音声
+  - 無音・ノイズ
+  - タイムアウト
+  - Azureエラー
+  - Azure設定未投入
+  - モック/スタブでの異常系
+- CodeX投入時の注意:
+  - continuous recognition安定性は OI-010 のPoC対象として扱う
+  - raw_azure_response 500KB超過時の扱いは OI-107 確定前に固定しない
+  - Pronunciation Assessment / Fluency / Content Assessment はFeature FlagとPoC判断に従い、STT連携と分離する
+- 確認結果:
+  - 実装commit:
+    - `83b9d2d226e4a4e2248153fe64afa61f3f1827cb` Azure STT連携実装
+    - `ceb064ebe7a03f3aa6ee956fdf816776261282ed` Azure STT diagnostic補正
+    - `92b39241f3574cafe9ec30ddde3aac525110556c` FastAPI response model error修正
+    - `f5137e9a1067ded9301507362b8b6f1e16ee7cda` Azure cancellation diagnostic補正
+    - `f426c783d5d837a2aeb0a5c444a54c0f309b51a2` Azure cancellation details API修正
+    - `5b76f104ea885d47264f49304a1d15dc7dcaa844` EndOfStream分類修正
+    - `5cd359b03a4292c75ade9e6a1427e73d7ba66ffb` result_fallback / failed diagnostic責務分離
+    - `d8e39bb89e2cbe0577c631c3383a373082dbc880` fallbackテスト期待値補正
+  - Azure Cognitive Services Speech SDK を使用した STT 連携を実装済み
+  - 認識言語は `ja-JP`
+  - key + region 構成で疎通確認済み
+  - endpoint が指定される場合は endpoint 優先
+  - continuous recognition を本線として実装済み
+  - T007-03 の変換済み WAV bytes を Azure STT に渡す構成
+  - 正常系:
+    - 実Azure smoke test で `HTTP/1.1 200 OK`
+    - response `status: success`
+    - 正常音声で transcript 取得成功
+    - `recognized_duration_seconds: 6.64`
+    - speech_rate 算出成功
+    - EndOfStream + transcriptありを `success_with_transcript` として処理
+  - 異常系:
+    - 無音・ノイズ / 認識不可は 422 系として扱う
+    - Azure設定未投入は 500 系として扱う
+    - Azure canceled / unavailable / timeout / network 系は 503 系として扱う
+    - Canceled + EndOfStream + 空 transcript + errorなしは 422 認識不可として扱う
+    - Canceled + EndOfStream + transcriptありは success として扱う
+    - Canceled + EndOfStream + error_details / error code ありは 503 canceled として扱う
+  - diagnostic:
+    - Azure cancellation diagnostic を返す
+    - `cancellation_reason` / `cancellation_error_code` / `error_details` / `cancellation_details_source` を保持
+    - `cancellation_error_code` や `error_details` が None / 空文字でも diagnostic key を維持
+    - `result_fallback` と `failed` の diagnostic 責務を分離
+    - Secrets sanitize を維持
+  - Docker内 pytest は `34 passed, 4 warnings`
+  - `.env` / Azure key / endpoint実値 / `sample.webm` / 生成WAV は commit していない
+  - docs/TASKS.md 完了反映前の実装commitでは docs/TASKS.md は変更していない
+- 実装していないこと:
+  - Pronunciation Assessment
+  - Fluency Assessment
+  - DB保存
+  - Laravel 側コード変更
+  - Dockerfile / docker-compose 作成
+  - `.env` 作成
+  - Azure key / endpoint 実値の repository 記載
+  - `sample.webm` / 生成WAV の commit
+- 申し送り:
+  - Azure Speech は T007-04 smoke test 時点ではテスト用 Azure resource を使用した
+  - 本番環境では別 Azure account / Speech resource を用意し、`AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` / `AZURE_SPEECH_ENDPOINT` を本番値に差し替える
+  - テスト用 Azure の疎通成功をもって、本番 Azure の設定完了とは扱わない
+  - OI-010 continuous recognition 長時間安定性検証は未解消のまま
+  - OI-012 Pronunciation Assessment PoC Go/No-Go は未解消のまま
+  - OI-013 Key1 / Key2 ローテーション運用は未解消のまま
+  - OI-014 Azure予算上限は未解消のまま
+  - OI-015 速度判定閾値は未解消のまま
+  - OI-107 raw_azure_response 500KB超過保持方針は未解消のまま
+
+### T007-05: `/evaluate` レスポンス整形と422処理
+
+- [ ] 状態: 未着手
+- 種別: Python
+- 目的:
+  - Laravel側が保存しやすいレスポンス形式に整える
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-006
+- 変更対象:
+  - FastAPI response schema
+- 依存タスク:
+  - T007-04
+- 実装内容:
+  - 成功時200レスポンス
+  - 422音声認識不可レスポンス
+  - 500 / 502 / 503相当のエラー整形
+- 実装してはいけないこと:
+  - 422をリトライ対象として扱わない
+  - 422時に空評価データを返さない
+- 完了条件:
+  - Laravel側でステータス別に処理分岐できる
+- テスト観点:
+  - 200
+  - 422
+  - 500系
+- CodeX投入時の注意:
+  - ユーザー向け文言はOI-006確定後に反映する
+
+---
+
+# 8. Laravel ⇔ Python連携
+
+### T008-01: Python評価クライアント作成
+
+- [ ] 状態: 未着手
+- 種別: API
+- 目的:
+  - LaravelからPython FastAPIへHTTP通信するクライアントを作る
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - Laravel Service
+  - config
+- 依存タスク:
+  - T006-02
+  - T007-05
+- 実装内容:
+  - localhost HTTP通信
+  - `X-Internal-Token`
+  - 接続タイムアウト5秒
+  - 読み取りタイムアウト120秒
+- 実装してはいけないこと:
+  - 共有DBやファイルキュー経由にしない
+  - PythonからLaravelへcallbackさせない
+- 完了条件:
+  - LaravelからPython `/health` / `/evaluate` を呼べる
+- テスト観点:
+  - 接続失敗
+  - タイムアウト
+  - 認証エラー
+- CodeX投入時の注意:
+  - URL・ポートは環境変数で扱う
+
+### T008-02: ProcessSpeechEvaluationJob 本実装
+
+- [ ] 状態: 未着手
+- 種別: Queue
+- 目的:
+  - Queue Workerで音声評価を実行し、結果をDB保存する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - `ProcessSpeechEvaluationJob`
+  - Evaluation Service
+- 依存タスク:
+  - T008-01
+  - T007-05
+- 実装内容:
+  - pending → processing → completed / failed
+  - Python `/evaluate` 呼び出し
+  - `evaluations` INSERT
+  - `evaluations.submission_id` UNIQUEを前提にする
+- 実装してはいけないこと:
+  - 422時にevaluationを空欄作成しない
+  - Python DB直接アクセスを前提にしない
+- 完了条件:
+  - 正常音声でcompletedになり、evaluationが保存される
+- テスト観点:
+  - 正常系
+  - 重複Job
+  - status不整合
+- CodeX投入時の注意:
+  - べき等性を必ず確認する
+
+### T008-03: リトライ・失敗処理実装
+
+- [ ] 状態: 未着手
+- 種別: Queue
+- 目的:
+  - Python / Azure障害時のリトライと失敗確定を実装する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - `ProcessSpeechEvaluationJob`
+  - Queue設定
+- 依存タスク:
+  - T008-02
+- 実装内容:
+  - 最大リトライ3回
+  - バックオフ30/60/120秒
+  - 500/502/503/タイムアウトはリトライ
+  - 422/401はリトライ対象外
+  - 全失敗時 failed_jobs 記録
+- 実装してはいけないこと:
+  - 422をサーバー障害として再試行しない
+- 完了条件:
+  - ステータス別に期待通りの処理になる
+- テスト観点:
+  - 422
+  - 500
+  - タイムアウト
+  - failed_jobs
+- CodeX投入時の注意:
+  - 422はUIの再録音導線へつなぐ前提で扱う
+
+### T008-04: 音声一時ファイル即時削除実装
+
+- [ ] 状態: 未着手
+- 種別: Queue
+- 目的:
+  - 評価完了または失敗確定後に音声一時ファイルを物理削除する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - `ProcessSpeechEvaluationJob`
+  - Storage service
+- 依存タスク:
+  - T008-02
+  - T008-03
+- 実装内容:
+  - completed時削除
+  - failed確定時削除
+  - 削除失敗ログ
+- 実装してはいけないこと:
+  - 削除失敗を理由に音声を永続保存扱いにしない
+  - バックアップ対象に含めない
+- 完了条件:
+  - 評価完了後に音声ファイルが残らない
+- テスト観点:
+  - 削除成功
+  - 削除失敗ログ
+  - failed時削除
+- CodeX投入時の注意:
+  - CleanupTempFilesJobは後続タスクで回復手段として実装する
+
+---
+
+# 9. ポーリング・結果表示
+
+### T009-01: submission status API実装
+
+- [ ] 状態: 未着手
+- 種別: API
+- 目的:
+  - フロントが解析状態を3秒ポーリングできるAPIを作る
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+- 変更対象:
+  - Submission Status Controller
+  - routes
+- 依存タスク:
+  - T006-02
+  - T008-03
+- 実装内容:
+  - 自分のsubmissionのみ参照可能
+  - pending / processing / completed / failed を返す
+  - completed時は結果画面URLを返す
+  - failed時はエラー種別を返す
+- 実装してはいけないこと:
+  - 他人のsubmissionを参照可能にしない
+- 完了条件:
+  - 状態に応じたJSONが返る
+- テスト観点:
+  - 認可
+  - completed
+  - failed
+  - 存在しないID
+- CodeX投入時の注意:
+  - 422のUI表示文言はOI-006に従う
+
+### T009-02: 3秒ポーリングUI実装
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - 提出後に解析中表示し、完了までポーリングする
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `OPEN_ISSUES.md` OI-008
+- 変更対象:
+  - `usePolling`
+  - `useSubmissionPollingStore`
+  - Home Vue page
+- 依存タスク:
+  - T006-02
+  - T005-03
+  - T009-01
+- 実装内容:
+  - 3秒間隔
+  - 最大60回
+  - completedで結果表示へ遷移
+  - failedでエラー表示
+- 実装してはいけないこと:
+  - WebSocket前提に変更しない
+  - 無制限ポーリングにしない
+- 完了条件:
+  - 提出後に解析中→完了→結果へ進める
+- テスト観点:
+  - Queue停止時
+  - タイムアウト時
+  - failed時
+- CodeX投入時の注意:
+  - 3秒間隔の性能妥当性はOI-008で後続検証する
+
+### T009-03: 結果表示画面実装
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - evaluation結果をユーザーに表示する
+- 参照仕様書:
+  - `DESIGN.md`
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - Result Controller
+  - Result Vue page
+  - Components
+- 依存タスク:
+  - T008-02
+  - T009-01
+  - T009-02
+- 実装内容:
+  - 総合スコア
+  - 速度
+  - transcript
+  - 保存済みコメントの表示枠
+  - 次の問題導線
+- 実装してはいけないこと:
+  - failed / 422 を空欄結果画面として表示しない
+  - 発音・流暢さをFlag無視で表示しない
+  - コメント生成ロジック本体を実装しない
+- 完了条件:
+  - completedのsubmissionだけ結果画面を表示できる
+- テスト観点:
+  - completed以外のアクセス
+  - 他人の結果アクセス
+- CodeX投入時の注意:
+  - Feature Flag制御は次タスクで明示実装する
+  - completed以外、特に422失敗時は空欄の結果画面へ進めない
+  - T009-03は保存済みの評価結果・コメントを表示する枠に限定し、コメント生成ロジック本体はT010系で実装する
+
+### T009-04: Feature Flag OFF時の発音・流暢さ非表示
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - Pronunciation / Fluency のFeature Flag OFF時にセクション自体を非表示にする
+- 参照仕様書:
+  - `ARCHITECTURE.md` §6
+  - `DESIGN.md` §7-4
+  - `OPERATIONS.md`
+- 変更対象:
+  - Result Vue page
+  - `useFeatureFlag`
+- 依存タスク:
+  - T001-05
+  - T009-03
+- 実装内容:
+  - `speech.pronunciation_assessment.enabled` OFF時は発音セクション非表示
+  - `speech.fluency_assessment.enabled` OFF時は流暢さセクション非表示
+  - OFF時は空欄・NULL・未評価などの内部状態をDOM上にもユーザー表示にも出さない
+- 実装してはいけないこと:
+  - 空欄・NULL・未評価をユーザーに表示しない
+  - デフォルトONにしない
+- 完了条件:
+  - OFF時に該当セクションがDOM上も表示されない
+- テスト観点:
+  - Flag OFF
+  - Flag ON
+  - JSONB NULL
+- CodeX投入時の注意:
+  - PoC完了前はOFF前提を維持する
+  - Feature Flag ON確認はPoC後または開発環境の限定確認として扱う
+
+### T009-05: 422認識不可時の再録音 / 再提出導線実装
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - 422音声認識不可時に結果画面へ進めず、再録音 / 再提出へ戻す
+- 参照仕様書:
+  - `DESIGN.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-006
+- 変更対象:
+  - Home Vue page
+  - Polling store
+  - Error component
+- 依存タスク:
+  - T009-02
+  - T008-03
+- 実装内容:
+  - failed reasonが422相当の場合に再録音導線を表示
+  - 空欄の結果画面へ遷移させない
+  - ユーザー向け文言はOI-006に従う
+  - OI-006未確定時は文言を固定せず、差し替え可能な表示枠として実装する
+- 実装してはいけないこと:
+  - 422をシステム障害としてだけ表示しない
+  - 未評価項目を結果として表示しない
+- 完了条件:
+  - 422時にホーム上で再録音 / 再提出できる
+- テスト観点:
+  - 422発生
+  - 再録音後の再提出
+  - failed 500系との表示差分
+- CodeX投入時の注意:
+  - OI-006未確定なら文言は仮置きせず、設定可能な枠だけ作る
+  - 422は結果画面ではなく、録音フロー内の再録音 / 再提出導線へ戻す
+
+---
+
+# 10. コメント生成
+
+### T010-01: CommentGeneratorInterface 作成
+
+- [ ] 状態: 未着手
+- 種別: 実装
+- 目的:
+  - コメント生成処理をLLM非依存で差し替え可能にする
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPEN_ISSUES.md` OI-011
+- 変更対象:
+  - `app/Contracts/`
+  - `app/Dto/`
+- 依存タスク:
+  - T008-02
+- 実装内容:
+  - `CommentGeneratorInterface`
+  - `EvaluationResult` DTO
+  - `CommentResult` DTO
+- 実装してはいけないこと:
+  - LLM APIを直接呼ばない
+  - Azure OpenAIをMVP必須にしない
+- 完了条件:
+  - コメント生成実装を差し替え可能である
+- テスト観点:
+  - Interfaceに従った実装差し替え
+- CodeX投入時の注意:
+  - Strategyパターンの土台に限定する
+
+### T010-02: TemplateCommentGenerator 実装
+
+- [ ] 状態: 未着手
+- 種別: 実装
+- 目的:
+  - MVP用のテンプレートコメント生成を実装する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPEN_ISSUES.md` OI-011, OI-015
+- 変更対象:
+  - `app/Services/Comment/`
+  - `config/comment_templates.php`
+- 依存タスク:
+  - T010-01
+- 実装内容:
+  - 速度 × 音声長のテンプレート選択
+  - OI-011確定後の文面反映枠
+  - OI-015確定後の速度判定閾値参照
+- 実装してはいけないこと:
+  - OI-011未確定の文面を勝手に作らない
+  - 速度閾値をDBスキーマに固定しない
+- 完了条件:
+  - evaluationからcommentを生成できる
+- テスト観点:
+  - slow / appropriate / fast
+  - short / medium / long
+  - テンプレート未定義時
+- CodeX投入時の注意:
+  - 文面未確定なら仮文面ではなく設定未投入として扱う
+
+### T010-03: 評価保存時のコメント反映
+
+- [ ] 状態: 未着手
+- 種別: Queue
+- 目的:
+  - 音声評価結果保存時にコメントを保存する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - `ProcessSpeechEvaluationJob`
+  - Evaluation Service
+- 依存タスク:
+  - T010-02
+  - T008-02
+- 実装内容:
+  - TemplateCommentGeneratorを呼び出す
+  - `evaluations.comment` へ保存する
+- 実装してはいけないこと:
+  - LLMコメント生成をONにしない
+- 完了条件:
+  - 結果画面にコメントが表示される
+- テスト観点:
+  - コメント保存
+  - テンプレート未設定時の扱い
+- CodeX投入時の注意:
+  - LLM統合は将来拡張枠に留める
+
+---
+
+# 11. 設定画面
+
+### T011-01: 設定画面UI実装
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - 練習条件を調整する設定画面UIを作る
+- 参照仕様書:
+  - `DESIGN.md`
+  - `OPEN_ISSUES.md` OI-023
+- 変更対象:
+  - Settings Vue page
+  - Components
+  - routes
+- 依存タスク:
+  - T001-01
+  - T003-01
+- 実装内容:
+  - 出題方式
+  - スピーチ時間
+  - タイマー表示方式
+  - 強制終了ON/OFF
+  - 文字起こし表示ON/OFF
+  - 保存ボタン
+  - 保存完了トースト
+  - 保存失敗表示
+- 実装してはいけないこと:
+  - 保存先を OI-023 確定前に固定しない
+  - `user_learning_settings` を勝手に追加しない
+  - `users` JSONB方式を勝手に採用しない
+- 完了条件:
+  - 設定画面UIが表示される
+  - 保存先未確定のため、永続化未実装であることがタスク上明確である
+- テスト観点:
+  - 入力変更
+  - 未保存状態
+  - 保存ボタン表示
+- CodeX投入時の注意:
+  - 永続化は別タスクに分離する
+  - OI-023未確定の間は `user_learning_settings` / `users` JSONB のどちらも前提にしない
+
+### T011-02: OI-023確定後の設定保存実装
+
+- [ ] 状態: 未着手
+- 種別: 実装
+- 目的:
+  - OI-023確定後に設定項目の保存方式を実装する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-023
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `CONSISTENCY_CHECK.md`
+- 変更対象:
+  - 確定方式に応じたDB / Model / Controller / Vue
+  - 必要に応じて関連仕様書の更新対象リスト
+- 依存タスク:
+  - T011-01
+  - OI-023確定
+- 実装内容:
+  - 確定した保存先へ保存する
+  - 保存完了トースト
+  - 保存失敗表示
+  - 設定読込
+- 実装してはいけないこと:
+  - OI-023未確定で開始しない
+  - テーブル数表記更新が必要な場合に仕様書更新対象を無視しない
+- 完了条件:
+  - 設定5項目が保存・再読込できる
+- テスト観点:
+  - 保存
+  - 再読込
+  - バリデーション
+- CodeX投入時の注意:
+  - OI-023でテーブル追加が確定した場合は、DB_SCHEMA.md / ARCHITECTURE.md §13 / CONSISTENCY_CHECK.md / 必要に応じてTASKS.mdの表記更新を同時に扱う
+
+---
+
+# 12. サブスクリプション・Stripe
+
+### T012-01: Laravel Cashier導入
+
+- [ ] 状態: 未着手
+- 種別: 実装
+- 目的:
+  - Stripe課金のLaravel Cashier基盤を導入する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `README.md`
+- 変更対象:
+  - composer dependencies
+  - Cashier設定
+  - Stripe関連Model
+- 依存タスク:
+  - T002-01
+  - 課金なし音声提出E2E完了後
+- 実装内容:
+  - Cashier v15+ 準拠で設定する
+  - `customers`, `subscriptions`, `subscription_items` と整合させる
+- 実装してはいけないこと:
+  - Stripe Webhookイベントを OI-027 確定前に固定しない
+  - 年額プランを追加しない
+- 完了条件:
+  - Cashier基盤が動作する
+- テスト観点:
+  - 顧客作成準備
+  - テーブル構造整合
+- CodeX投入時の注意:
+  - 音声提出E2E成立後に着手する
+  - StripeタスクはT017-02完了後に進める前提を維持する
+
+### T012-02: Checkout / 顧客作成導線実装
+
+- [ ] 状態: 未着手
+- 種別: 実装
+- 目的:
+  - ユーザーがStandard月額プランのCheckoutへ進めるようにする
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+- 変更対象:
+  - Subscription Controller
+  - Subscription Vue page
+  - routes
+- 依存タスク:
+  - T012-01
+- 実装内容:
+  - Stripe顧客作成
+  - Checkout Session作成
+  - サブスクリプション管理画面からの導線
+- 実装してはいけないこと:
+  - 年額プランを実装しない
+  - PDF領収書をアプリ内生成しない
+- 完了条件:
+  - Checkoutへ遷移できる
+- テスト観点:
+  - 未ログイン
+  - 既存顧客
+  - Checkout失敗
+- CodeX投入時の注意:
+  - Stripe実値はSecretsとして扱う
+
+### T012-03: Billing Portal / 契約状態表示 / 解約導線実装
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - ユーザーが契約状態を確認し、解約導線へ進めるようにする
+- 参照仕様書:
+  - `DESIGN.md`
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - Subscription Controller
+  - Subscription Vue page
+- 依存タスク:
+  - T012-02
+- 実装内容:
+  - 現在のプラン表示
+  - 契約状態表示
+  - トライアル終了日表示
+  - Billing Portal導線
+  - 解約導線
+- 実装してはいけないこと:
+  - Webhookイベント一覧をここで固定しない
+- 完了条件:
+  - 契約状態が画面で確認できる
+- テスト観点:
+  - 未契約
+  - trial
+  - active
+  - canceled / ends_at
+- CodeX投入時の注意:
+  - 契約状態同期はWebhook処理タスクと分離する
+
+### T012-04: Webhook受信・署名検証の土台実装
+
+- [ ] 状態: 未着手
+- 種別: API
+- 目的:
+  - Stripe Webhookを安全に受信し、署名検証できる土台を作る
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-027
+- 変更対象:
+  - Webhook Controller
+  - routes
+  - config
+- 依存タスク:
+  - T012-01
+- 実装内容:
+  - Webhook endpoint
+  - Stripe-Signature検証
+  - 受信ログ
+  - Queue投入の土台
+- 実装してはいけないこと:
+  - OI-027確定前に処理対象イベントを固定しない
+  - 同期処理で重い契約同期を行わない
+- 完了条件:
+  - 署名検証済みWebhookを受信できる
+- テスト観点:
+  - 署名不正
+  - 署名正常
+  - ログ出力
+- CodeX投入時の注意:
+  - イベント別処理はOI-027確定後に分ける
+  - このタスクではWebhook受信・署名検証・ログ確認の土台に限定する
+
+### T012-05: Webhook Queue処理基盤実装
+
+- [ ] 状態: 未着手
+- 種別: Queue
+- 目的:
+  - Stripe WebhookをQueue経由で非同期処理する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-027
+- 変更対象:
+  - Webhook Job
+  - Stripe service
+- 依存タスク:
+  - T012-04
+- 実装内容:
+  - Webhook payloadをQueueへ渡す
+  - べき等性の土台
+  - 処理成功/失敗ログ
+- 実装してはいけないこと:
+  - OI-027未確定のイベント一覧を固定しない
+- 完了条件:
+  - Webhook受信後にQueue処理される
+- テスト観点:
+  - 重複Webhook
+  - Queue失敗
+  - ログ確認
+- CodeX投入時の注意:
+  - イベント別の契約同期は次タスクで分離する
+  - OI-027未確定の候補イベントを処理対象として固定しない
+
+### T012-06: OI-027確定後のWebhookイベント反映
+
+- [ ] 状態: 未着手
+- 種別: Queue
+- 目的:
+  - OI-027で確定したMVP対象イベントを契約状態同期へ反映する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-027
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - Webhook Job
+  - Stripe subscription sync service
+  - tests
+- 依存タスク:
+  - T012-05
+  - OI-027確定
+- 実装内容:
+  - 確定イベントのみ処理する
+  - subscriptions / subscription_items を同期する
+  - 失敗ログを確認できるようにする
+- 実装してはいけないこと:
+  - OI-027未確定で実施しない
+  - 候補イベントをすべて確定扱いにしない
+- 完了条件:
+  - 確定イベントで契約状態が同期される
+- テスト観点:
+  - 各確定イベント
+  - 重複Webhook
+  - 不明イベント
+- CodeX投入時の注意:
+  - 対象イベントは必ずOI-027確定内容に限定する
+
+---
+
+# 13. 退会フロー
+
+### T013-01: 退会確認画面実装
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - ユーザーが退会前に注意事項を確認できる画面を作る
+- 参照仕様書:
+  - `DESIGN.md`
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - Withdraw Vue page
+  - routes
+- 依存タスク:
+  - T003-01
+- 実装内容:
+  - 退会注意事項
+  - 確認チェック
+  - 退会実行ボタン
+- 実装してはいけないこと:
+  - 即hard deleteしない
+- 完了条件:
+  - 退会確認画面が表示される
+- テスト観点:
+  - 認証必須
+  - 確認チェックなし実行不可
+- CodeX投入時の注意:
+  - 退会処理本体は次タスクで分ける
+
+### T013-02: 退会処理 soft delete 実装
+
+- [ ] 状態: 未着手
+- 種別: 実装
+- 目的:
+  - 退会時にStripe解約予約、音声削除、sessions削除、soft deleteを順序通り実行する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-105
+- 変更対象:
+  - Withdraw Controller
+  - User service
+  - Storage service
+- 依存タスク:
+  - T013-01
+  - T012-03
+- 実装内容:
+  - Stripe解約予約
+  - 音声一時ファイル再走査・削除
+  - sessions削除
+  - `users.deleted_at` 設定
+- 実装してはいけないこと:
+  - 30日後hard deleteをここで即実行しない
+  - 音声ファイルを残す前提にしない
+- 完了条件:
+  - 退会後ログイン不可となる
+  - soft deleteされる
+- テスト観点:
+  - 契約あり
+  - 契約なし
+  - 音声残存あり
+  - セッション削除
+- CodeX投入時の注意:
+  - hard delete実行主体はOI-105で管理する
+
+### T013-03: 30日後hard delete候補抽出
+
+- [ ] 状態: 未着手
+- 種別: 運用
+- 目的:
+  - soft delete後30日経過ユーザーをhard delete候補として抽出できるようにする
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-105
+- 変更対象:
+  - Console command または service
+- 依存タスク:
+  - T013-02
+- 実装内容:
+  - hard delete候補一覧取得
+  - Stripe解約確認済み条件
+  - 音声削除済み条件
+- 実装してはいけないこと:
+  - OI-105未確定で自動実行主体を固定しない
+- 完了条件:
+  - hard delete候補を安全に確認できる
+- テスト観点:
+  - 30日未満
+  - 30日以上
+  - Stripe未確認
+- CodeX投入時の注意:
+  - 実削除はOI-105確定後に別タスク化する
+
+---
+
+# 14. 管理画面
+
+### T014-01: admin middleware 実装
+
+- [ ] 状態: 未着手
+- 種別: 実装
+- 目的:
+  - 管理画面を単一adminロールで保護する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+- 変更対象:
+  - Middleware
+  - routes
+- 依存タスク:
+  - T003-01
+  - T002-03
+- 実装内容:
+  - `users.role = admin` のみアクセス許可
+  - 一般ユーザーは403または適切な画面へ遷移
+- 実装してはいけないこと:
+  - 複数管理ロールや追加権限テーブルを作らない
+- 完了条件:
+  - adminのみ管理画面へ到達できる
+- テスト観点:
+  - admin
+  - user
+  - 未ログイン
+- CodeX投入時の注意:
+  - MVP管理画面範囲はOI-028で管理する
+  - adminロールの入口制御に限定し、管理機能の範囲拡張は行わない
+
+### T014-02: 管理画面最小シェル実装
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - OI-028確定前に、管理画面の入口と最小表示だけを作る
+- 参照仕様書:
+  - `DESIGN.md`
+  - `OPEN_ISSUES.md` OI-028
+- 変更対象:
+  - Admin Vue page
+  - routes
+- 依存タスク:
+  - T014-01
+- 実装内容:
+  - 管理画面トップ
+  - adminアクセス確認表示
+  - OI-028確定待ちのプレースホルダー
+- 実装してはいけないこと:
+  - 広範囲なCRUDを実装しない
+  - 問題管理・ユーザー閲覧・提出閲覧・契約閲覧を確定扱いで作らない
+- 完了条件:
+  - adminのみ最小管理画面へ入れる
+- テスト観点:
+  - アクセス制御
+  - 表示崩れ
+- CodeX投入時の注意:
+  - 機能追加はOI-028確定後に分割する
+  - OI-028未確定の間は、広範囲CRUD・権限細分化・追加権限テーブルを実装しない
+
+### T014-03: OI-028確定後の管理画面機能分割
+
+- [ ] 状態: 未着手
+- 種別: 実装
+- 目的:
+  - OI-028で確定したMVP管理画面範囲を分割実装する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-028
+  - `DESIGN.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - Admin Controller
+  - Admin Vue pages
+  - routes
+- 依存タスク:
+  - T014-02
+  - OI-028確定
+- 実装内容:
+  - 確定範囲に応じて、ユーザー閲覧、問題管理、提出/評価閲覧、契約状態閲覧を別タスクへ分割する
+- 実装してはいけないこと:
+  - OI-028未確定で実装範囲を広げない
+  - 権限細分化をMVP前提にしない
+- 完了条件:
+  - OI-028確定範囲に沿った子タスクが作成・実装される
+- テスト観点:
+  - admin権限
+  - 一般ユーザー拒否
+  - 対象データ表示
+- CodeX投入時の注意:
+  - 1回のCodeX依頼で全管理機能をまとめて実装しない
+  - OI-028確定内容を、ユーザー閲覧・問題管理・提出/評価閲覧・契約状態閲覧などに分割して扱う
+
+---
+
+# 15. 静的ページ
+
+### T015-01: 法務・情報系静的ページ作成
+
+- [ ] 状態: 未着手
+- 種別: UI
+- 目的:
+  - MVPに必要な静的ページ群を用意する
+- 参照仕様書:
+  - `DESIGN.md`
+  - `DB_SCHEMA.md`
+  - `OPEN_ISSUES.md` OI-103, OI-108
+- 変更対象:
+  - Static pages
+  - routes
+- 依存タスク:
+  - T001-01
+- 実装内容:
+  - 利用規約
+  - プライバシーポリシー
+  - 特定商取引法に基づく表記
+  - 会社概要
+  - お問い合わせ
+  - 料金 / 解約案内
+- 実装してはいけないこと:
+  - インボイス対応や規約バージョン永続管理を勝手に実装しない
+- 完了条件:
+  - 各静的ページへ遷移できる
+- テスト観点:
+  - 未ログインからの閲覧可否
+  - リンク切れ
+- CodeX投入時の注意:
+  - 文言本文は別途確定済み原稿がある場合のみ反映する
+
+---
+
+# 16. 運用・Scheduler・監視
+
+### T016-01: CleanupTempFilesJob 実装
+
+- [ ] 状態: 未着手
+- 種別: 運用
+- 目的:
+  - 即時削除に失敗した音声一時ファイルを回復的に削除する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-021
+- 変更対象:
+  - CleanupTempFilesJob
+  - Scheduler設定
+  - Storage service
+- 依存タスク:
+  - T001-04
+  - T008-04
+- 実装内容:
+  - completed / failed 確定済みsubmissionの残存ファイルを削除
+  - 削除結果ログ
+  - 実行頻度・削除対象条件はOI-021に従う
+- 実装してはいけないこと:
+  - 音声ファイルを永続保存する仕組みにしない
+  - OI-021未確定の頻度・条件を固定しない
+- 完了条件:
+  - 残存一時音声ファイルを削除できる
+- テスト観点:
+  - completed残存
+  - failed残存
+  - pending / processingは削除対象外
+- CodeX投入時の注意:
+  - 実行頻度はOI-021確定後に設定する
+
+### T016-02: Queue Worker運用確認タスク
+
+- [ ] 状態: 未着手
+- 種別: 運用
+- 目的:
+  - Queue Workerの起動・停止・失敗確認手順を実装環境で確認する
+- 参照仕様書:
+  - `OPERATIONS.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - 運用設定
+  - 起動設定
+- 依存タスク:
+  - T001-03
+  - T008-03
+- 実装内容:
+  - Worker起動
+  - failed_jobs確認
+  - jobs滞留確認
+- 実装してはいけないこと:
+  - Redis移行をこの時点で行わない
+- 完了条件:
+  - Queue停止・再開時の挙動を確認できる
+- テスト観点:
+  - jobs滞留
+  - failed_jobs
+  - 再実行
+- CodeX投入時の注意:
+  - Redis移行条件はOI-003 / OI-008の検証対象
+
+### T016-03: Feature Flag反映確認タスク
+
+- [ ] 状態: 未着手
+- 種別: 運用
+- 目的:
+  - `.env` 変更後にFeature FlagがLaravel / Queue / Vueへ反映されることを確認する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+  - `DESIGN.md`
+- 変更対象:
+  - 設定反映手順
+- 依存タスク:
+  - T001-05
+  - T009-04
+- 実装内容:
+  - `.env` 更新
+  - config cache再生成
+  - Queue Worker再起動確認
+  - 結果画面表示確認
+- 実装してはいけないこと:
+  - PoC前に本番相当でON固定しない
+- 完了条件:
+  - Flag OFF / ONの表示差分を確認できる
+- テスト観点:
+  - 発音セクション
+  - 流暢さセクション
+  - Queue経由のfeature_flags伝達
+- CodeX投入時の注意:
+  - ON確認は開発環境の検証に限定する
+
+### T016-04: 運用ログ確認基盤
+
+- [ ] 状態: 未着手
+- 種別: 運用
+- 目的:
+  - 音声評価・Webhook・削除失敗・422傾向を追跡できるログを整える
+- 参照仕様書:
+  - `OPERATIONS.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - Logging設定
+  - 各Service / Job
+- 依存タスク:
+  - T008-03
+  - T012-05
+  - T016-01
+- 実装内容:
+  - submission_id付きログ
+  - Webhook受信/処理ログ
+  - 削除失敗ログ
+  - 422発生ログ
+- 実装してはいけないこと:
+  - 音声ファイル内容や機密情報をログに出さない
+- 完了条件:
+  - 主要経路をログで追跡できる
+- テスト観点:
+  - 正常系ログ
+  - 失敗系ログ
+  - 機密情報非出力
+- CodeX投入時の注意:
+  - 外部監視基盤導入はMVPスコープ外
+
+---
+
+# 17. E2E・結合テスト
+
+### T017-01: 認証E2Eテスト
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 登録→メール認証→ログイン→ログアウトの導線を確認する
+- 参照仕様書:
+  - `DESIGN.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - テストコード
+  - E2E確認手順
+- 依存タスク:
+  - T003-03
+- 実装内容:
+  - 新規登録
+  - 同意記録
+  - メール認証
+  - ログイン
+  - ログアウト
+- 実装してはいけないこと:
+  - Google OAuthの未確定自動リンクをここで確定しない
+- 完了条件:
+  - 認証導線が一通り動く
+- テスト観点:
+  - 未認証アクセス
+  - 同意なし登録不可
+  - パスワード再設定
+- CodeX投入時の注意:
+  - Google OAuthは別テストに分ける
+
+### T017-02: 課金なし音声提出E2Eテスト
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 最初の大マイルストーンである課金なし音声提出E2Eを確認する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - テストコード
+  - E2E確認手順
+- 依存タスク:
+  - T008-04
+  - T009-04
+  - T009-05
+  - T010-03
+  - T016-04
+- 実装内容:
+  - 問題選択
+  - 録音
+  - 提出
+  - 202 Accepted
+  - Queue処理
+  - Python STT
+  - completed
+  - 結果表示
+  - 音声削除
+- 実装してはいけないこと:
+  - Stripe前提にしない
+  - Pronunciation / Fluency ON前提にしない
+- 完了条件:
+  - 課金なしで音声提出から結果表示まで通る
+- テスト観点:
+  - 正常音声
+  - 音声削除
+  - Feature Flag OFF表示
+  - Queue Worker停止時
+- CodeX投入時の注意:
+  - MVP最初の大マイルストーンとして最優先で通す
+  - T017-02は「課金なしで音声提出E2Eが動くこと」の判定であり、Stripe、退会、管理画面、運用確認を含むMVP全体完了判定とは分ける
+
+### T017-03: 422認識不可E2Eテスト
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 422音声認識不可時に再録音 / 再提出導線へ戻ることを確認する
+- 参照仕様書:
+  - `DESIGN.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-006
+- 変更対象:
+  - テストコード
+  - E2E確認手順
+- 依存タスク:
+  - T009-05
+- 実装内容:
+  - 無音または認識不可音声で提出
+  - failed扱い
+  - 結果画面へ進まない
+  - 再録音 / 再提出可能
+- 実装してはいけないこと:
+  - 空欄結果画面を許容しない
+- 完了条件:
+  - 422時のUXが仕様通りである
+- テスト観点:
+  - 422
+  - 再録音
+  - 500系との差分
+- CodeX投入時の注意:
+  - 文言はOI-006確定内容に従う
+
+### T017-04: Feature Flag OFF結果画面テスト
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 発音・流暢さFeature Flag OFF時の結果画面を確認する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - テストコード
+- 依存タスク:
+  - T009-04
+- 実装内容:
+  - Flag OFFで発音・流暢さセクション非表示
+  - NULLや未評価を表示しない
+- 実装してはいけないこと:
+  - 内部状態をユーザーに見せない
+- 完了条件:
+  - OFF時に該当セクションが表示されない
+- テスト観点:
+  - Flag OFF
+  - Flag ON
+  - nullable JSONB
+- CodeX投入時の注意:
+  - ON時の本格評価はPoC完了後に扱う
+
+### T017-05: 音声ファイル削除テスト
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 音声一時ファイルが完了・失敗後に削除されることを確認する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - テストコード
+  - 確認手順
+- 依存タスク:
+  - T008-04
+  - T016-01
+- 実装内容:
+  - completed後削除
+  - failed後削除
+  - CleanupTempFilesJobで残存削除
+- 実装してはいけないこと:
+  - 音声ファイル永続保存を許容しない
+- 完了条件:
+  - 一時音声が残存しない
+- テスト観点:
+  - 即時削除
+  - 削除失敗
+  - Cleanup
+- CodeX投入時の注意:
+  - `storage/app/audio/` の残存確認を含める
+
+### T017-06: Stripe契約開始・解約・Webhook同期テスト
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - Stripe契約導線とWebhook同期が成立することを確認する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `OPEN_ISSUES.md` OI-027
+- 変更対象:
+  - テストコード
+  - 確認手順
+- 依存タスク:
+  - T012-06
+- 実装内容:
+  - Checkout
+  - 契約状態表示
+  - 解約導線
+  - Webhook同期
+- 実装してはいけないこと:
+  - OI-027未確定のイベントをテスト前提にしない
+- 完了条件:
+  - 確定Webhookイベントで契約状態が同期される
+- テスト観点:
+  - 契約開始
+  - 解約予約
+  - Webhook重複
+  - 署名不正
+- CodeX投入時の注意:
+  - Stripe後半タスクとして実施する
+
+### T017-07: 退会フローテスト
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 退会4段階フローが仕様通り動くことを確認する
+- 参照仕様書:
+  - `README.md`
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+  - `OPEN_ISSUES.md` OI-105
+- 変更対象:
+  - テストコード
+  - 確認手順
+- 依存タスク:
+  - T013-03
+- 実装内容:
+  - Stripe解約予約
+  - 音声削除
+  - sessions削除
+  - soft delete
+  - 30日後hard delete候補抽出
+- 実装してはいけないこと:
+  - OI-105未確定で自動hard deleteを確定しない
+- 完了条件:
+  - soft deleteまで安全に完了する
+- テスト観点:
+  - 契約あり
+  - 音声残存あり
+  - ログイン不可
+- CodeX投入時の注意:
+  - hard delete実行主体はOI-105に従う
+
+### T017-08: 管理画面admin権限テスト
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 管理画面がadminロールでのみアクセス可能であることを確認する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `OPEN_ISSUES.md` OI-028
+- 変更対象:
+  - テストコード
+- 依存タスク:
+  - T014-02
+- 実装内容:
+  - adminアクセス
+  - user拒否
+  - 未ログイン拒否
+- 実装してはいけないこと:
+  - OI-028未確定の管理機能範囲までテスト対象にしない
+- 完了条件:
+  - admin middlewareが期待通り動く
+- テスト観点:
+  - 権限別アクセス
+- CodeX投入時の注意:
+  - 範囲確定後の管理機能テストは別タスク化する
+
+### T017-09: 3秒ポーリング簡易負荷確認
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 3秒ポーリングのDB負荷とUX上の妥当性を簡易確認する
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPEN_ISSUES.md` OI-008, OI-003
+- 変更対象:
+  - 確認手順
+  - 必要に応じてテストスクリプト
+- 依存タスク:
+  - T009-02
+  - T017-02
+- 実装内容:
+  - 複数同時ポーリング時のjobs / DB負荷確認
+  - 最大60回の挙動確認
+- 実装してはいけないこと:
+  - 検証前にRedis移行しない
+- 完了条件:
+  - OI-008の判断材料が得られる
+- テスト観点:
+  - DB負荷
+  - レスポンス遅延
+  - タイムアウト
+- CodeX投入時の注意:
+  - 性能検証結果に基づき後続判断する
+
+### T017-10: MVP完了判定レビュー
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - Stripe、退会、管理画面、運用確認などを含め、MVP全体が「主要ユースケースが一通り動作し、技術的破綻がない状態」に到達しているか判定する
+- 参照仕様書:
+  - `README.md`
+  - `CONSISTENCY_CHECK.md`
+  - 全仕様書
+- 変更対象:
+  - なし
+- 依存タスク:
+  - T017-01
+  - T017-02
+  - T017-03
+  - T017-04
+  - T017-05
+  - T017-06
+  - T017-07
+  - T017-08
+  - T017-09
+- 実装内容:
+  - 認証E2E確認
+  - 音声提出E2E確認
+  - 422確認
+  - Feature Flag確認
+  - 音声削除確認
+  - Stripe確認
+  - 退会確認
+  - 管理画面権限確認
+  - ポーリング負荷確認
+- 実装してはいけないこと:
+  - 未確定事項を完了扱いにしない
+  - 仕様書本文をこのレビューで直接修正しない
+- 完了条件:
+  - MVP完了 / 条件付き完了 / 未完了の判定ができる
+- テスト観点:
+  - 主要ユースケース
+  - データ整合
+  - 一時音声削除
+  - Queue / Scheduler
+  - Stripe同期
+- CodeX投入時の注意:
+  - 実装修正ではなく判定レビューとして扱う
+  - T017-02の課金なし音声提出E2E判定と混同せず、MVP全体完了判定として扱う
