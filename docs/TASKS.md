@@ -2686,7 +2686,7 @@
 
 ### T007-04: Azure STT連携実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-12 確認済み）
 - 種別: Python
 - 目的:
   - Azure AI Speech STTを呼び出してtranscriptを取得する
@@ -2725,6 +2725,64 @@
   - continuous recognition安定性は OI-010 のPoC対象として扱う
   - raw_azure_response 500KB超過時の扱いは OI-107 確定前に固定しない
   - Pronunciation Assessment / Fluency / Content Assessment はFeature FlagとPoC判断に従い、STT連携と分離する
+- 確認結果:
+  - 実装commit:
+    - `83b9d2d226e4a4e2248153fe64afa61f3f1827cb` Azure STT連携実装
+    - `ceb064ebe7a03f3aa6ee956fdf816776261282ed` Azure STT diagnostic補正
+    - `92b39241f3574cafe9ec30ddde3aac525110556c` FastAPI response model error修正
+    - `f5137e9a1067ded9301507362b8b6f1e16ee7cda` Azure cancellation diagnostic補正
+    - `f426c783d5d837a2aeb0a5c444a54c0f309b51a2` Azure cancellation details API修正
+    - `5b76f104ea885d47264f49304a1d15dc7dcaa844` EndOfStream分類修正
+    - `5cd359b03a4292c75ade9e6a1427e73d7ba66ffb` result_fallback / failed diagnostic責務分離
+    - `d8e39bb89e2cbe0577c631c3383a373082dbc880` fallbackテスト期待値補正
+  - Azure Cognitive Services Speech SDK を使用した STT 連携を実装済み
+  - 認識言語は `ja-JP`
+  - key + region 構成で疎通確認済み
+  - endpoint が指定される場合は endpoint 優先
+  - continuous recognition を本線として実装済み
+  - T007-03 の変換済み WAV bytes を Azure STT に渡す構成
+  - 正常系:
+    - 実Azure smoke test で `HTTP/1.1 200 OK`
+    - response `status: success`
+    - 正常音声で transcript 取得成功
+    - `recognized_duration_seconds: 6.64`
+    - speech_rate 算出成功
+    - EndOfStream + transcriptありを `success_with_transcript` として処理
+  - 異常系:
+    - 無音・ノイズ / 認識不可は 422 系として扱う
+    - Azure設定未投入は 500 系として扱う
+    - Azure canceled / unavailable / timeout / network 系は 503 系として扱う
+    - Canceled + EndOfStream + 空 transcript + errorなしは 422 認識不可として扱う
+    - Canceled + EndOfStream + transcriptありは success として扱う
+    - Canceled + EndOfStream + error_details / error code ありは 503 canceled として扱う
+  - diagnostic:
+    - Azure cancellation diagnostic を返す
+    - `cancellation_reason` / `cancellation_error_code` / `error_details` / `cancellation_details_source` を保持
+    - `cancellation_error_code` や `error_details` が None / 空文字でも diagnostic key を維持
+    - `result_fallback` と `failed` の diagnostic 責務を分離
+    - Secrets sanitize を維持
+  - Docker内 pytest は `34 passed, 4 warnings`
+  - `.env` / Azure key / endpoint実値 / `sample.webm` / 生成WAV は commit していない
+  - docs/TASKS.md 完了反映前の実装commitでは docs/TASKS.md は変更していない
+- 実装していないこと:
+  - Pronunciation Assessment
+  - Fluency Assessment
+  - DB保存
+  - Laravel 側コード変更
+  - Dockerfile / docker-compose 作成
+  - `.env` 作成
+  - Azure key / endpoint 実値の repository 記載
+  - `sample.webm` / 生成WAV の commit
+- 申し送り:
+  - Azure Speech は T007-04 smoke test 時点ではテスト用 Azure resource を使用した
+  - 本番環境では別 Azure account / Speech resource を用意し、`AZURE_SPEECH_KEY` / `AZURE_SPEECH_REGION` / `AZURE_SPEECH_ENDPOINT` を本番値に差し替える
+  - テスト用 Azure の疎通成功をもって、本番 Azure の設定完了とは扱わない
+  - OI-010 continuous recognition 長時間安定性検証は未解消のまま
+  - OI-012 Pronunciation Assessment PoC Go/No-Go は未解消のまま
+  - OI-013 Key1 / Key2 ローテーション運用は未解消のまま
+  - OI-014 Azure予算上限は未解消のまま
+  - OI-015 速度判定閾値は未解消のまま
+  - OI-107 raw_azure_response 500KB超過保持方針は未解消のまま
 
 ### T007-05: `/evaluate` レスポンス整形と422処理
 
