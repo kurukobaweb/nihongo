@@ -436,7 +436,7 @@ def test_transcribe_wav_bytes_reports_cancellation_details_fallback(
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["cancellation_details_source"] == "result_fallback"
     assert diagnostic.get("cancellation_details_error") is None
-    assert diagnostic["cancellation_reason"] == "Error"
+    assert diagnostic["cancellation_reason"] == "Canceled"
     assert diagnostic["cancellation_error_code"] == "AuthenticationFailure"
     assert diagnostic["cancellation_error_code_available"] is True
     assert diagnostic["error_details_available"] is True
@@ -478,7 +478,7 @@ def test_transcribe_wav_bytes_reports_result_fallback_when_sdk_details_missing(
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["cancellation_details_source"] == "result_fallback"
     assert diagnostic.get("cancellation_details_error") is None
-    assert diagnostic["cancellation_reason"] == "Error"
+    assert diagnostic["cancellation_reason"] == "Canceled"
     assert diagnostic["cancellation_error_code"] == "AuthenticationFailure"
     assert diagnostic["cancellation_error_code_available"] is True
     assert diagnostic["error_details_available"] is True
