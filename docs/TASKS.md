@@ -2786,7 +2786,7 @@
 
 ### T007-05: `/evaluate` レスポンス整形と422処理
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-12 確認済み）
 - 種別: Python
 - 目的:
   - Laravel側が保存しやすいレスポンス形式に整える
@@ -2814,6 +2814,86 @@
   - 500系
 - CodeX投入時の注意:
   - ユーザー向け文言はOI-006確定後に反映する
+- 確認結果:
+  - 実装commit: `f388e12a7cf5e8d494319d52810496602fa7716e`
+  - `/evaluate` のエラー時レスポンスを Laravel 側が分岐しやすい形式に整形
+  - エラー時 response に `status` / `error_type` / `detail` / `retryable` / `user_action` / `diagnostic` を追加
+  - 成功時 200 response は既存の `status=success`, transcript, duration, speech_rate, Azure metadata を大きく変更せず維持
+  - FastAPI validation 422 は無理に統一せず、route 内で捕捉する業務上の 422 / 500 / 503 を対象に整形
+  - Azure 系 diagnostic は維持
+  - response contract:
+    - 200 success:
+      - `status=success`
+      - `submission_id`
+      - `transcript`
+      - `audio_duration_seconds`
+      - `recognized_duration_seconds`
+      - `speech_rate`
+      - `azure_request_id`
+      - `azure_session_id`
+      - `raw_azure_response`
+    - 422 `audio_conversion_failed`:
+      - `status=error`
+      - `error_type=audio_conversion_failed`
+      - `retryable=false`
+      - `user_action=rerecord`
+      - 空評価データを返さない
+    - 422 `speech_unrecognized`:
+      - `status=error`
+      - `error_type=speech_unrecognized`
+      - `retryable=false`
+      - `user_action=rerecord`
+      - diagnostic を維持
+      - 空評価データを返さない
+    - 500 `audio_conversion_dependency_missing`:
+      - `status=error`
+      - `error_type=audio_conversion_dependency_missing`
+      - `retryable=false`
+      - `user_action=contact_admin`
+    - 500 `azure_configuration_unavailable`:
+      - `status=error`
+      - `error_type=azure_configuration_unavailable`
+      - `retryable=false`
+      - `user_action=contact_admin`
+      - diagnostic を維持
+    - 503 `azure_canceled`:
+      - `status=error`
+      - `error_type=azure_canceled`
+      - `retryable=true`
+      - `user_action=retry_later`
+      - diagnostic を維持
+    - 503 `azure_service_unavailable`:
+      - `status=error`
+      - `error_type=azure_service_unavailable`
+      - `retryable=true`
+      - `user_action=retry_later`
+      - diagnostic を維持
+  - Docker内 pytest は `35 passed, 4 warnings`
+  - `git diff --check`: OK
+  - CodeX環境では `python` / `pytest` 未検出のため未実行
+  - ローカル PowerShell + Docker で pytest 実行済み
+  - 実Azure smoke test は T007-05 では未実施
+  - `.env` / Azure key / endpoint実値 / `sample.webm` / 生成WAV は作成・commitしていない
+- 実装していないこと:
+  - Laravel側クライアント実装
+  - Laravel Job 実装
+  - DB保存
+  - `evaluations` insert
+  - `submissions.status` 更新
+  - PythonからLaravel DBへの直接アクセス
+  - Pronunciation Assessment
+  - Fluency Assessment
+  - Feature Flag の本格解釈
+  - Azure STT 本体の再設計
+  - audio_conversion の方式変更
+  - 実Azure smoke test
+  - Dockerfile / docker-compose 作成
+  - main merge
+- 申し送り:
+  - 422のユーザー向け最終文言は OI-006 確定後に扱う
+  - 422は Laravel Job の自動リトライ対象ではなく、再録音 / 再提出導線用として扱う
+  - 500 / 503 は Laravel 側の後続タスクで failed / retry / temporary failure 等へ分岐する前提
+  - T008-01 で Laravel 側 Python評価クライアントを実装する際、この response 契約を参照する
 
 ---
 
