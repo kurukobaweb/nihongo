@@ -358,7 +358,7 @@ def _cancellation_details_from_result(result) -> tuple[object, str, str | None]:
     cancellation_details = getattr(speechsdk, "CancellationDetails", None)
     if result is not None and cancellation_details is not None:
         try:
-            return cancellation_details.from_result(result), "sdk_cancellation_details", None
+            return cancellation_details(result), "sdk_cancellation_details", None
         except Exception as exc:
             return (
                 result,

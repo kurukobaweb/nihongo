@@ -169,18 +169,24 @@ class _ExceptionRecognizer(_BaseRecognizer):
 
 
 class _CancellationDetails:
-    @staticmethod
-    def from_result(result):
-        return SimpleNamespace(
-            reason=result.cancellation_reason,
-            error_code=result.cancellation_error_code,
-            error_details=result.error_details,
-        )
+    def __init__(self, result) -> None:
+        self.result = result
+
+    @property
+    def reason(self):
+        return self.result.cancellation_reason
+
+    @property
+    def error_code(self):
+        return self.result.cancellation_error_code
+
+    @property
+    def error_details(self):
+        return self.result.error_details
 
 
 class _FailingCancellationDetails:
-    @staticmethod
-    def from_result(result):
+    def __init__(self, result) -> None:
         raise RuntimeError(
             "details failed at https://secret.example/speech "
             "with token abcdefghijklmnopqrstuvwxyz123456"
@@ -261,6 +267,23 @@ def test_transcribe_wav_bytes_raises_canceled_with_sanitized_diagnostic(
     assert diagnostic["azure_session_id"] == "session-1"
     assert "secret.example" not in diagnostic["error_details"]
     assert "abcdefghijklmnopqrstuvwxyz123456" not in diagnostic["error_details"]
+
+
+def test_transcribe_wav_bytes_does_not_require_from_result(monkeypatch) -> None:
+    speech_sdk = _SpeechSdk(_CanceledRecognizer)
+    speech_sdk.CancellationDetails = _CancellationDetails
+    assert not hasattr(speech_sdk.CancellationDetails, "from_result")
+    monkeypatch.setattr(azure_stt, "speechsdk", speech_sdk)
+
+    with pytest.raises(AzureSttCanceledError) as exc_info:
+        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+
+    assert exc_info.value.diagnostic["cancellation_details_source"] == (
+        "sdk_cancellation_details"
+    )
+    assert exc_info.value.diagnostic["cancellation_error_code"] == (
+        "AuthenticationFailure"
+    )
 
 
 def test_transcribe_wav_bytes_keeps_missing_cancellation_fields(
