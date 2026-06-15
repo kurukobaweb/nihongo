@@ -37,4 +37,11 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'python_evaluation' => [
+        'base_url' => env('SPEECH_SERVICE_URL', env('PYTHON_EVALUATION_BASE_URL', 'http://127.0.0.1:8100')),
+        'internal_token' => env('SPEECH_SERVICE_INTERNAL_TOKEN', env('PYTHON_EVALUATION_INTERNAL_TOKEN')),
+        'connect_timeout' => (float) env('PYTHON_EVALUATION_CONNECT_TIMEOUT', 5),
+        'read_timeout' => (float) env('PYTHON_EVALUATION_READ_TIMEOUT', 120),
+    ],
+
 ];
