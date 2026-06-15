@@ -2940,7 +2940,7 @@
 
 ### T008-02: ProcessSpeechEvaluationJob 本実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-15 確認済み）
 - 種別: Queue
 - 目的:
   - Queue Workerで音声評価を実行し、結果をDB保存する
@@ -2969,6 +2969,14 @@
   - status不整合
 - CodeX投入時の注意:
   - べき等性を必ず確認する
+- 確認結果:
+  - ProcessSpeechEvaluationJob から PythonEvaluationClient を呼び出す本実装を追加
+  - pending → processing → completed / failed の状態遷移に対応
+  - 成功時 evaluations 保存に対応
+  - 422時は failed とし、空 evaluation を作成しない
+  - retry / backoff / failed_jobs 制御は T008-03 に分離
+  - 音声一時ファイル削除は T008-04 に分離
+  - Docker / 実Python / 実Azure 接続は未実施
 
 ### T008-03: リトライ・失敗処理実装
 

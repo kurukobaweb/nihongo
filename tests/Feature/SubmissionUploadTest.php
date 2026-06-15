@@ -79,6 +79,7 @@ class SubmissionUploadTest extends TestCase
     public function test_upload_inserts_one_database_queue_job(): void
     {
         Storage::fake('local');
+        config()->set('queue.default', 'database');
 
         $user = $this->createUser();
         $question = $this->createQuestion($this->createCategory());
