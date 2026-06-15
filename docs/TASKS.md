@@ -2980,7 +2980,7 @@
 
 ### T008-03: リトライ・失敗処理実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了
 - 種別: Queue
 - 目的:
   - Python / Azure障害時のリトライと失敗確定を実装する
@@ -3009,6 +3009,15 @@
   - failed_jobs
 - CodeX投入時の注意:
   - 422はUIの再録音導線へつなぐ前提で扱う
+- 確認結果:
+  - `ProcessSpeechEvaluationJob` に retry / backoff 方針を追加
+  - retryable=false の 422 / 401 系は再試行せず failed 確定
+  - retryable=true の 500 / 502 / 503 / timeout 系は retry 対象
+  - retry上限後の `failed()` 処理を追加
+  - retry中の processing 状態が再実行を妨げないよう整理
+  - failed_jobs は Laravel 標準挙動を前提
+  - 音声一時ファイル削除は T008-04 に分離
+  - Docker / 実Python / 実Azure 接続は未実施
 
 ### T008-04: 音声一時ファイル即時削除実装
 
