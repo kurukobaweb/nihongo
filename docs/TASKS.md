@@ -2901,7 +2901,7 @@
 
 ### T008-01: Python評価クライアント作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-15 確認済み）
 - 種別: API
 - 目的:
   - LaravelからPython FastAPIへHTTP通信するクライアントを作る
@@ -2930,6 +2930,13 @@
   - 認証エラー
 - CodeX投入時の注意:
   - URL・ポートは環境変数で扱う
+- 確認結果:
+  - Python評価クライアントを作成
+  - `/health` / `/evaluate` 呼び出しに対応
+  - `X-Internal-Token`、base URL、timeout を config / env 経由で管理
+  - T007-05 response contract の 200 / 422 / 500 / 503 系を解釈可能
+  - HTTP fake / mock によるテストを追加
+  - Job本実装、DB保存、ステータス更新は T008-02 以降に分離
 
 ### T008-02: ProcessSpeechEvaluationJob 本実装
 
