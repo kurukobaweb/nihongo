@@ -3021,7 +3021,7 @@
 
 ### T008-04: 音声一時ファイル即時削除実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-16 確認済み）
 - 種別: Queue
 - 目的:
   - 評価完了または失敗確定後に音声一時ファイルを物理削除する
@@ -3050,6 +3050,15 @@
   - failed時削除
 - CodeX投入時の注意:
   - CleanupTempFilesJobは後続タスクで回復手段として実装する
+- 確認結果:
+  - success completed 後に音声一時ファイルを削除
+  - non-retryable failed 後に音声一時ファイルを削除
+  - retryable=true の retry途中では音声一時ファイルを保持
+  - retry上限後の `failed()` で音声一時ファイルを削除
+  - missing file は idempotent に扱う
+  - 削除失敗時も submission / evaluation 更新を壊さない方針
+  - CleanupTempFilesJob / scheduler は未実装
+  - Docker / 実Python / 実Azure 接続は未実施
 
 ---
 

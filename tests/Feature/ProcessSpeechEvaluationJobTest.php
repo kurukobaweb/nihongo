@@ -88,6 +88,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertNull($evaluation->comment);
         $this->assertNull($evaluation->pronunciation_result);
         $this->assertNull($evaluation->fluency_result);
+        Storage::disk('local')->assertMissing($submission->audio_path);
     }
 
     public function test_completed_submission_is_not_processed_twice(): void
@@ -108,6 +109,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
 
         $this->assertSame(1, Evaluation::query()->count());
         $this->assertSame('completed', $submission->refresh()->status);
+        Storage::disk('local')->assertMissing($submission->audio_path);
     }
 
     public function test_failed_submission_is_not_processed(): void
@@ -141,6 +143,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
 
         $this->assertSame('completed', $submission->refresh()->status);
         $this->assertSame(1, Evaluation::query()->count());
+        Storage::disk('local')->assertMissing($submission->audio_path);
     }
 
     public function test_speech_unrecognized_422_marks_submission_failed_without_evaluation(): void
@@ -225,7 +228,10 @@ class ProcessSpeechEvaluationJobTest extends TestCase
 
     public function test_failed_callback_marks_submission_failed_after_retries_are_exhausted(): void
     {
+        Storage::fake('local');
+
         $submission = $this->createSubmission(['status' => 'processing']);
+        Storage::disk('local')->put($submission->audio_path, 'dummy audio');
 
         (new ProcessSpeechEvaluationJob($submission->id))->failed(
             new RuntimeException('azure_service_unavailable: Azure Speech SDK error'),
@@ -237,6 +243,33 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertSame('azure_service_unavailable: Azure Speech SDK error', $submission->error_message);
         $this->assertNotNull($submission->completed_at);
         $this->assertSame(0, Evaluation::query()->count());
+        Storage::disk('local')->assertMissing($submission->audio_path);
+    }
+
+    public function test_delete_failure_does_not_break_final_failure_update(): void
+    {
+        $submission = $this->createSubmission(['status' => 'processing']);
+        $disk = \Mockery::mock();
+
+        $disk->shouldReceive('delete')
+            ->once()
+            ->with($submission->audio_path)
+            ->andReturn(false);
+        Storage::shouldReceive('disk')
+            ->once()
+            ->with('local')
+            ->andReturn($disk);
+
+        (new ProcessSpeechEvaluationJob($submission->id))->failed(
+            new RuntimeException('python_read_timeout: Python evaluation request timed out'),
+        );
+
+        $submission->refresh();
+
+        $this->assertSame('failed', $submission->status);
+        $this->assertSame('python_read_timeout: Python evaluation request timed out', $submission->error_message);
+        $this->assertNotNull($submission->completed_at);
+        $this->assertSame(0, Evaluation::query()->count());
     }
 
     public function test_retry_policy_is_bounded_with_backoff_seconds(): void
@@ -245,6 +278,25 @@ class ProcessSpeechEvaluationJobTest extends TestCase
 
         $this->assertSame(3, $job->tries);
         $this->assertSame([30, 60, 120], $job->backoff());
+    }
+
+    public function test_missing_temporary_audio_file_does_not_break_completion(): void
+    {
+        Storage::fake('local');
+
+        $submission = $this->createSubmission();
+
+        $this->mock(PythonEvaluationClient::class, function (MockInterface $mock) use ($submission) {
+            $mock->shouldReceive('evaluate')
+                ->once()
+                ->andReturn($this->successfulEvaluationResult($submission->id));
+        });
+
+        app()->call([new ProcessSpeechEvaluationJob($submission->id), 'handle']);
+
+        $this->assertSame('completed', $submission->refresh()->status);
+        $this->assertSame(1, Evaluation::query()->count());
+        Storage::disk('local')->assertMissing($submission->audio_path);
     }
 
     private function assertFailureResultMarksSubmissionFailed(
@@ -270,6 +322,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertSame($expectedErrorMessage, $submission->error_message);
         $this->assertNotNull($submission->completed_at);
         $this->assertSame(0, Evaluation::query()->count());
+        Storage::disk('local')->assertMissing($submission->audio_path);
     }
 
     private function assertRetryableResultThrowsForRetry(
@@ -299,6 +352,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
             $this->assertNull($submission->error_message);
             $this->assertNull($submission->completed_at);
             $this->assertSame(0, Evaluation::query()->count());
+            Storage::disk('local')->assertExists($submission->audio_path);
         }
     }
 
