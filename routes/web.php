@@ -38,6 +38,7 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/api/questions', [QuestionController::class, 'index'])->name('questions.index');
     Route::post('/api/submissions', [SubmissionController::class, 'store'])->name('submissions.store');
+    Route::get('/api/submissions/{submission}/status', [SubmissionController::class, 'status'])->name('submissions.status');
 
     Route::get('/questions', function () {
         return Inertia::render('Questions/Index');

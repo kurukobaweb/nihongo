@@ -3066,7 +3066,7 @@
 
 ### T009-01: submission status API実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-16 確認済み）
 - 種別: API
 - 目的:
   - フロントが解析状態を3秒ポーリングできるAPIを作る
@@ -3082,12 +3082,30 @@
 - 実装内容:
   - 自分のsubmissionのみ参照可能
   - pending / processing / completed / failed を返す
-  - completed時は結果画面URLを返す
-  - failed時はエラー種別を返す
+  - completed時は評価サマリーを返す
+  - completed時の `result_url` は結果画面route未実装のため `null`
+  - failed時は永続化済みの `error_message` のみ返す
 - 実装してはいけないこと:
   - 他人のsubmissionを参照可能にしない
 - 完了条件:
   - 状態に応じたJSONが返る
+- 確認結果:
+  - `GET /api/submissions/{submission}/status` を `submissions.status` として追加
+  - 既存 `SubmissionController` に status action を追加
+  - 他人のsubmissionは存在有無を漏らさないため 404
+  - 存在しないsubmissionも 404
+  - `error_type` / `user_action` は現時点でDB永続化せず、レスポンスにも含めない
+  - UIポーリング、結果表示画面、422再録音 / 再提出導線は未実装
+- 外部接続分類:
+  - Azure Speech: 分類1（接続不要。既存DB上のsubmission statusを返すAPIであり、Azure評価を実行しない）
+  - Python FastAPI: 分類1（接続不要。PythonEvaluationClientを呼ばず、DB上のsubmission/evaluation状態を読むだけ）
+  - Docker: 分類2（今回は不要。API統合確認・E2Eでは後続で必要になる可能性あり）
+  - DB: T009-01の直接対象（submissions / evaluations を参照してstatus JSONを組み立てる）
+- テスト結果:
+  - `php artisan test tests/Feature/SubmissionStatusTest.php`: 7 warnings / 16 assertions（`.env` 未作成warningのみ）
+  - `php artisan test tests/Feature/SubmissionUploadTest.php`: 9 warnings / 49 assertions（`.env` 未作成warningのみ）
+  - `php artisan test tests/Feature/ProcessSpeechEvaluationJobTest.php`: 14 warnings / 86 assertions（`.env` 未作成warningのみ）
+  - 関連テストを並列実行した場合はStorage fakeの共有領域干渉で一時ファイル欠落が出るため、上記は順次実行で確認
 - テスト観点:
   - 認可
   - completed
