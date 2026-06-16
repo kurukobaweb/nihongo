@@ -84,7 +84,7 @@ const logout = () => {
                     </div>
                 </article>
 
-                <RecordingPanel />
+                <RecordingPanel :question-id="selectedQuestion.id" />
             </div>
 
             <div

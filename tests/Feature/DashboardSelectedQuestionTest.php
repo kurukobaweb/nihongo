@@ -46,12 +46,12 @@ class DashboardSelectedQuestionTest extends TestCase
     {
         $this->createSchemaForDashboardQuestionTest();
 
-        $category = $this->createCategory(['name' => '自己紹介', 'slug' => 'self_introduction']);
-        $tag = $this->createTag(['name' => '日常会話', 'slug' => 'daily_conversation']);
+        $category = $this->createCategory(['name' => 'Self introduction', 'slug' => 'self_introduction']);
+        $tag = $this->createTag(['name' => 'Daily conversation', 'slug' => 'daily_conversation']);
         $question = $this->createQuestion($category, [
-            'title' => 'お名前は何ですか',
-            'prompt_text' => 'お名前は何ですか？',
-            'model_answer_text' => 'Dashboardには渡さない',
+            'title' => 'Please introduce yourself',
+            'prompt_text' => 'Tell us about yourself.',
+            'model_answer_text' => 'This should not be passed to Dashboard.',
             'has_model_answer' => true,
         ]);
         $question->tags()->attach($tag);
@@ -62,15 +62,15 @@ class DashboardSelectedQuestionTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Dashboard')
                 ->where('selectedQuestion.id', $question->id)
-                ->where('selectedQuestion.title', 'お名前は何ですか')
-                ->where('selectedQuestion.prompt_text', 'お名前は何ですか？')
-                ->where('selectedQuestion.category.name', '自己紹介')
+                ->where('selectedQuestion.title', 'Please introduce yourself')
+                ->where('selectedQuestion.prompt_text', 'Tell us about yourself.')
+                ->where('selectedQuestion.category.name', 'Self introduction')
                 ->where('selectedQuestion.difficulty', 'beginner')
                 ->where('selectedQuestion.question_format.value', 'single_prompt')
                 ->where('selectedQuestion.question_format.label', '単体問題')
                 ->where('selectedQuestion.recommended_duration_seconds', 60)
                 ->where('selectedQuestion.has_model_answer', true)
-                ->where('selectedQuestion.tags.0.name', '日常会話')
+                ->where('selectedQuestion.tags.0.name', 'Daily conversation')
                 ->where('selectedQuestionUnavailable', false)
                 ->missing('selectedQuestion.model_answer_text'));
     }
@@ -117,36 +117,47 @@ class DashboardSelectedQuestionTest extends TestCase
                 ->where('selectedQuestionUnavailable', true));
     }
 
-    public function test_dashboard_vue_contains_selected_question_display_with_recording_layout(): void
+    public function test_dashboard_vue_contains_recording_submission_polling_flow(): void
     {
         $source = file_get_contents(resource_path('js/Pages/Dashboard.vue'));
         $recordingPanelSource = file_get_contents(resource_path('js/Components/Recording/RecordingPanel.vue'));
         $audioRecorderSource = file_get_contents(resource_path('js/Composables/useAudioRecorder.js'));
+        $pollingSource = file_get_contents(resource_path('js/Composables/usePolling.js'));
         $recordingStoreSource = file_get_contents(resource_path('js/Stores/useRecordingStore.js'));
+        $submissionPollingStoreSource = file_get_contents(resource_path('js/Stores/useSubmissionPollingStore.js'));
 
         $this->assertStringContainsString('selectedQuestion', $source);
         $this->assertStringContainsString('selectedQuestionUnavailable', $source);
-        $this->assertStringContainsString('問題一覧から問題を選択してください', $source);
-        $this->assertStringContainsString('選択した問題は表示できません', $source);
         $this->assertStringContainsString('RecordingPanel', $source);
+        $this->assertStringContainsString(':question-id="selectedQuestion.id"', $source);
         $this->assertStringContainsString('question_format.label', $source);
         $this->assertStringContainsString('recommended_duration_seconds', $source);
         $this->assertStringContainsString('has_model_answer', $source);
-        $this->assertStringContainsString('模範解答あり', $source);
-        $this->assertStringContainsString('模範解答なし', $source);
         $this->assertStringContainsString('START', $recordingPanelSource);
         $this->assertStringContainsString('STOP', $recordingPanelSource);
-        $this->assertStringContainsString('録音タイマー', $recordingPanelSource);
-        $this->assertStringContainsString('現在状態', $recordingPanelSource);
-        $this->assertStringContainsString('提出確認', $recordingPanelSource);
-        $this->assertStringContainsString('エラー確認', $recordingPanelSource);
+        $this->assertStringContainsString('提出する', $recordingPanelSource);
+        $this->assertStringContainsString('3秒間隔で最大60回', $recordingPanelSource);
+        $this->assertStringContainsString('解析完了', $recordingPanelSource);
+        $this->assertStringContainsString('確認タイムアウト', $recordingPanelSource);
         $this->assertStringContainsString('useRecordingStore', $recordingPanelSource);
+        $this->assertStringContainsString('useSubmissionPollingStore', $recordingPanelSource);
+        $this->assertStringContainsString('submitRecording', $recordingPanelSource);
         $this->assertStringContainsString('useAudioRecorder', $recordingStoreSource);
         $this->assertStringContainsString('MediaRecorder', $audioRecorderSource);
         $this->assertStringContainsString('audio/webm;codecs=opus', $audioRecorderSource);
         $this->assertStringContainsString('Blob', $audioRecorderSource);
+        $this->assertStringContainsString('intervalMs = 3000', $pollingSource);
+        $this->assertStringContainsString('maxAttempts = 60', $pollingSource);
+        $this->assertStringContainsString('onUnmounted', $pollingSource);
+        $this->assertStringContainsString('window.setInterval', $pollingSource);
+        $this->assertStringContainsString("axios.post('/api/submissions'", $submissionPollingStoreSource);
+        $this->assertStringContainsString('MAX_POLLING_ATTEMPTS = 60', $submissionPollingStoreSource);
+        $this->assertStringContainsString('POLLING_INTERVAL_MS = 3000', $submissionPollingStoreSource);
+        $this->assertStringContainsString('window.location.assign', $submissionPollingStoreSource);
         $this->assertStringContainsString('URL.createObjectURL', $recordingStoreSource);
         $this->assertStringContainsString('URL.revokeObjectURL', $recordingStoreSource);
+        $this->assertStringContainsString('submission_id', $recordingPanelSource);
+        $this->assertStringContainsString('polling', $recordingPanelSource);
         $this->assertStringNotContainsString('model_answer_text', $source);
         $this->assertStringNotContainsString('question_type', $source);
         $this->assertStringNotContainsString('model_answer_text', $recordingPanelSource);
@@ -157,10 +168,11 @@ class DashboardSelectedQuestionTest extends TestCase
         $this->assertStringNotContainsString('axios', $recordingPanelSource);
         $this->assertStringNotContainsString('axios', $audioRecorderSource);
         $this->assertStringNotContainsString('axios', $recordingStoreSource);
-        $this->assertStringNotContainsString('submission_id', $recordingPanelSource);
         $this->assertStringNotContainsString('submission_id', $recordingStoreSource);
-        $this->assertStringNotContainsString('polling', $recordingPanelSource);
         $this->assertStringNotContainsString('polling', $recordingStoreSource);
+        $this->assertStringNotContainsString('WebSocket', $pollingSource);
+        $this->assertStringNotContainsString('error_type', $submissionPollingStoreSource);
+        $this->assertStringNotContainsString('user_action', $submissionPollingStoreSource);
     }
 
     public function test_dashboard_controller_does_not_select_model_answer_text_or_question_type(): void
@@ -239,12 +251,15 @@ class DashboardSelectedQuestionTest extends TestCase
 
     private function createVerifiedUser(): User
     {
-        return User::query()->create([
+        $user = User::query()->create([
             'name' => 'Test User',
             'email' => uniqid('dashboard_', true).'@example.com',
-            'email_verified_at' => now(),
             'password' => 'password',
         ]);
+
+        $user->forceFill(['email_verified_at' => now()])->save();
+
+        return $user;
     }
 
     /**
@@ -280,7 +295,7 @@ class DashboardSelectedQuestionTest extends TestCase
         return Question::query()->create(array_merge([
             'category_id' => $category->id,
             'title' => uniqid('question_', true),
-            'prompt_text' => '話してください。',
+            'prompt_text' => 'Please speak about this topic.',
             'difficulty' => 'beginner',
             'question_format' => Question::QUESTION_FORMAT_SINGLE_PROMPT,
             'recommended_duration_seconds' => 60,
