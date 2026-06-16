@@ -12,6 +12,8 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
+use Throwable;
 
 class ProcessSpeechEvaluationJob implements ShouldQueue
 {
@@ -19,6 +21,8 @@ class ProcessSpeechEvaluationJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
     use SerializesModels;
+
+    public int $tries = 3;
 
     public function __construct(
         public readonly string $submissionId,
@@ -30,14 +34,16 @@ class ProcessSpeechEvaluationJob implements ShouldQueue
             ->with('question:id,recommended_duration_seconds')
             ->find($this->submissionId);
 
-        if (! $submission instanceof Submission || $submission->status !== 'pending') {
+        if (! $submission instanceof Submission || ! in_array($submission->status, ['pending', 'processing'], true)) {
             return;
         }
 
-        $submission->forceFill([
-            'status' => 'processing',
-            'error_message' => null,
-        ])->save();
+        if ($submission->status === 'pending') {
+            $submission->forceFill([
+                'status' => 'processing',
+                'error_message' => null,
+            ])->save();
+        }
 
         $result = $client->evaluate(
             audioFilePath: Storage::disk('local')->path($submission->audio_path),
@@ -47,9 +53,40 @@ class ProcessSpeechEvaluationJob implements ShouldQueue
             featureFlags: $this->featureFlags(),
         );
 
-        $result->success
-            ? $this->completeSubmission($submission, $result)
-            : $this->failSubmission($submission, $result);
+        if ($result->success) {
+            $this->completeSubmission($submission, $result);
+
+            return;
+        }
+
+        if ($result->retryable) {
+            throw new RuntimeException($this->failureMessage($result));
+        }
+
+        $this->failSubmission($submission, $result);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return [30, 60, 120];
+    }
+
+    public function failed(Throwable $exception): void
+    {
+        $submission = Submission::query()->find($this->submissionId);
+
+        if (! $submission instanceof Submission || in_array($submission->status, ['completed', 'failed'], true)) {
+            return;
+        }
+
+        $submission->forceFill([
+            'status' => 'failed',
+            'error_message' => $exception->getMessage() !== '' ? $exception->getMessage() : 'python_evaluation_failed',
+            'completed_at' => now(),
+        ])->save();
     }
 
     private function completeSubmission(Submission $submission, PythonEvaluationResult $result): void

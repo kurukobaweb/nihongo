@@ -14,6 +14,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class ProcessSpeechEvaluationJobTest extends TestCase
@@ -109,9 +110,9 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertSame('completed', $submission->refresh()->status);
     }
 
-    public function test_non_pending_submission_is_not_processed(): void
+    public function test_failed_submission_is_not_processed(): void
     {
-        $submission = $this->createSubmission(['status' => 'processing']);
+        $submission = $this->createSubmission(['status' => 'failed']);
 
         $this->mock(PythonEvaluationClient::class, function (MockInterface $mock) {
             $mock->shouldNotReceive('evaluate');
@@ -119,8 +120,27 @@ class ProcessSpeechEvaluationJobTest extends TestCase
 
         app()->call([new ProcessSpeechEvaluationJob($submission->id), 'handle']);
 
-        $this->assertSame('processing', $submission->refresh()->status);
+        $this->assertSame('failed', $submission->refresh()->status);
         $this->assertSame(0, Evaluation::query()->count());
+    }
+
+    public function test_processing_submission_can_be_retried_and_completed(): void
+    {
+        Storage::fake('local');
+
+        $submission = $this->createSubmission(['status' => 'processing']);
+        Storage::disk('local')->put($submission->audio_path, 'dummy audio');
+
+        $this->mock(PythonEvaluationClient::class, function (MockInterface $mock) use ($submission) {
+            $mock->shouldReceive('evaluate')
+                ->once()
+                ->andReturn($this->successfulEvaluationResult($submission->id));
+        });
+
+        app()->call([new ProcessSpeechEvaluationJob($submission->id), 'handle']);
+
+        $this->assertSame('completed', $submission->refresh()->status);
+        $this->assertSame(1, Evaluation::query()->count());
     }
 
     public function test_speech_unrecognized_422_marks_submission_failed_without_evaluation(): void
@@ -165,9 +185,9 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         );
     }
 
-    public function test_503_retryable_failure_marks_submission_failed_without_retry_control(): void
+    public function test_503_retryable_failure_throws_for_retry_without_creating_evaluation(): void
     {
-        $this->assertFailureResultMarksSubmissionFailed(
+        $this->assertRetryableResultThrowsForRetry(
             PythonEvaluationResult::failure(
                 errorType: 'azure_service_unavailable',
                 detail: 'Azure Speech SDK error',
@@ -177,6 +197,54 @@ class ProcessSpeechEvaluationJobTest extends TestCase
             ),
             'azure_service_unavailable: Azure Speech SDK error',
         );
+    }
+
+    public function test_timeout_retryable_failure_throws_for_retry_without_creating_evaluation(): void
+    {
+        $this->assertRetryableResultThrowsForRetry(
+            PythonEvaluationResult::failure(
+                errorType: 'python_read_timeout',
+                detail: 'Python evaluation request timed out',
+                retryable: true,
+            ),
+            'python_read_timeout: Python evaluation request timed out',
+        );
+    }
+
+    public function test_connection_retryable_failure_throws_for_retry_without_creating_evaluation(): void
+    {
+        $this->assertRetryableResultThrowsForRetry(
+            PythonEvaluationResult::failure(
+                errorType: 'python_connection_failed',
+                detail: 'Python evaluation service is unavailable',
+                retryable: true,
+            ),
+            'python_connection_failed: Python evaluation service is unavailable',
+        );
+    }
+
+    public function test_failed_callback_marks_submission_failed_after_retries_are_exhausted(): void
+    {
+        $submission = $this->createSubmission(['status' => 'processing']);
+
+        (new ProcessSpeechEvaluationJob($submission->id))->failed(
+            new RuntimeException('azure_service_unavailable: Azure Speech SDK error'),
+        );
+
+        $submission->refresh();
+
+        $this->assertSame('failed', $submission->status);
+        $this->assertSame('azure_service_unavailable: Azure Speech SDK error', $submission->error_message);
+        $this->assertNotNull($submission->completed_at);
+        $this->assertSame(0, Evaluation::query()->count());
+    }
+
+    public function test_retry_policy_is_bounded_with_backoff_seconds(): void
+    {
+        $job = new ProcessSpeechEvaluationJob('00000000-0000-0000-0000-000000000001');
+
+        $this->assertSame(3, $job->tries);
+        $this->assertSame([30, 60, 120], $job->backoff());
     }
 
     private function assertFailureResultMarksSubmissionFailed(
@@ -202,6 +270,36 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertSame($expectedErrorMessage, $submission->error_message);
         $this->assertNotNull($submission->completed_at);
         $this->assertSame(0, Evaluation::query()->count());
+    }
+
+    private function assertRetryableResultThrowsForRetry(
+        PythonEvaluationResult $result,
+        string $expectedErrorMessage,
+    ): void {
+        Storage::fake('local');
+
+        $submission = $this->createSubmission();
+        Storage::disk('local')->put($submission->audio_path, 'dummy audio');
+
+        $this->mock(PythonEvaluationClient::class, function (MockInterface $mock) use ($result) {
+            $mock->shouldReceive('evaluate')
+                ->once()
+                ->andReturn($result);
+        });
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage($expectedErrorMessage);
+
+        try {
+            app()->call([new ProcessSpeechEvaluationJob($submission->id), 'handle']);
+        } finally {
+            $submission->refresh();
+
+            $this->assertSame('processing', $submission->status);
+            $this->assertNull($submission->error_message);
+            $this->assertNull($submission->completed_at);
+            $this->assertSame(0, Evaluation::query()->count());
+        }
     }
 
     private function successfulEvaluationResult(string $submissionId): PythonEvaluationResult
