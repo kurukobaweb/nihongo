@@ -3116,7 +3116,7 @@
 
 ### T009-02: 3秒ポーリングUI実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-16 確認済み）
 - 種別: UI
 - 目的:
   - 提出後に解析中表示し、完了までポーリングする
@@ -3137,6 +3137,29 @@
   - 最大60回
   - completedで結果表示へ遷移
   - failedでエラー表示
+- 確認結果:
+  - `usePolling` を追加し、3秒間隔・最大60回で async callback を実行できるようにした
+  - `useSubmissionPollingStore` を追加し、音声提出後に `GET /api/submissions/{submission}/status` をpollingするようにした
+  - `RecordingPanel` から `POST /api/submissions` 成功後にpollingを開始するようにした
+  - completed時は `result_url` がある場合のみ遷移し、現時点では `result_url: null` のため暫定完了表示に留める
+  - completed時に evaluation summary が返る場合は最小限の完了表示に利用する
+  - failed時は `error_message` のみ表示し、`error_type` / `user_action` は使わない
+  - timeout時は暫定timeout表示にし、Queue停止は最大60回到達によるtimeoutで扱う
+  - Queue監視・管理画面通知・WebSocket・結果表示画面・422再録音 / 再提出導線は実装していない
+- 外部接続分類:
+  - Azure Speech: 分類1（接続不要。status APIをpollingするUIであり、Azure評価を実行しない）
+  - Python FastAPI: 分類1（接続不要。Laravel status APIのみを呼び、PythonEvaluationClientを呼ばない）
+  - Docker: 分類2（今回は不要。後続E2E / 統合確認で必要になる可能性あり）
+  - DB: 分類1（UIはDBへ直接接続せず、Laravel API経由で確認する）
+  - Browser / UI 実行確認: 分類2（有用だが、今回の確認はコード・build・関連Feature testで実施）
+  - Laravel Feature test: 分類1（status / upload APIの回帰確認として実行）
+  - npm / build: 分類3（UI実装のため `npm run build` 相当で確認）
+  - 実音声ファイル: 分類1（実音声提出E2Eは後続確認で扱う）
+- テスト / build結果:
+  - `npm run build`: PowerShell実行ポリシーにより `npm.ps1` が実行不可
+  - `npm.cmd run build`: 成功
+  - `php artisan test tests/Feature/SubmissionStatusTest.php`: 7 warnings / 16 assertions（`.env` 未作成warningのみ）
+  - `php artisan test tests/Feature/SubmissionUploadTest.php`: 9 warnings / 49 assertions（`.env` 未作成warningのみ）
 - 実装してはいけないこと:
   - WebSocket前提に変更しない
   - 無制限ポーリングにしない
