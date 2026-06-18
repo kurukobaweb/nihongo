@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\QuestionController;
+use App\Http\Controllers\ResultController;
 use App\Http\Controllers\SubmissionController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -39,6 +40,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/questions', [QuestionController::class, 'index'])->name('questions.index');
     Route::post('/api/submissions', [SubmissionController::class, 'store'])->name('submissions.store');
     Route::get('/api/submissions/{submission}/status', [SubmissionController::class, 'status'])->name('submissions.status');
+    Route::get('/submissions/{submission}/result', ResultController::class)->name('submissions.result');
 
     Route::get('/questions', function () {
         return Inertia::render('Questions/Index');
