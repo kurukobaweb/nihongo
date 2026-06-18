@@ -3174,7 +3174,7 @@
 
 ### T009-03: 結果表示画面実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-18 確認済み）
 - 種別: UI
 - 目的:
   - evaluation結果をユーザーに表示する
@@ -3195,6 +3195,31 @@
   - transcript
   - 保存済みコメントの表示枠
   - 次の問題導線
+- 確認結果:
+  - `GET /submissions/{submission}/result` を追加し、route name を `submissions.result` とした
+  - `ResultController` を追加し、本人の completed submission かつ evaluation ありの場合のみ Result Vue page を表示するようにした
+  - 他人の submission、pending / processing / failed、evaluation なし completed は 404 とした
+  - `resources/js/Pages/Submissions/Result.vue` を追加し、総合スコア・速度・transcript・保存済みcomment表示枠・次の問題導線を表示するようにした
+  - `SubmissionController::status` の completed かつ evaluation ありの場合に `result_url` として結果表示 route を返すようにした
+  - pending / processing / failed の `result_url` は `null` のまま維持した
+  - failed時は引き続き `error_message` のみを返し、`error_type` / `user_action` は返さない
+  - Feature Flag表示制御は T009-04、422再録音 / 再提出導線は T009-05、コメント生成本体は T010系に残した
+- 外部接続分類:
+  - Azure Speech: 分類1（接続不要。保存済み evaluation を表示するだけで Azure 評価を実行しない）
+  - Python FastAPI: 分類1（接続不要。PythonEvaluationClient を呼ばず、Laravel DB 上の submission / evaluation を読む）
+  - Docker: 分類2（今回は不要。後続 E2E / 統合確認で必要になる可能性あり）
+  - DB: 分類1（Laravel Feature test の sqlite in-memory で検証可能）
+  - Browser / UI 実行確認: 分類2（有用だが、今回の確認は route / controller / page / build / Feature test で実施）
+  - Laravel Feature test: 分類1（completed / non-completed / ownership / result_url を検証）
+  - npm / build: 分類1（Result Vue page 追加のため `npm.cmd run build` で確認）
+  - 実音声ファイル: 分類1（実音声提出 E2E は後続確認で扱う）
+- テスト / build結果:
+  - `php artisan test tests/Feature/SubmissionResultTest.php`: 8 warnings / 60 assertions（`.env` 未作成warningのみ）
+  - `php artisan test tests/Feature/SubmissionStatusTest.php`: 7 warnings / 16 assertions（`.env` 未作成warningのみ）
+  - `php artisan test tests/Feature/DashboardSelectedQuestionTest.php`: 9 warnings / 133 assertions（`.env` 未作成warningのみ）
+  - `npm.cmd run build`: 成功
+  - `vendor\bin\pint --test app\Http\Controllers\ResultController.php app\Http\Controllers\SubmissionController.php tests\Feature\SubmissionResultTest.php tests\Feature\SubmissionStatusTest.php`: 成功
+  - `vendor\bin\pint --test app\Http\Controllers tests\Feature`: 既存未整形ファイルを検出したため、T009-03変更対象に限定して再確認
 - 実装してはいけないこと:
   - failed / 422 を空欄結果画面として表示しない
   - 発音・流暢さをFlag無視で表示しない

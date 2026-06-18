@@ -66,7 +66,9 @@ class SubmissionController extends Controller
             'status' => $submission->status,
             'completed' => $submission->status === 'completed',
             'failed' => $submission->status === 'failed',
-            'result_url' => null,
+            'result_url' => $submission->status === 'completed' && $submission->evaluation instanceof Evaluation
+                ? route('submissions.result', $submission)
+                : null,
             'error_message' => $submission->status === 'failed' ? $submission->error_message : null,
         ];
 

@@ -96,7 +96,7 @@ class SubmissionStatusTest extends TestCase
                 'status' => 'completed',
                 'completed' => true,
                 'failed' => false,
-                'result_url' => null,
+                'result_url' => route('submissions.result', $submission),
                 'error_message' => null,
                 'evaluation' => [
                     'transcript' => 'I am practicing Japanese.',
