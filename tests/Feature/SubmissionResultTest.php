@@ -26,6 +26,8 @@ class SubmissionResultTest extends TestCase
         config()->set('database.default', 'sqlite');
         config()->set('database.connections.sqlite.database', ':memory:');
         config()->set('session.driver', 'array');
+        config()->set('features.speech_pronunciation_assessment_enabled', false);
+        config()->set('features.speech_fluency_assessment_enabled', false);
 
         $this->createSchema();
     }
@@ -128,6 +130,85 @@ class SubmissionResultTest extends TestCase
             ->assertJsonMissingPath('user_action');
     }
 
+    public function test_result_page_keeps_pronunciation_and_fluency_feature_flags_off_by_default(): void
+    {
+        $user = $this->createUser();
+        $submission = $this->createSubmission([
+            'user_id' => $user->id,
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        $this->createEvaluation($submission, [
+            'pronunciation_result' => ['accuracy_score' => 92],
+            'fluency_result' => ['fluency_score' => 88],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('submissions.result', $submission))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Submissions/Result')
+                ->where('features.speech_pronunciation_assessment_enabled', false)
+                ->where('features.speech_fluency_assessment_enabled', false)
+                ->where('evaluation.pronunciation_result.accuracy_score', 92)
+                ->where('evaluation.fluency_result.fluency_score', 88));
+    }
+
+    public function test_result_page_can_receive_enabled_pronunciation_and_fluency_flags(): void
+    {
+        config()->set('features.speech_pronunciation_assessment_enabled', true);
+        config()->set('features.speech_fluency_assessment_enabled', true);
+
+        $user = $this->createUser();
+        $submission = $this->createSubmission([
+            'user_id' => $user->id,
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        $this->createEvaluation($submission, [
+            'pronunciation_result' => ['accuracy_score' => 92],
+            'fluency_result' => ['fluency_score' => 88],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('submissions.result', $submission))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Submissions/Result')
+                ->where('features.speech_pronunciation_assessment_enabled', true)
+                ->where('features.speech_fluency_assessment_enabled', true)
+                ->where('evaluation.pronunciation_result.accuracy_score', 92)
+                ->where('evaluation.fluency_result.fluency_score', 88));
+    }
+
+    public function test_result_page_preserves_null_pronunciation_and_fluency_results(): void
+    {
+        config()->set('features.speech_pronunciation_assessment_enabled', true);
+        config()->set('features.speech_fluency_assessment_enabled', true);
+
+        $user = $this->createUser();
+        $submission = $this->createSubmission([
+            'user_id' => $user->id,
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+
+        $this->createEvaluation($submission, [
+            'pronunciation_result' => null,
+            'fluency_result' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('submissions.result', $submission))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Submissions/Result')
+                ->where('evaluation.pronunciation_result', null)
+                ->where('evaluation.fluency_result', null));
+    }
+
     public function test_non_completed_status_api_keeps_result_url_null_and_failed_keeps_error_message_only(): void
     {
         $user = $this->createUser();
@@ -170,10 +251,26 @@ class SubmissionResultTest extends TestCase
         $this->assertStringContainsString('transcript', $source);
         $this->assertStringContainsString('コメントはまだありません。', $source);
         $this->assertStringContainsString('次の問題を選ぶ', $source);
-        $this->assertStringNotContainsString('pronunciation_result', $source);
-        $this->assertStringNotContainsString('fluency_result', $source);
+        $this->assertStringContainsString('useFeatureFlag', $source);
+        $this->assertStringContainsString("isFeatureEnabled('speech_pronunciation_assessment_enabled')", $source);
+        $this->assertStringContainsString("isFeatureEnabled('speech_fluency_assessment_enabled')", $source);
+        $this->assertStringContainsString('v-if="showPronunciation"', $source);
+        $this->assertStringContainsString('v-if="showFluency"', $source);
+        $this->assertStringContainsString('hasDisplayableValue(props.evaluation.pronunciation_result)', $source);
+        $this->assertStringContainsString('hasDisplayableValue(props.evaluation.fluency_result)', $source);
         $this->assertStringNotContainsString('error_type', $source);
         $this->assertStringNotContainsString('user_action', $source);
+    }
+
+    public function test_feature_flag_composable_reads_shared_features_without_defaulting_on(): void
+    {
+        $source = file_get_contents(resource_path('js/Composables/useFeatureFlag.js'));
+
+        $this->assertStringContainsString('usePage', $source);
+        $this->assertStringContainsString('page.props.features ?? {}', $source);
+        $this->assertStringContainsString('Boolean(features.value?.[name])', $source);
+        $this->assertStringNotContainsString('localStorage', $source);
+        $this->assertStringNotContainsString('true)', $source);
     }
 
     private function createSchema(): void

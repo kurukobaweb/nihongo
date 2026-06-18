@@ -70,6 +70,8 @@ class ResultController extends Controller
                 'characters_per_minute' => $evaluation->characters_per_minute,
                 'speed_assessment' => $evaluation->speed_assessment,
                 'overall_score' => $this->nullableFloat($evaluation->overall_score),
+                'pronunciation_result' => $evaluation->pronunciation_result,
+                'fluency_result' => $evaluation->fluency_result,
                 'comment' => $evaluation->comment,
             ],
         ]);
