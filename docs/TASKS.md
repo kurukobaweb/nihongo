@@ -3236,7 +3236,7 @@
 
 ### T009-04: Feature Flag OFF時の発音・流暢さ非表示
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-18 確認済み）
 - 種別: UI
 - 目的:
   - Pronunciation / Fluency のFeature Flag OFF時にセクション自体を非表示にする
@@ -3254,6 +3254,30 @@
   - `speech.pronunciation_assessment.enabled` OFF時は発音セクション非表示
   - `speech.fluency_assessment.enabled` OFF時は流暢さセクション非表示
   - OFF時は空欄・NULL・未評価などの内部状態をDOM上にもユーザー表示にも出さない
+- 確認結果:
+  - `resources/js/Composables/useFeatureFlag.js` を追加し、Inertia shared props の `features` から Feature Flag を安全に参照するようにした
+  - `Result.vue` で `speech_pronunciation_assessment_enabled` が true かつ保存済み `pronunciation_result` がある場合のみ発音セクションをDOMに表示するようにした
+  - `Result.vue` で `speech_fluency_assessment_enabled` が true かつ保存済み `fluency_result` がある場合のみ流暢さセクションをDOMに表示するようにした
+  - Flag OFF時は見出し・空欄・NULL・未評価placeholderをDOM上にも表示しない構造にした
+  - JSONB / evaluation の該当値が null または空の場合も、該当セクションを表示しない構造にした
+  - Feature Flag のデフォルトON化は行っていない
+  - `.env.example` / `config/features.php` / Inertia shared props は既存構成を利用し、不要変更していない
+  - Result page の表示制御に限定し、評価生成ロジック、Azure / Python 接続、DB schema変更は行っていない
+  - 422再録音 / 再提出導線は T009-05、コメント生成本体は T010系に残した
+- 外部接続分類:
+  - Azure Speech: 分類1（接続不要。保存済み evaluation の表示制御のみで Azure 評価を実行しない）
+  - Python FastAPI: 分類1（接続不要。Laravel / Inertia / Vue の表示制御で完結し PythonEvaluationClient を呼ばない）
+  - Docker: 分類2（今回は不要。後続 E2E / 統合確認で必要になる可能性あり）
+  - DB: 分類1（sqlite in-memory Feature test で検証可能）
+  - Browser / UI 実行確認: 分類2（有用だが、今回は Feature test / static確認 / npm build で確認可能）
+  - Laravel Feature test: 分類1（Flag OFF / ON、JSONB NULL、結果画面アクセス制御を検証）
+  - npm / build: 分類1（Vue page / composable 変更のため `npm.cmd run build` で確認）
+  - 実音声ファイル: 分類1（実音声提出E2Eは後続確認で扱う）
+- テスト / build結果:
+  - `php artisan test tests/Feature/SubmissionResultTest.php`: 12 warnings / 114 assertions（`.env` 未作成warningのみ）
+  - `php artisan test tests/Feature/SubmissionStatusTest.php`: 7 warnings / 16 assertions（`.env` 未作成warningのみ）
+  - `npm.cmd run build`: 成功
+  - `vendor\bin\pint --test app\Http\Controllers\ResultController.php tests\Feature\SubmissionResultTest.php`: 成功
 - 実装してはいけないこと:
   - 空欄・NULL・未評価をユーザーに表示しない
   - デフォルトONにしない

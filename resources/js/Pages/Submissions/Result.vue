@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { useFeatureFlag } from '@/Composables/useFeatureFlag';
 
 const props = defineProps({
     submission: {
@@ -23,12 +24,38 @@ const speedLabels = {
     fast: '速い',
 };
 
+const { isFeatureEnabled } = useFeatureFlag();
+
 const formatNumber = (value, suffix = '') => {
     if (value === null || value === undefined || value === '') {
         return '未記録';
     }
 
     return `${value}${suffix}`;
+};
+
+const hasDisplayableValue = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return false;
+    }
+
+    if (Array.isArray(value)) {
+        return value.length > 0;
+    }
+
+    if (typeof value === 'object') {
+        return Object.keys(value).length > 0;
+    }
+
+    return true;
+};
+
+const formatSavedValue = (value) => {
+    if (typeof value === 'object') {
+        return JSON.stringify(value, null, 2);
+    }
+
+    return String(value);
 };
 
 const overallScore = computed(() => formatNumber(props.evaluation.overall_score));
@@ -42,6 +69,16 @@ const durationSeconds = computed(() => formatNumber(props.evaluation.duration_se
 const transcript = computed(() => props.evaluation.transcript || 'transcript は保存されていません。');
 const comment = computed(() => props.evaluation.comment || 'コメントはまだありません。');
 const questionTitle = computed(() => props.question?.title || '問題');
+const showPronunciation = computed(() => (
+    isFeatureEnabled('speech_pronunciation_assessment_enabled')
+        && hasDisplayableValue(props.evaluation.pronunciation_result)
+));
+const showFluency = computed(() => (
+    isFeatureEnabled('speech_fluency_assessment_enabled')
+        && hasDisplayableValue(props.evaluation.fluency_result)
+));
+const pronunciationResult = computed(() => formatSavedValue(props.evaluation.pronunciation_result));
+const fluencyResult = computed(() => formatSavedValue(props.evaluation.fluency_result));
 </script>
 
 <template>
@@ -111,6 +148,27 @@ const questionTitle = computed(() => props.question?.title || '問題');
                 <article class="rounded border border-slate-800 bg-slate-900 p-5">
                     <p class="text-sm font-medium text-slate-400">認識時間</p>
                     <p class="mt-3 text-2xl font-semibold tracking-normal text-white">{{ durationSeconds }}</p>
+                </article>
+            </section>
+
+            <section
+                v-if="showPronunciation || showFluency"
+                class="mt-5 grid gap-5 md:grid-cols-2"
+            >
+                <article
+                    v-if="showPronunciation"
+                    class="rounded border border-slate-800 bg-slate-900 p-5"
+                >
+                    <p class="text-sm font-medium text-emerald-300">発音</p>
+                    <pre class="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-100">{{ pronunciationResult }}</pre>
+                </article>
+
+                <article
+                    v-if="showFluency"
+                    class="rounded border border-slate-800 bg-slate-900 p-5"
+                >
+                    <p class="text-sm font-medium text-emerald-300">流暢さ</p>
+                    <pre class="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-100">{{ fluencyResult }}</pre>
                 </article>
             </section>
 
