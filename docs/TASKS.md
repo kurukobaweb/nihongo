@@ -3293,7 +3293,7 @@
 
 ### T009-05: 422認識不可時の再録音 / 再提出導線実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-19 実装済み）
 - 種別: UI
 - 目的:
   - 422音声認識不可時に結果画面へ進めず、再録音 / 再提出へ戻す
@@ -3313,6 +3313,36 @@
   - 空欄の結果画面へ遷移させない
   - ユーザー向け文言はOI-006に従う
   - OI-006未確定時は文言を固定せず、差し替え可能な表示枠として実装する
+- 実装結果:
+  - `useSubmissionPollingStore` に `error_message` 既存契約を使った最小限の failed 分類を追加した
+  - `speech_unrecognized` / `audio_conversion_failed` を 422 相当の認識不可 failed として UI 側で扱えるようにした
+  - `RecordingPanel.vue` で 422 相当 failed 時に再録音 / 再提出導線を表示するようにした
+  - 再録音導線は `resetRecording()` を通じて polling state と recording state を reset し、録音フローへ戻す
+  - 空欄結果画面へ遷移させず、未評価項目を結果として表示しない構造を維持した
+  - 500系 failed / その他 failed は 422 相当 failed と表示差分を持たせた
+  - OI-006 の最終文言は確定していない。表示は差し替え可能な UI 枠として扱う
+  - `error_type` / `user_action` は永続化していない
+  - status API response へ `error_type` / `user_action` は追加していない
+  - DB schema / migration は変更していない
+  - Azure / Python / Docker / 実音声ファイル接続は行っていない
+  - コメント生成本体は T010 系に残した
+  - T009系 branch cleanup は T009-05 完了後の別ステップに残した
+- 外部接続分類:
+  - Azure Speech: 分類1（接続不要。保存済み failed 状態と UI 導線の確認のみ）
+  - Python FastAPI: 分類1（接続不要。PythonEvaluationClient は呼ばない）
+  - Docker: 分類2（今回は不要。後続E2Eで扱う）
+  - DB: 分類1（Feature test / ローカルテスト範囲のみ）
+  - Browser / UI 実行確認: 分類2（今回は静的確認と build で確認）
+  - Laravel Feature test: 分類1（静的確認・既存API契約確認）
+  - npm / build: 分類1（Vue変更のため実施）
+  - 実音声ファイル: 分類1（使用不要）
+- 確認結果:
+  - `php artisan test tests/Feature/DashboardSelectedQuestionTest.php`: 成功
+  - `php artisan test tests/Feature/SubmissionStatusTest.php`: 成功
+  - `php artisan test tests/Feature/SubmissionUploadTest.php`: 成功
+  - `npm.cmd run build`: 成功
+  - `vendor\bin\pint --test tests\Feature\DashboardSelectedQuestionTest.php`: 成功
+  - 既知 warning: `.env` 未作成 warning のみ
 - 実装してはいけないこと:
   - 422をシステム障害としてだけ表示しない
   - 未評価項目を結果として表示しない

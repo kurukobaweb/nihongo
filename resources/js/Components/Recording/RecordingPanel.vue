@@ -45,7 +45,9 @@ const stateHelp = computed(() => {
             pending: '提出を受け付けました。解析開始を待っています。',
             processing: '解析中です。3秒ごとに状態を確認しています。',
             completed: '解析が完了しました。結果画面は後続タスクで実装します。',
-            failed: submissionPollingStore.state.errorMessage || '解析に失敗しました。',
+            failed: submissionPollingStore.isRecognitionFailure
+                ? '音声を認識できませんでした。録音フローへ戻って、もう一度提出できます。'
+                : submissionPollingStore.state.errorMessage || '解析に失敗しました。',
             timeout: submissionPollingStore.state.errorMessage,
             error: submissionPollingStore.state.errorMessage,
         }[submissionPollingStore.state.status] ?? '';
@@ -98,6 +100,30 @@ const resetRecording = () => {
     submissionPollingStore.reset();
     recordingStore.reset();
 };
+
+const failedPanelTitle = computed(() => (
+    submissionPollingStore.isRecognitionFailure
+        ? '音声を認識できませんでした'
+        : '解析に失敗しました'
+));
+
+const failedPanelHelp = computed(() => (
+    submissionPollingStore.isRecognitionFailure
+        ? '録音環境を確認して、再録音からもう一度提出してください。'
+        : '時間をおいてから再度お試しください。'
+));
+
+const alertPanelTitle = computed(() => {
+    if (submissionPollingStore.state.status === 'timeout') {
+        return '確認タイムアウト';
+    }
+
+    if (submissionPollingStore.state.status === 'failed') {
+        return failedPanelTitle.value;
+    }
+
+    return '解析状態を確認できませんでした';
+});
 </script>
 
 <template>
@@ -246,11 +272,29 @@ const resetRecording = () => {
             class="mt-5 rounded border border-amber-800 bg-amber-950 px-4 py-4"
         >
             <p class="text-sm font-semibold text-amber-100">
-                {{ submissionPollingStore.state.status === 'timeout' ? '確認タイムアウト' : '解析状態を確認できませんでした' }}
+                {{ alertPanelTitle }}
             </p>
             <p class="mt-2 text-sm leading-6 text-amber-200">
                 {{ submissionPollingStore.state.errorMessage }}
             </p>
+            <p
+                v-if="submissionPollingStore.state.status === 'failed'"
+                class="mt-2 text-sm leading-6 text-amber-200"
+            >
+                {{ failedPanelHelp }}
+            </p>
+            <div
+                v-if="submissionPollingStore.isRecognitionFailure"
+                class="mt-4 flex flex-wrap gap-3"
+            >
+                <button
+                    type="button"
+                    class="rounded bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-300"
+                    @click="resetRecording"
+                >
+                    再録音して再提出する
+                </button>
+            </div>
         </div>
 
         <div
