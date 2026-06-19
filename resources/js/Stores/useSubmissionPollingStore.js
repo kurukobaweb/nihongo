@@ -4,6 +4,10 @@ import { usePolling } from '@/Composables/usePolling';
 
 const POLLING_INTERVAL_MS = 3000;
 const MAX_POLLING_ATTEMPTS = 60;
+const RECOGNITION_FAILURE_MARKERS = [
+    'speech_unrecognized',
+    'audio_conversion_failed',
+];
 
 const state = reactive({
     errorMessage: '',
@@ -20,6 +24,18 @@ export function useSubmissionPollingStore() {
     });
 
     const isTerminal = computed(() => ['completed', 'failed', 'timeout', 'error'].includes(state.status));
+    const failureKind = computed(() => {
+        if (state.status !== 'failed') {
+            return null;
+        }
+
+        const message = String(state.errorMessage || '').toLowerCase();
+
+        return RECOGNITION_FAILURE_MARKERS.some((marker) => message.includes(marker))
+            ? 'recognition'
+            : 'unknown';
+    });
+    const isRecognitionFailure = computed(() => failureKind.value === 'recognition');
 
     const applyStatusPayload = (payload) => {
         state.status = payload.status;
@@ -114,6 +130,12 @@ export function useSubmissionPollingStore() {
         },
         get isTerminal() {
             return isTerminal.value;
+        },
+        get failureKind() {
+            return failureKind.value;
+        },
+        get isRecognitionFailure() {
+            return isRecognitionFailure.value;
         },
         get pollingAttempts() {
             return polling.state.attempts;

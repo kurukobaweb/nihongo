@@ -154,10 +154,22 @@ class DashboardSelectedQuestionTest extends TestCase
         $this->assertStringContainsString('MAX_POLLING_ATTEMPTS = 60', $submissionPollingStoreSource);
         $this->assertStringContainsString('POLLING_INTERVAL_MS = 3000', $submissionPollingStoreSource);
         $this->assertStringContainsString('window.location.assign', $submissionPollingStoreSource);
+        $this->assertStringContainsString('RECOGNITION_FAILURE_MARKERS', $submissionPollingStoreSource);
+        $this->assertStringContainsString('speech_unrecognized', $submissionPollingStoreSource);
+        $this->assertStringContainsString('audio_conversion_failed', $submissionPollingStoreSource);
+        $this->assertStringContainsString("failureKind.value === 'recognition'", $submissionPollingStoreSource);
+        $this->assertStringContainsString('isRecognitionFailure', $submissionPollingStoreSource);
         $this->assertStringContainsString('URL.createObjectURL', $recordingStoreSource);
         $this->assertStringContainsString('URL.revokeObjectURL', $recordingStoreSource);
         $this->assertStringContainsString('submission_id', $recordingPanelSource);
         $this->assertStringContainsString('polling', $recordingPanelSource);
+        $this->assertStringContainsString('failedPanelTitle', $recordingPanelSource);
+        $this->assertStringContainsString('failedPanelHelp', $recordingPanelSource);
+        $this->assertStringContainsString('submissionPollingStore.isRecognitionFailure', $recordingPanelSource);
+        $this->assertStringContainsString('再録音して再提出する', $recordingPanelSource);
+        $this->assertStringContainsString('@click="resetRecording"', $recordingPanelSource);
+        $this->assertStringNotContainsString('submissions.result', $recordingPanelSource);
+        $this->assertStringNotContainsString('未評価', $recordingPanelSource);
         $this->assertStringNotContainsString('model_answer_text', $source);
         $this->assertStringNotContainsString('question_type', $source);
         $this->assertStringNotContainsString('model_answer_text', $recordingPanelSource);
@@ -173,6 +185,8 @@ class DashboardSelectedQuestionTest extends TestCase
         $this->assertStringNotContainsString('WebSocket', $pollingSource);
         $this->assertStringNotContainsString('error_type', $submissionPollingStoreSource);
         $this->assertStringNotContainsString('user_action', $submissionPollingStoreSource);
+        $this->assertStringNotContainsString('error_type', $recordingPanelSource);
+        $this->assertStringNotContainsString('user_action', $recordingPanelSource);
     }
 
     public function test_dashboard_controller_does_not_select_model_answer_text_or_question_type(): void
