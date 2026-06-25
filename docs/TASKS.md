@@ -3397,7 +3397,7 @@
 
 ### T010-01: CommentGeneratorInterface 作成
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了
 - 種別: 実装
 - 目的:
   - コメント生成処理をLLM非依存で差し替え可能にする
@@ -3420,6 +3420,25 @@
   - コメント生成実装を差し替え可能である
 - テスト観点:
   - Interfaceに従った実装差し替え
+- 完了記録:
+  - 実装PR: #13 `feat: add comment generator contract`
+  - PR URL: https://github.com/kurukobaweb/nihongo/pull/13
+  - 実装commit: `f3222656be12c07c3aad22e489811e807b68646e`
+  - merge commit: `f65aa45be0e77227266304b2daf115af48e5491a`
+  - 作成ファイル:
+    - `app/Contracts/CommentGeneratorInterface.php`
+    - `app/Dto/EvaluationResult.php`
+    - `app/Dto/CommentResult.php`
+    - `tests/Unit/CommentGeneratorContractTest.php`
+  - 確認結果:
+    - `php -l` passed
+    - `composer dump-autoload -o --no-scripts` passed
+    - `php artisan test --filter=CommentGeneratorContractTest` passed, 3 tests / 13 assertions
+    - `.env` 変更なし
+    - secret混入なし
+    - DB操作なし
+    - 外部API接続なし
+  - T010-02 / T010-03 は未着手のまま
 - CodeX投入時の注意:
   - Strategyパターンの土台に限定する
 
