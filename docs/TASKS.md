@@ -3356,6 +3356,41 @@
   - OI-006未確定なら文言は仮置きせず、設定可能な枠だけ作る
   - 422は結果画面ではなく、録音フロー内の再録音 / 再提出導線へ戻す
 
+### T009完了状態: ポーリング・結果表示・422再録音導線
+
+- [x] 状態: 完了（2026-06-24 ローカルDBありスモーク確認済み）
+- 対象タスク:
+  - T009-01: submission status API 実装完了（PR #7 merge済み）
+  - T009-02: 3秒ポーリングUI 実装完了（PR #8 merge済み）
+  - T009-03: result page 実装完了（PR #9 merge済み）
+  - T009-04: Feature Flag OFF時の発音・流暢さ非表示 実装完了（PR #10 merge済み）
+  - T009-05: 422認識不可時の再録音 / 再提出導線 実装完了（PR #11 merge済み）
+- develop 取り込み:
+  - 最新merge commit: `926bf023835073d10b3780fcbf2d7cbab7bdedd3`
+  - local / origin `develop` 一致確認済み
+- ローカルDB確認:
+  - PostgreSQL 16.14 / `nihongo_local`
+  - `php artisan migrate`: 完了、7件すべて Ran
+  - `php artisan db:seed`: 完了
+  - seed後件数: categories 8 / tags 9 / questions 53 / question_tag 106 / users 0
+  - `php artisan db:show`: 成功、18 tables
+- T009最小E2Eスモーク確認:
+  - Featureテスト: `SubmissionStatusTest` / `SubmissionResultTest` / `DashboardSelectedQuestionTest` / `SubmissionUploadTest` 成功
+  - Laravel server 起動確認済み
+  - HTTP: `/` 200、`/login` 200、`/register` 200、`/dashboard` 302 login redirect
+  - 実Azureなしの範囲で submission / status / result / 422再録音導線のT009最小確認は成立
+- 未確認・後続工程扱い:
+  - 実Azure Speech接続
+  - 実音声アップロード
+  - queue worker込みの実非同期評価
+  - Google OAuth実認証
+  - Stripe / 課金
+  - Docker / VPS / 本番相当E2E
+  - ブラウザ目視の表示崩れ確認
+- CodeX投入時の注意:
+  - 上記未確認事項はT009未完了理由ではなく、後続タスクまたは別工程で扱う
+  - T010以降のコメント生成本体、実Azure込みE2E、実音声評価品質確認はこの完了判定に含めない
+
 ---
 
 # 10. コメント生成
