@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Contracts\CommentGeneratorInterface;
+use App\Services\Comment\TemplateCommentGenerator;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +13,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(CommentGeneratorInterface::class, TemplateCommentGenerator::class);
     }
 
     /**
