@@ -3444,7 +3444,7 @@
 
 ### T010-02: TemplateCommentGenerator 実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-25 確認済み）
 - 種別: 実装
 - 目的:
   - MVP用のテンプレートコメント生成を実装する
@@ -3471,6 +3471,72 @@
   - テンプレート未定義時
 - CodeX投入時の注意:
   - 文面未確定なら仮文面ではなく設定未投入として扱う
+- 完了記録:
+  - 実装PR: #16 `feat: implement template comment generator`
+  - PR URL: https://github.com/kurukobaweb/nihongo/pull/16
+  - 実装commit: `f2b93a40ac7803a51d16046841045967c506f56b`
+  - merge commit: `aad6f2993162ec909251752d408e621646ace389`
+  - 変更ファイル:
+    - `app/Services/Comment/TemplateCommentGenerator.php`
+    - `config/comment_templates.php`
+    - `tests/Unit/TemplateCommentGeneratorTest.php`
+    - `app/Providers/AppServiceProvider.php`
+  - 実装内容:
+    - `TemplateCommentGenerator` を `CommentGeneratorInterface` 実装として追加
+    - `CommentGeneratorInterface` から `TemplateCommentGenerator` への service container binding を追加
+    - `config/comment_templates.php` に OI-011 / OI-015 のMVP初期値を反映
+    - `charactersPerMinute` から speed category を判定
+    - `durationSeconds` から duration category を判定
+    - speed category × duration category によりテンプレートを選択
+    - 複数テンプレートから先頭を選ぶ決定的方式を採用
+    - 入力不足、カテゴリ判定不可、テンプレート未定義、空テンプレート、fallback config欠落時の fallback を実装
+  - speed category:
+    - `charactersPerMinute < 180`: `slow`
+    - `180 <= charactersPerMinute <= 320`: `appropriate`
+    - `charactersPerMinute > 320`: `fast`
+    - `charactersPerMinute === null`: fallback
+  - duration category:
+    - `durationSeconds < 30`: `short`
+    - `30 <= durationSeconds < 90`: `medium`
+    - `durationSeconds >= 90`: `long`
+    - `durationSeconds === null`: fallback
+  - `CommentResult`:
+    - `source`: `template`
+    - `metadata`: `speed_category`, `duration_category`, `template_key`, `fallback`
+  - 確認結果:
+    - `php -l app/Services/Comment/TemplateCommentGenerator.php`: passed
+    - `php -l config/comment_templates.php`: passed
+    - `php -l tests/Unit/TemplateCommentGeneratorTest.php`: passed
+    - `php -l app/Providers/AppServiceProvider.php`: passed
+    - `composer dump-autoload -o --no-scripts`: passed
+    - 既存 vendor / Pint 由来の ambiguous class warning あり
+    - 今回追加クラス由来の autoload warning なし
+    - `php artisan test --filter=TemplateCommentGeneratorTest`: passed, 15 tests / 56 assertions
+    - `.env` 変更なし
+    - secret混入なし
+    - DB操作なし
+    - 外部API接続なし
+  - 実装していないこと:
+    - T010-03
+    - `evaluations.comment` への保存接続
+    - `ProcessSpeechEvaluationJob` 変更
+    - Evaluation Service 変更
+    - result screen 変更
+    - Inertia props 変更
+    - API response 変更
+    - routes 変更
+    - DB schema / migration / Seeder 変更
+    - Python / FastAPI 変更
+    - Azure Speech / Azure OpenAI / OpenAI 接続
+    - LLM統合
+    - Google OAuth / Stripe / 管理画面変更
+    - docs/TASKS.md 完了反映以外のdocs更新
+  - 申し送り:
+    - T010-02 は汎用テンプレートコメント生成までで完了
+    - 実際の評価結果保存時にコメントを生成し `evaluations.comment` へ保存する処理は T010-03 で扱う
+    - 結果画面へのコメント表示は T010-03 以降の保存接続後に扱う
+    - T010-02 は設問本文、模範解答、設問別推奨回答時間、設問別制限時間、内容評価には依存しない
+    - T010-02 は Azure OpenAI / OpenAI / LLM コメント生成を実装していない
 
 ### T010-03: 評価保存時のコメント反映
 
