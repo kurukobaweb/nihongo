@@ -653,7 +653,9 @@ WHERE submission_id = $1;
 - `characters_per_minute` は実測値から算出した速度指標である
 - `speed_assessment` は分類結果のみを保存する
 - `characters_per_minute` の slow / appropriate / fast 境界値は DB 固定値にしない
-- 速度判定閾値はアプリ設定または設定ファイルで管理し、最終値は OI-015 で管理する
+- OI-015 は MVP 初期値として解消済みであり、初期閾値は `slow`: `characters_per_minute < 180`、`appropriate`: `180 <= characters_per_minute <= 320`、`fast`: `characters_per_minute > 320`
+- 速度判定閾値は T010-02 で作成する `config/comment_templates.php` 側に置き、DBスキーマ、CHECK制約、migration、Seederには固定しない
+- 実Azure / 実音声評価データ確認後に調整可能とする
 - `pronunciation_result` / `fluency_result` は nullable JSONB
 - `raw_azure_response` は全文検索しない
 - `raw_azure_response` に GIN インデックスは付与しない
@@ -1105,7 +1107,7 @@ ORDER BY agreed_at DESC;
 | `appropriate` | 適切 |
 | `fast` | 速い |
 
-速度判定の境界値は DB スキーマに固定しない。`characters_per_minute` の閾値は OI-015 で管理する。
+速度判定の境界値は DB スキーマに固定しない。OI-015 は MVP 初期値として解消済みであり、初期閾値は `slow`: `characters_per_minute < 180`、`appropriate`: `180 <= characters_per_minute <= 320`、`fast`: `characters_per_minute > 320` とする。この値は T010-02 で作成する `config/comment_templates.php` 側に置き、実Azure / 実音声評価データ確認後に調整可能とする。
 
 #### `consents.document_type`
 
@@ -1339,7 +1341,7 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 | ID | 内容 | DB_SCHEMA.md での扱い | 状態 |
 |---|---|---|---|
 | OI-009 | `expected_duration` の値域（10/40/60/90/120）の正式根拠確認 | `questions.recommended_duration_seconds` と実行時 `expected_duration` の役割差分のみ本文反映。値域根拠は OI-009 参照 | 管理中 |
-| OI-015 | 速度判定の閾値 | `evaluations.speed_assessment` の値域は本文反映。閾値は DB 固定値にせず OI-015 参照 | 管理中 |
+| OI-015 | 速度判定の閾値 | OI-015はMVP初期値として解消済み。`slow`: `characters_per_minute < 180`、`appropriate`: `180 <= characters_per_minute <= 320`、`fast`: `characters_per_minute > 320` を初期値とし、T010-02で作成する `config/comment_templates.php` 側に置く。DBスキーマ、CHECK制約、migration、Seederには固定しない | 解消済み |
 | OI-021 | CleanupTempFilesJob の実行頻度・削除対象条件 | 音声即時削除失敗時の回復手段として本文に最小限反映。頻度・条件は OI-021 参照 | 管理中 |
 | OI-101 | 年額プランの導入時期と価格 | Stripe 関連設計は単一月額プラン前提を維持。年額は OI-101 参照 | 管理中 |
 | OI-102 | PDF 領収書テンプレート要否 | Stripe 自動送信委譲を維持。アプリ内 PDF 生成は未採用 | 管理中 |

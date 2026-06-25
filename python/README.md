@@ -39,7 +39,13 @@ Duration values are intentionally separated:
 - `recognized_duration_seconds`: duration reported by Azure for recognized speech segments when available
 - `expected_duration`: request form field from the question; not used as a speed threshold in T007-04
 
-`speech_rate.characters_per_minute` is calculated only when `recognized_duration_seconds` is positive. The `slow` / `appropriate` / `fast` thresholds remain unresolved under OI-015.
+`speech_rate.characters_per_minute` is calculated only when `recognized_duration_seconds` is positive. The `slow` / `appropriate` / `fast` thresholds are resolved as OI-015 MVP initial values:
+
+- `slow`: `characters_per_minute < 180`
+- `appropriate`: `180 <= characters_per_minute <= 320`
+- `fast`: `characters_per_minute > 320`
+
+These thresholds are initial values for T010-02 `config/comment_templates.php`, are not fixed in the DB schema, and may be adjusted after real Azure / speech evaluation data review. Python does not implement or persist the template comment decision in this step.
 
 Continuous recognition stability for 40 / 60 / 90 / 120 second audio remains an OI-010 follow-up. T007-04 does not mark OI-010 as resolved. `raw_azure_response` is returned as minimal diagnostic JSON only; the 500KB retention policy remains OI-107.
 
