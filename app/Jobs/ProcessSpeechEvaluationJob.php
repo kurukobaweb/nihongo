@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Contracts\CommentGeneratorInterface;
+use App\Dto\EvaluationResult;
 use App\Dto\PythonEvaluationResult;
 use App\Models\Evaluation;
 use App\Models\Submission;
@@ -29,7 +31,7 @@ class ProcessSpeechEvaluationJob implements ShouldQueue
         public readonly string $submissionId,
     ) {}
 
-    public function handle(PythonEvaluationClient $client): void
+    public function handle(PythonEvaluationClient $client, CommentGeneratorInterface $commentGenerator): void
     {
         $submission = Submission::query()
             ->with('question:id,recommended_duration_seconds')
@@ -55,7 +57,7 @@ class ProcessSpeechEvaluationJob implements ShouldQueue
         );
 
         if ($result->success) {
-            $this->completeSubmission($submission, $result);
+            $this->completeSubmission($submission, $result, $commentGenerator);
 
             return;
         }
@@ -92,15 +94,34 @@ class ProcessSpeechEvaluationJob implements ShouldQueue
         $this->deleteTemporaryAudioFile($submission);
     }
 
-    private function completeSubmission(Submission $submission, PythonEvaluationResult $result): void
+    private function completeSubmission(
+        Submission $submission,
+        PythonEvaluationResult $result,
+        CommentGeneratorInterface $commentGenerator,
+    ): void
     {
+        $durationSeconds = $result->recognizedDurationSeconds ?? $result->audioDurationSeconds;
+        $charactersPerMinute = $this->charactersPerMinute($result);
+        $speedAssessment = $this->speedAssessment($result);
+        $commentResult = $commentGenerator->generate(new EvaluationResult(
+            transcript: $result->transcript,
+            durationSeconds: $durationSeconds,
+            charactersPerMinute: $charactersPerMinute,
+            speedAssessment: $speedAssessment,
+            metadata: [
+                'submission_id' => $submission->id,
+                'question_id' => $submission->question_id,
+            ],
+        ));
+
         Evaluation::query()->updateOrCreate(
             ['submission_id' => $submission->id],
             [
                 'transcript' => $result->transcript,
-                'duration_seconds' => $result->recognizedDurationSeconds ?? $result->audioDurationSeconds,
-                'characters_per_minute' => $this->charactersPerMinute($result),
-                'speed_assessment' => $this->speedAssessment($result),
+                'duration_seconds' => $durationSeconds,
+                'characters_per_minute' => $charactersPerMinute,
+                'speed_assessment' => $speedAssessment,
+                'comment' => $commentResult->comment,
                 'azure_request_id' => $result->azureRequestId,
                 'raw_azure_response' => $result->rawAzureResponse,
             ],

@@ -85,9 +85,34 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertSame('request-1', $evaluation->azure_request_id);
         $this->assertSame(['recognition_mode' => 'continuous'], $evaluation->raw_azure_response);
         $this->assertNull($evaluation->overall_score);
-        $this->assertNull($evaluation->comment);
+        $this->assertSame(config('comment_templates.templates.appropriate.short.0'), $evaluation->comment);
         $this->assertNull($evaluation->pronunciation_result);
         $this->assertNull($evaluation->fluency_result);
+        Storage::disk('local')->assertMissing($submission->audio_path);
+    }
+
+    public function test_fallback_comment_is_saved_when_speech_rate_is_missing(): void
+    {
+        Storage::fake('local');
+
+        $submission = $this->createSubmission();
+        Storage::disk('local')->put($submission->audio_path, 'dummy audio');
+
+        $this->mock(PythonEvaluationClient::class, function (MockInterface $mock) use ($submission) {
+            $mock->shouldReceive('evaluate')
+                ->once()
+                ->andReturn($this->successfulEvaluationResult($submission->id, speechRate: []));
+        });
+
+        app()->call([new ProcessSpeechEvaluationJob($submission->id), 'handle']);
+
+        $submission->refresh();
+        $evaluation = Evaluation::query()->sole();
+
+        $this->assertSame('completed', $submission->status);
+        $this->assertNull($evaluation->characters_per_minute);
+        $this->assertNull($evaluation->speed_assessment);
+        $this->assertSame(config('comment_templates.fallback'), $evaluation->comment);
         Storage::disk('local')->assertMissing($submission->audio_path);
     }
 
@@ -356,7 +381,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         }
     }
 
-    private function successfulEvaluationResult(string $submissionId): PythonEvaluationResult
+    private function successfulEvaluationResult(string $submissionId, array|null $speechRate = null): PythonEvaluationResult
     {
         return new PythonEvaluationResult(
             success: true,
@@ -365,7 +390,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
             transcript: '日本語を練習しています。',
             audioDurationSeconds: 6.5,
             recognizedDurationSeconds: 5.0,
-            speechRate: [
+            speechRate: $speechRate ?? [
                 'characters_per_minute' => 180.0,
                 'assessment' => 'appropriate',
             ],
