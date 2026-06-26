@@ -3540,7 +3540,7 @@
 
 ### T010-03: 評価保存時のコメント反映
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-26 確認済み）
 - 種別: Queue
 - 目的:
   - 音声評価結果保存時にコメントを保存する
@@ -3565,6 +3565,55 @@
   - テンプレート未設定時の扱い
 - CodeX投入時の注意:
   - LLM統合は将来拡張枠に留める
+- 完了記録:
+  - 実装PR: PR #18 `feat: persist generated evaluation comment`
+  - PR URL: https://github.com/kurukobaweb/nihongo/pull/18
+  - 実装commit: `b208f238278383a25999bb942aecd189098daea2`
+  - merge commit: `ac3f238bfd7af97c8bfa48777215328dcbac40c2`
+  - merged_at: `2026-06-26T04:53:14Z`
+  - 変更ファイル:
+    - `app/Jobs/ProcessSpeechEvaluationJob.php`
+    - `tests/Feature/ProcessSpeechEvaluationJobTest.php`
+  - 実装内容:
+    - `ProcessSpeechEvaluationJob::handle()` で `CommentGeneratorInterface` を method injection
+    - 評価保存時に `EvaluationResult` DTO を組み立て
+    - 保存値と同じ `transcript` / `durationSeconds` / `charactersPerMinute` / `speedAssessment` を使用
+    - `CommentGeneratorInterface::generate()` を `Evaluation::updateOrCreate()` 直前で呼び出し
+    - `CommentResult->comment` を `evaluations.comment` に保存
+    - fallback comment も `evaluations.comment` に保存
+    - `CommentResult->source` / `metadata` はDB保存しない
+  - テスト・確認結果:
+    - `php -l app/Jobs/ProcessSpeechEvaluationJob.php`: passed
+    - `php -l tests/Feature/ProcessSpeechEvaluationJobTest.php`: passed
+    - `php artisan test --filter=ProcessSpeechEvaluationJobTest`: passed, 15 tests / 92 assertions
+    - `SubmissionResultTest`: 未変更のため未実行
+    - `composer dump-autoload`: 新規classなしのため未実行
+    - pdo skip: なし
+    - warning: なし
+    - 外部API接続: なし
+  - 実施していないこと:
+    - status API comment追加なし
+    - polling response変更なし
+    - result screen変更なし
+    - Inertia props変更なし
+    - routes変更なし
+    - ResultController変更なし
+    - Result.vue変更なし
+    - DB schema変更なし
+    - migration / Seeder変更なし
+    - docs/TASKS.md以外のdocs変更なし
+    - Python / FastAPI変更なし
+    - Azure Speech実接続なし
+    - OpenAI / Azure OpenAI接続なし
+    - LLMコメント生成ONなし
+    - `.env` / `.env.example` 変更なし
+    - secret混入なし
+  - 引き継ぎ事項:
+    - T010-03 は保存接続の最小実装として完了
+    - 結果画面表示は既存 ResultController / Result.vue 経路で `evaluations.comment` を表示する構造を前提
+    - status API / polling response に comment を含める必要が出た場合は別タスクで扱う
+    - `CommentResult` source / metadata を保存する場合は、DBスキーマ追加を伴う別タスクで扱う
+    - LLMコメント生成は未実装のまま
 
 ---
 
