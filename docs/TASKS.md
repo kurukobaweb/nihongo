@@ -3700,34 +3700,47 @@
 - [ ] 状態: 未着手
 - 種別: 実装
 - 目的:
-  - OI-023確定後に設定項目の保存方式を実装する
+  - OI-023確定方針に従い、設定項目を `user_learning_settings` テーブルへ保存・再読込できるようにする
 - 参照仕様書:
   - `OPEN_ISSUES.md` OI-023
   - `DB_SCHEMA.md`
   - `ARCHITECTURE.md`
   - `CONSISTENCY_CHECK.md`
 - 変更対象:
-  - 確定方式に応じたDB / Model / Controller / Vue
-  - 必要に応じて関連仕様書の更新対象リスト
+  - migration
+  - Model
+  - Controller / 保存API
+  - Settings Vue page の保存・読込処理
+  - feature test
 - 依存タスク:
   - T011-01
-  - OI-023確定
+  - OI-023確定済み（`user_learning_settings` テーブル方式）
 - 実装内容:
-  - 確定した保存先へ保存する
+  - `user_learning_settings` テーブルを追加する
+  - 1ユーザーにつき1設定レコードとして保存する
+  - `user_learning_settings.user_id` は `users.id` を参照し、unique 制約を設ける
+  - ユーザー削除時は `user_learning_settings` も削除される設計にする
+  - 設定5項目を保存APIで保存する
+  - 設定5項目を設定画面で読込・再表示する
   - 保存完了トースト
   - 保存失敗表示
-  - 設定読込
 - 実装してはいけないこと:
-  - OI-023未確定で開始しない
-  - テーブル数表記更新が必要な場合に仕様書更新対象を無視しない
+  - `users` JSONB方式を採用しない
+  - `users` テーブルに設定JSONを追加しない
+  - T011-02開始時に仕様書の `user_learning_settings` 方針と異なる保存先を採用しない
 - 完了条件:
   - 設定5項目が保存・再読込できる
+  - `user_learning_settings` 方式で migration / model / 保存API / UI保存処理が実装されている
 - テスト観点:
   - 保存
   - 再読込
   - バリデーション
+  - 1ユーザー1設定レコード
+  - 未認証アクセス制御
 - CodeX投入時の注意:
-  - OI-023でテーブル追加が確定した場合は、DB_SCHEMA.md / ARCHITECTURE.md §13 / CONSISTENCY_CHECK.md / 必要に応じてTASKS.mdの表記更新を同時に扱う
+  - OI-023は `user_learning_settings` テーブル方式で確定済み
+  - `users` JSONB方式は採用しない
+  - T011-02では実装のみを行い、保存方式を再検討しない
 
 ---
 

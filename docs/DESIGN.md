@@ -123,7 +123,7 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 | ホーム | 課題選択・録音・提出 | 問題表示、録音ボタン、タイマー、提出後ポーリング | `questions`, `submissions` |
 | 問題一覧 | 問題の閲覧・選択 | difficulty フィルタ、question_format フィルタ、問題リスト | `questions.question_format`, `categories`, `tags` |
 | 結果表示 | 評価結果の確認 | 総合スコア、速度、発音、流暢さ、transcript、コメント | `evaluations` |
-| 設定 | 練習条件の調整 | 出題方式、スピーチ時間、タイマー表示、強制終了、文字起こし表示 | OI-023 で保存先確定 |
+| 設定 | 練習条件の調整 | 出題方式、スピーチ時間、タイマー表示、強制終了、文字起こし表示 | `user_learning_settings`（T011-02で実装予定） |
 | サブスクリプション管理 | 契約状態の確認・操作 | プラン表示、契約状態表示、解約導線 | `customers`, `subscriptions` |
 | 退会 | アカウント削除 | 退会確認、注意事項表示 | `users.deleted_at` |
 | 管理画面 | 管理者向け運用 | ユーザー一覧、問題管理、提出音声一覧、評価結果確認、Stripe 契約状態確認 | admin ロール。MVP範囲は OI-028 |
@@ -134,7 +134,7 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 - 問題一覧の問題形式フィルタは `questions.question_format` を使用する。
 - `questions.question_format` は DB_SCHEMA.md 反映済みのカラムである。値域は `single_prompt` / `two_choice` とする。
 - 問題形式のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一` とする。
-- 設定画面の保存先は OI-023 で管理し、本文書では DB カラム・専用テーブルを確定しない。
+- 設定画面の保存先は OI-023 で `user_learning_settings` テーブル方式に確定済み。T011-02で永続化を実装する。
 - 管理画面は単一 admin ロールを前提とする。MVP で実装する最小範囲は OI-028 で管理する。
 - サブスクリプション管理画面は契約状態の表示と解約導線を扱う。Stripe Webhook 対象イベントは OI-027 で管理し、本文書では詳細化しない。
 
@@ -462,9 +462,9 @@ continuous recognition の安定性検証は OI-010、PoC Go/No-Go は OI-012 �
 
 #### 保存先
 
-設定項目の永続化方式は OI-023 で管理する。
-現時点では DB 対応カラム・専用テーブルは未確定である。
-DB_SCHEMA.md では現時点でユーザー設定用テーブル追加なしとしているため、本文書でも `user_learning_settings` テーブル追加済み、または `users` JSONB 方式採用済みとして扱わない。
+設定項目の永続化方式は OI-023 で `user_learning_settings` テーブル方式に確定済みである。  
+`users` JSONB方式は採用しない。  
+T011-01時点ではUIのみで永続化未実装だったため、T011-02で `user_learning_settings` への保存を実装する。
 
 ---
 

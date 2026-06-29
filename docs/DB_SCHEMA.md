@@ -1,7 +1,7 @@
 # DB_SCHEMA.md
 
 > Stage: Draft  
-> 対象範囲: MVP（17テーブル / 5カテゴリ）  
+> 対象範囲: MVP（18テーブル / 5カテゴリ）  
 > DBMS: PostgreSQL 16 / UTF8
 
 ---
@@ -15,7 +15,7 @@
 
 ### 1.2 対象範囲
 
-- MVP で使用する **17テーブル / 5カテゴリ**
+- MVP で使用する **18テーブル / 5カテゴリ**
 - PostgreSQL 16 / UTF8 前提の型・制約・インデックス方針
 - Laravel Cashier v15+ 準拠の Stripe 関連テーブル
 - 音声提出・評価・法的同意・ジョブ・キャッシュを含む DB 設計
@@ -43,7 +43,7 @@
 - `questions` は `has_model_answer` で模範解答有無を表す
 - `question_format` と `has_model_answer` は別概念として扱う
 - 問題は **1カテゴリ** に属し、**複数タグ** を持てる
-- ユーザー設定5項目の保存先は OI-023 で管理し、現時点ではテーブル追加しない
+- ユーザー設定5項目の保存先は OI-023 で確定済み。`user_learning_settings` テーブル方式を採用し、`users` JSONB 方式は採用しない
 - `evaluations` は `submissions` と **1対1**、`submission_id` は UNIQUE
 - `submissions.audio_path` は **一時ファイルパス**。`completed` / `failed` 時に物理削除し、音声は永続保存しない
 - 退会は `users.deleted_at` による soft delete、保持期間は **30日**
@@ -52,11 +52,12 @@
 
 ---
 
-## 2. 全テーブル一覧（17テーブル / 5カテゴリ早見表）
+## 2. 全テーブル一覧（18テーブル / 5カテゴリ早見表）
 
 | カテゴリ | テーブル名 | 役割 |
 |---|---|---|
 | User | `users` | ユーザー、ロール、JLPT、soft delete |
+| User | `user_learning_settings` | ユーザーごとの練習条件設定 |
 | User | `password_reset_tokens` | パスワード再設定トークン |
 | User | `sessions` | セッション管理 |
 | Learning | `categories` | 問題カテゴリ |
@@ -81,7 +82,7 @@
 
 ### 2.2 ユーザー設定保存先
 
-設定画面の5項目は MVP 実装前に保存先を確定する必要がある。
+設定画面の5項目は、OI-023で `user_learning_settings` テーブル方式に確定済みである。
 
 対象:
 
@@ -91,7 +92,13 @@
 - 強制終了ON/OFF
 - 文字起こし表示ON/OFF
 
-保存方式は OI-023 で管理する。現時点では、専用テーブル追加または `users` JSONB カラム追加を本文で確定しない。
+保存方式:
+
+- `user_learning_settings` テーブルを新規追加する
+- `users` JSONB 方式は採用しない
+- `users` テーブルに設定JSONを追加しない
+- `users` : `user_learning_settings` = 1 : 1
+- T011-02で migration / model / 保存API / 設定画面保存処理を実装する
 
 ---
 
@@ -103,6 +110,7 @@
 erDiagram
     users ||--o{ submissions : submits
     users ||--o{ consents : agrees
+    users ||--o| user_learning_settings : configures
     categories ||--o{ questions : classifies
     questions ||--o{ question_tag : tagged
     tags ||--o{ question_tag : tagged
@@ -118,6 +126,16 @@ erDiagram
         varchar jlpt_level
         varchar google_id
         timestamp deleted_at
+    }
+
+    user_learning_settings {
+        bigint id PK
+        bigint user_id FK,UK
+        varchar question_format_preference
+        integer speech_duration_seconds
+        varchar timer_display_mode
+        boolean force_stop_enabled
+        boolean transcript_display_enabled
     }
 
     questions {
@@ -258,11 +276,65 @@ WHERE email = $1
 - 個人情報: `name`, `email`, `google_id`, `avatar_url`
 - 監査対象: `role`, `deleted_at`
 - soft delete 後の同一メール再登録を許容するため、通常 UNIQUE ではなく部分 UNIQUE を採用する
-- ユーザー設定5項目を `users` に保持するかどうかは OI-023 で管理する
+- ユーザー設定5項目は `users` に保持しない。OI-023確定方針により、`user_learning_settings` テーブルへ分離する
 
 ---
 
-#### 4-1-2. `password_reset_tokens`
+#### 4-1-2. `user_learning_settings`
+
+**目的 / 役割**  
+ユーザーごとの練習条件設定を管理する。T011-02で migration / model / 保存API / 設定画面保存処理を実装する前提仕様であり、本書更新時点では実装済みテーブルではない。
+
+**カラム定義表**
+
+| カラム名 | 型 | NULL可否 | デフォルト | 説明 |
+|---|---|---:|---|---|
+| `id` | bigint | No | IDENTITY | ユーザー設定 ID |
+| `user_id` | bigint | No | なし | `users.id` への参照。1ユーザーにつき1設定レコード |
+| `question_format_preference` | varchar(50) | No | `'single_prompt'` | 出題方式。`questions.question_format` の値域方針と整合させる |
+| `speech_duration_seconds` | integer | No | 60 | スピーチ時間。許容範囲はアプリケーション側バリデーションで制御する |
+| `timer_display_mode` | varchar(50) | No | `'count_down'` | タイマー表示方式。設定画面UIの選択肢と整合させる |
+| `force_stop_enabled` | boolean | No | true | 強制終了ON/OFF |
+| `transcript_display_enabled` | boolean | No | true | 文字起こし表示ON/OFF |
+| `created_at` | timestamp | No | CURRENT_TIMESTAMP | 作成日時 |
+| `updated_at` | timestamp | No | CURRENT_TIMESTAMP | 更新日時 |
+
+**主キー**  
+- `id`
+
+**外部キー（参照先 / ON DELETE / ON UPDATE）**  
+- `user_id` → `users.id` / CASCADE / CASCADE
+
+**ユニーク制約**  
+- UNIQUE: `user_id`
+
+**代表的なインデックス**  
+- UNIQUE: `user_id`
+
+**代表的なクエリ例**
+
+```sql
+SELECT user_id,
+       question_format_preference,
+       speech_duration_seconds,
+       timer_display_mode,
+       force_stop_enabled,
+       transcript_display_enabled
+FROM user_learning_settings
+WHERE user_id = $1;
+```
+
+**備考**  
+- OI-023確定方針により、`users` JSONB方式は採用しない
+- 1ユーザーにつき1設定レコードとする
+- ユーザー削除時は `user_learning_settings` も CASCADE で削除する
+- `question_format_preference` は `questions.question_format` の値域方針と整合させる
+- `timer_display_mode` は設定画面UIの選択肢と整合させる
+- `speech_duration_seconds` の許容範囲は DB CHECK ではなくアプリケーション側バリデーションで制御する
+
+---
+
+#### 4-1-3. `password_reset_tokens`
 
 **目的 / 役割**  
 パスワード再設定用トークンを保持する Laravel 標準テーブル。
@@ -1181,6 +1253,7 @@ MVP では `evaluations.pronunciation_result` / `fluency_result` / `raw_azure_re
 | `submissions` | `question_id` | `questions.id` | RESTRICT | CASCADE |
 | `evaluations` | `submission_id` | `submissions.id` | CASCADE | CASCADE |
 | `consents` | `user_id` | `users.id` | CASCADE | CASCADE |
+| `user_learning_settings` | `user_id` | `users.id` | CASCADE | CASCADE |
 | `subscriptions` | `customer_id` | `customers.id` | CASCADE | CASCADE |
 | `subscription_items` | `subscription_id` | `subscriptions.id` | CASCADE | CASCADE |
 
@@ -1202,7 +1275,7 @@ hard delete 実行主体は OI-105 で管理する。
 
 1. Stripe API 上で解約済みであることを確認
 2. `customers` を削除し、CASCADE で `subscriptions` / `subscription_items` を削除
-3. `users` を削除し、CASCADE で `submissions` / `evaluations` / `consents` を削除
+3. `users` を削除し、CASCADE で `submissions` / `evaluations` / `consents` / `user_learning_settings` を削除
 
 ---
 
@@ -1309,7 +1382,7 @@ ARCHITECTURE.md のハブ文書化リファクタリング（2026-05-08）によ
 
 | ID | 対象 | 内容 | 状態 |
 |---|---|---|---|
-| A-01 | `§13` | 17テーブル構成の反映 | **解消済み** — ARCHITECTURE.md §13.1 で反映 |
+| A-01 | `§13` | 18テーブル構成の反映 | **解消済み** — ARCHITECTURE.md §13.1 で反映 |
 | A-02 | `§13` | `has_model_answer` 方針の反映 | **解消済み** — ARCHITECTURE.md §13.2 で反映 |
 | A-03 | `§13` | Cashier v15+ の `billable_id + billable_type` 反映 | **解消済み** — ARCHITECTURE.md §13.1 で反映 |
 | A-04 | `§11` | 音声一時保存方針の反映 | **解消済み** — ARCHITECTURE.md §11 で反映 |
@@ -1319,15 +1392,16 @@ ARCHITECTURE.md のハブ文書化リファクタリング（2026-05-08）によ
 | ID | 対象 | 内容 | 状態 |
 |---|---|---|---|
 | A-05 | `§13` | `questions.question_format` 追加の反映 | **解消済み** — ARCHITECTURE.md §13.2 / DB_SCHEMA.md §4-2-3 に反映済み。値域は OI-022 管理 |
-| A-06 | `§13` | ユーザー設定保存先の反映 | **管理中** — OI-023 管理。現時点ではテーブル追加なし、17テーブル / 5カテゴリ維持 |
+| A-06 | `§13` | ユーザー設定保存先の反映 | **解消済み** — OI-023確定済み。`user_learning_settings` テーブル方式を採用し、18テーブル / 5カテゴリへ更新 |
 
 ### 11.4 反映順序推奨
 
 - `questions.question_format` カラムは `DB_SCHEMA.md` / `ARCHITECTURE.md` に反映済み
 - `question_format` の具体値は `single_prompt` / `two_choice` として確定済み
 - CHECK 制約値域はT002-05で `question_format IN ('single_prompt', 'two_choice')` を反映する
-- ユーザー設定保存先は OI-023 確定後に、テーブル追加または `users` JSONB カラム追加を判断する
-- OI-023 でテーブル追加が確定した場合は、`DB_SCHEMA.md`、`ARCHITECTURE.md §13`、`CONSISTENCY_CHECK.md` のテーブル数表記を同時に更新する
+- ユーザー設定保存先は OI-023 で `user_learning_settings` テーブル方式に確定済み
+- `users` JSONB カラム追加方式は採用しない
+- T011-02で `user_learning_settings` の migration / model / 保存API / 設定画面保存処理を実装する
 
 ---
 
@@ -1352,7 +1426,7 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 | OI-107 | `raw_azure_response` 500KB 超過時の保持方針 | 想定上限と全文検索しない方針を本文反映。超過時の扱いは OI-107 参照 | 管理中 |
 | OI-108 | 利用規約 / PP 最新バージョンの永続管理方式 | 現時点ではアプリ設定値管理。専用テーブル追加要否は OI-108 参照 | 管理中 |
 | OI-022 | 問題形式の分類方式 | `questions.question_format` の値域は `single_prompt` / `two_choice` として確定済み。CHECK制約・Seeder・UIラベル・validationへの反映はT002-05で実施 | 確定済み |
-| OI-023 | ユーザー設定5項目の保存先 | 現時点ではテーブル追加・`users` JSONB 追加を行わない。保存方式は OI-023 参照 | 管理中 |
+| OI-023 | ユーザー設定5項目の保存先 | `user_learning_settings` テーブル方式に確定済み。`users` JSONB方式は採用しない。T011-02で migration / model / 保存API / 設定画面保存処理を実装する | 確定済み |
 | OI-026 | 学習管理画面は MVP 対象外 | 集計テーブル追加なし。将来実装時に再検討 | 管理中 |
 | OI-027 | MVPで処理対象とする Stripe Webhook イベントの最小範囲 | `subscriptions` 同期方針に影響。イベント範囲は OI-027 参照 | 管理中 |
 | OI-028 | MVP 管理画面で実装する最小範囲 | `users.role` の admin 方針は維持。追加権限テーブルは現時点で追加しない | 管理中 |
@@ -1361,7 +1435,7 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 
 | 旧 ID（本書） | 統合先 ID | 内容 | 状態 |
 |---|---|---|---|
-| OI-09 | — | `ARCHITECTURE.md` を 17 テーブル構成へ更新 | **解消済み**（§11 A-01） |
+| OI-09 | — | `ARCHITECTURE.md` を 18 テーブル構成へ更新 | **解消済み**（§11 A-01） |
 | OI-10 | — | `question_type` → `has_model_answer` 更新 | **解消済み**（§11 A-02） |
 | OI-11 | — | `customers` Cashier v15+ 準拠へ更新 | **解消済み**（§11 A-03） |
 | OI-12 | — | 音声保存記述を一時保存前提へ更新 | **解消済み**（§11 A-04） |
@@ -1371,7 +1445,7 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 - `questions.question_format` を追加し、`difficulty` と独立した分類軸として整理
 - `question_type` 不採用方針を維持
 - `has_model_answer` を模範解答有無として維持
-- ユーザー設定保存先は OI-023 参照に留め、テーブル数は 17テーブル / 5カテゴリを維持
+- ユーザー設定保存先は OI-023 確定方針に従い、`user_learning_settings` テーブルを追加する前提へ更新。テーブル数は 18テーブル / 5カテゴリに更新
 - `recommended_duration_seconds`、`expected_duration`、`audio_duration_seconds`、`evaluations.duration_seconds` の役割差分を整理
 - `speed_assessment` の値域を維持し、速度閾値は DB スキーマに固定しない方針を明記
 - `raw_azure_response` 500KB超過時の扱いは OI-107 参照に整理
