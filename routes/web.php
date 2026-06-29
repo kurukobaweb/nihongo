@@ -46,6 +46,10 @@ Route::middleware('auth')->group(function () {
         return Inertia::render('Questions/Index');
     })->name('questions.page');
 
+    Route::get('/settings', function () {
+        return Inertia::render('Settings');
+    })->name('settings');
+
     Route::get('/verify-email', EmailVerificationPromptController::class)->name('verification.notice');
 
     Route::get('/verify-email/{id}/{hash}', VerifyEmailController::class)

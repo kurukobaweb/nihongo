@@ -111,6 +111,12 @@ const logout = () => {
                     問題一覧へ
                 </Link>
                 <Link
+                    href="/settings"
+                    class="rounded border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:border-slate-500"
+                >
+                    設定へ
+                </Link>
+                <Link
                     href="/"
                     class="rounded border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:border-slate-500"
                 >
