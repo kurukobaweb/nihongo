@@ -106,12 +106,20 @@ onMounted(fetchQuestions);
                         スピーチ練習に使う問題を選択します。難易度と問題形式で絞り込めます。
                     </p>
                 </div>
-                <Link
-                    href="/dashboard"
-                    class="inline-flex items-center justify-center rounded border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:border-slate-500"
-                >
-                    学習ホームへ
-                </Link>
+                <div class="flex flex-wrap gap-3">
+                    <Link
+                        href="/dashboard"
+                        class="inline-flex items-center justify-center rounded border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:border-slate-500"
+                    >
+                        学習ホームへ
+                    </Link>
+                    <Link
+                        href="/settings"
+                        class="inline-flex items-center justify-center rounded border border-slate-700 px-4 py-2 text-sm font-medium text-slate-100 hover:border-slate-500"
+                    >
+                        設定へ
+                    </Link>
+                </div>
             </div>
 
             <div class="grid gap-4 border-b border-slate-800 py-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
