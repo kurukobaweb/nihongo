@@ -15,7 +15,7 @@
 
 | 関心事 | 正本 | 備考 |
 |---|---|---|
-| DB 設計（テーブル・カラム・制約・削除方針） | `DB_SCHEMA.md` | 17テーブル / 5カテゴリ |
+| DB 設計（テーブル・カラム・制約・削除方針） | `DB_SCHEMA.md` | 18テーブル / 5カテゴリ |
 | 未確定事項（業務判断待ち・PoC 待ち・運用詳細未定） | `OPEN_ISSUES.md` | 唯一の管理台帳 |
 | 運用手順（点検・障害対応・リリース・バックアップ） | `OPERATIONS.md` | MVP テスト環境向け最小運用 |
 | UI/UX 設計 | `DESIGN.md` | MVP UI/UX 設計の正本 |
@@ -502,11 +502,11 @@ Pinia store は「ページ遷移を跨ぐ状態」または「複数コンポ�
 
 DB 設計の正本は `DB_SCHEMA.md` である。本節はアーキテクチャ観点での橋渡しのみ示す。
 
-### 13.1 テーブル構成（17テーブル / 5カテゴリ）
+### 13.1 テーブル構成（18テーブル / 5カテゴリ）
 
 | カテゴリ | テーブル |
 |---|---|
-| User | `users`, `password_reset_tokens`, `sessions` |
+| User | `users`, `user_learning_settings`, `password_reset_tokens`, `sessions` |
 | Learning | `categories`, `tags`, `questions`, `question_tag`, `submissions`, `evaluations` |
 | Stripe | `customers`, `subscriptions`, `subscription_items`（Cashier v15+ 準拠） |
 | System | `jobs`, `failed_jobs`, `cache`, `cache_locks` |
@@ -524,9 +524,9 @@ DB 設計の正本は `DB_SCHEMA.md` である。本節はアーキテクチャ�
 - `pronunciation_result` / `fluency_result` は nullable JSONB（Feature Flag OFF 時は NULL）
 - 音声ファイルは永続保存しない。`audio_path` は一時ファイルパス
 - 退会: `users.deleted_at` による soft delete → 30日後 hard delete
-- ユーザー設定5項目の保存先は OI-023 で管理する
-- 現時点ではユーザー設定用テーブル追加なしとして、17テーブル / 5カテゴリを維持する
-- ユーザー設定の保存方式は本文書では確定せず、`DB_SCHEMA.md` と OI-023 を参照する
+- ユーザー設定5項目の保存先は OI-023 で確定済み。`user_learning_settings` テーブル方式を採用する
+- `users` JSONB方式は採用せず、`users` テーブルに設定JSONを追加しない
+- T011-02では `user_learning_settings` へ保存する前提で、migration / model / 保存API / 設定画面保存処理を実装する
 
 ---
 

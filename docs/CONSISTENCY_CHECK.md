@@ -43,7 +43,7 @@
 
 ### 確認済み
 
-- ARCHITECTURE.md §13「DB エンティティ概要」の17テーブル / 5カテゴリは、DB_SCHEMA.md §2「全テーブル一覧」と一致している
+- ARCHITECTURE.md §13「DB エンティティ概要」の18テーブル / 5カテゴリは、DB_SCHEMA.md §2「全テーブル一覧」と一致している
 - ARCHITECTURE.md §13.1 のカテゴリ構成は、DB_SCHEMA.md §2 の User / Learning / Stripe / System / Legal の5カテゴリと一致している
 - `questions.question_type` 不採用、`has_model_answer` 採用は両文書で一貫している
 - `questions.question_format` は DB_SCHEMA.md に反映済みである
@@ -58,8 +58,8 @@
 - CleanupTempFilesJob は、即時削除失敗時の回復手段として両文書で整合している
 - 音声一時ファイルはバックアップ対象外として両文書で整合している
 - Cashier v15+ 準拠（`customers` の `billable_id` + `billable_type`）は両文書で一貫している
-- ユーザー設定5項目の保存先は OI-023 管理であり、現時点ではテーブル追加なしとして整理されている
-- ユーザー設定保存先が未確定であるため、ARCHITECTURE.md §13 / DB_SCHEMA.md §2 ともに 17テーブル / 5カテゴリを維持している
+- ユーザー設定5項目の保存先は OI-023 で確定済みであり、`user_learning_settings` テーブル方式として整理されている
+- `users` JSONB方式は不採用として、ARCHITECTURE.md §13 / DB_SCHEMA.md §2 ともに 18テーブル / 5カテゴリへ更新されている
 - Stripe Webhook 対象イベントの最小範囲は OI-027 管理であり、ARCHITECTURE.md / DB_SCHEMA.md ともに確定済みイベント一覧としては扱っていない
 - 管理画面MVP範囲は OI-028 管理であり、追加権限テーブルは現時点で追加しない方針で整合している
 
@@ -67,18 +67,18 @@
 
 | ID | 対象 | 内容 | 状態 |
 |---|---|---|---|
-| A-01 | `ARCHITECTURE.md §13` | 17テーブル構成の反映 | **解消済み** — ARCHITECTURE.md §13.1 と DB_SCHEMA.md §2 が一致 |
+| A-01 | `ARCHITECTURE.md §13` | 18テーブル構成の反映 | **解消済み** — ARCHITECTURE.md §13.1 と DB_SCHEMA.md §2 が一致 |
 | A-02 | `ARCHITECTURE.md §13` | `has_model_answer` 方針の反映 | **解消済み** — `question_format` とは別概念として整理済み |
 | A-03 | `ARCHITECTURE.md §13` | Cashier v15+ の `billable_id + billable_type` 反映 | **解消済み** — ARCHITECTURE.md §13.1 と DB_SCHEMA.md Stripe 定義が一致 |
 | A-04 | `ARCHITECTURE.md §11` | 音声一時保存方針の反映 | **解消済み** — 音声非永続保存、即時削除、バックアップ対象外で一致 |
 | A-05 | `ARCHITECTURE.md §13` | `questions.question_format` 追加の反映 | **解消済み** — DB_SCHEMA.md 反映済み。値域は `single_prompt` / `two_choice` として確定済み |
-| A-06 | `ARCHITECTURE.md §13` | ユーザー設定保存先の反映 | **管理中** — OI-023 管理。現時点ではテーブル追加なし、17テーブル / 5カテゴリ維持 |
+| A-06 | `ARCHITECTURE.md §13` | ユーザー設定保存先の反映 | **解消済み** — OI-023確定済み。`user_learning_settings` テーブル方式で統一し、18テーブル / 5カテゴリへ更新 |
 
 ### 要確認（OI 依存）
 
 - `questions.question_format` の具体値は `single_prompt` / `two_choice` として確定済み。CHECK 制約値域はT002-05で反映する
-- ユーザー設定5項目の保存方式は OI-023 確定後に反映する
-- OI-023 でテーブル追加または `users` JSONB 追加が確定した場合は、DB_SCHEMA.md、ARCHITECTURE.md §13、CONSISTENCY_CHECK.md のテーブル数・カテゴリ表記を同時に更新する
+- ユーザー設定5項目の保存方式は OI-023 で `user_learning_settings` テーブル方式に確定済み
+- T011-02はこの確定方針を前提に、migration / model / 保存API / UI保存処理の実装へ進める
 
 ---
 
@@ -99,7 +99,7 @@
   - §13: ユーザー設定5項目の保存先 → OI-023
   - §14: バックアップ外部保管先 → OI-020
 - ARCHITECTURE.md §13 の `question_format` は、OPEN_ISSUES.md OI-022 の管理対象と整合している
-- ユーザー設定保存先は、OPEN_ISSUES.md OI-023 の管理対象と整合している
+- ユーザー設定保存先は、OPEN_ISSUES.md OI-023 の確定方針（`user_learning_settings` テーブル方式、`users` JSONB方式不採用）と整合している
 - Stripe Webhook 対象イベントは、OPEN_ISSUES.md OI-027 の管理対象と整合している
 - 管理画面MVP範囲は、OPEN_ISSUES.md OI-028 の管理対象と整合している
 - OPEN_ISSUES.md の「確定前提（本台帳の対象外）」一覧は、ARCHITECTURE.md §15 の設計原則と整合している
@@ -230,14 +230,14 @@
 - DESIGN.md §7-4 の evaluations 6項目が DB_SCHEMA.md §4-2-6 のカラム構成と一致している
 - Feature Flag OFF 時の `pronunciation_result` / `fluency_result` nullable 扱いと、UI 非表示方針が整合している
 - DESIGN.md §7-1 の consents 記録が DB_SCHEMA.md §4-5-1 と一致している
-- 設定項目の保存先は OI-023 管理であり、DB_SCHEMA.md では現時点でテーブル追加なしとして整合している
-- DESIGN.md でも `user_learning_settings` テーブル追加済み、または `users` JSONB 方式採用済みとして扱っていない
+- 設定項目の保存先は OI-023 で `user_learning_settings` テーブル方式に確定済みであり、DB_SCHEMA.md では T011-02 実装前提のテーブル仕様として整合している
+- DESIGN.md でも `user_learning_settings` テーブル方式に確定済み、かつ `users` JSONB方式は不採用として扱っている
 
 ### 要確認（OI 依存）
 
 - `questions.question_format`: DBカラムは反映済み。具体値・値域は `single_prompt` / `two_choice` として確定済みで、CHECK制約・Seeder・UIラベル・validationはT002-05で反映する
-- 設定項目の保存先: OI-023 確定後に、DB_SCHEMA.md / DESIGN.md / ARCHITECTURE.md の該当箇所を同時に更新する
-- OI-023 でテーブル追加が確定した場合は、17テーブル / 5カテゴリ表記の更新要否を確認する
+- 設定項目の保存先: OI-023 確定方針に従い、DB_SCHEMA.md / DESIGN.md / ARCHITECTURE.md の該当箇所を `user_learning_settings` テーブル方式へ更新済み
+- テーブル数は18テーブル / 5カテゴリとして更新済み
 
 ---
 
@@ -268,7 +268,7 @@
   - §7-7: OI-027（Stripe Webhook 対象イベント）
   - §8: OI-025（ブレイクポイント）
 - OI-022 は、問題形式の値域管理として DESIGN.md と整合している
-- OI-023 は、設定項目保存先の未確定管理として DESIGN.md と整合している
+- OI-023 は、設定項目保存先の確定方針（`user_learning_settings` テーブル方式、`users` JSONB方式不採用）として DESIGN.md と整合している
 - OI-024 は、ナビゲーション最終構成の未確定管理として DESIGN.md と整合している
 - OI-025 は、デザイントークン具体値の未確定管理として DESIGN.md と整合している
 - OI-026 は、学習管理画面をMVP対象外とする扱いとして DESIGN.md と整合している
@@ -319,7 +319,9 @@
 - 現在のQuestionSeeder暫定値 `mvp_verification` はT002-05で正式値へ置換する
 - `questions.question_type` は復活していない
 - `has_model_answer` は模範解答有無として維持されている
-- ユーザー設定保存先は OI-023 管理であり、現時点でテーブル追加・JSONB 方式採用済みとしては扱っていない
+- ユーザー設定保存先は OI-023 で確定済みであり、`user_learning_settings` テーブル方式として OPEN_ISSUES.md / DB_SCHEMA.md / ARCHITECTURE.md / DESIGN.md / TASKS.md 間で統一されている
+- `users` JSONB方式は不採用として統一されている
+- T011-02はこの確定方針を前提に実装へ進める
 - Stripe Webhook 対象イベントは OI-027 管理であり、確定済みイベント一覧として扱っていない
 - 管理画面MVP範囲は OI-028 管理であり、確定済み範囲として広げていない
 - CleanupTempFilesJob は即時削除失敗時の回復手段として扱われている
