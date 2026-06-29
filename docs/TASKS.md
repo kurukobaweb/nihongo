@@ -3621,7 +3621,7 @@
 
 ### T011-01: 設定画面UI実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-29 確認済み）
 - 種別: UI
 - 目的:
   - 練習条件を調整する設定画面UIを作る
@@ -3651,6 +3651,8 @@
 - 完了条件:
   - 設定画面UIが表示される
   - 保存先未確定のため、永続化未実装であることがタスク上明確である
+  - 永続化未実装であることが画面上で明確である
+  - ユーザー側ブラウザで表示・挙動確認済み
 - テスト観点:
   - 入力変更
   - 未保存状態
@@ -3658,6 +3660,40 @@
 - CodeX投入時の注意:
   - 永続化は別タスクに分離する
   - OI-023未確定の間は `user_learning_settings` / `users` JSONB のどちらも前提にしない
+- 完了確認:
+  - 実装PR: #20
+  - 実装commit: `c772567f70fc7d6d71c0f5ebf908518beb40609e`
+  - merge commit: `ac4ed5636d218042c0ca1caeb1241488bd2c21cc`
+  - commit message: `feat: add settings screen UI`
+  - `/settings` GET route を追加
+  - `resources/js/Pages/Settings.vue` を追加
+  - `resources/js/Pages/Dashboard.vue` から設定画面への最小導線を追加
+  - `resources/js/Pages/Questions/Index.vue` から設定画面への最小導線を追加
+  - `tests/Feature/SettingsPageTest.php` を追加
+  - 設定画面で以下5項目を表示
+    - 出題方式
+    - スピーチ時間
+    - タイマー表示方式
+    - 強制終了 ON/OFF
+    - 文字起こし表示 ON/OFF
+  - 未保存状態の表示を実装
+  - 保存ボタンは画面内デモとして実装
+  - 保存完了トースト相当は、永続保存完了ではなく「この設定はまだ保存されません」という画面内デモ通知として扱う
+  - 保存失敗表示は、API失敗ではなくUI確認用の表示枠として扱う
+  - OI-023未確定のため、設定保存先は固定していない
+  - 保存APIは追加していない
+  - DB schema / migration / seeder は変更していない
+  - `user_learning_settings` は追加していない
+  - `users` JSONB方式は採用していない
+  - localStorage / sessionStorage / Cookie保存は使用していない
+  - Navigation最終構成は確定していない
+  - PCサイドバー / Mobileボトムナビ / ハンバーガー採否には踏み込んでいない
+  - `npm.cmd run build`: 成功
+  - `php artisan test --filter=SettingsPageTest`: 成功、3 tests / 26 assertions
+  - 全体 `php artisan test` はPR作成時には未再実行
+  - 既存 `AuthenticationTest` 8件失敗は、T011-01とは別系統の既存課題としてPR本文に記載済み
+  - ユーザー側ブラウザで `/settings` 表示確認済み
+  - ユーザー側ブラウザで設定画面の挙動確認済み
 
 ### T011-02: OI-023確定後の設定保存実装
 
