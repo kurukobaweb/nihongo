@@ -11,6 +11,7 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\QuestionController;
 use App\Http\Controllers\ResultController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubmissionController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -46,9 +47,8 @@ Route::middleware('auth')->group(function () {
         return Inertia::render('Questions/Index');
     })->name('questions.page');
 
-    Route::get('/settings', function () {
-        return Inertia::render('Settings');
-    })->name('settings');
+    Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');
+    Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
     Route::get('/verify-email', EmailVerificationPromptController::class)->name('verification.notice');
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -44,5 +45,10 @@ class User extends Authenticatable implements MustVerifyEmail
     public function consents(): HasMany
     {
         return $this->hasMany(Consent::class);
+    }
+
+    public function learningSetting(): HasOne
+    {
+        return $this->hasOne(UserLearningSetting::class);
     }
 }

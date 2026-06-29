@@ -30,6 +30,9 @@ class HandleInertiaRequests extends Middleware
             'features' => collect(config('features', []))
                 ->map(fn ($value) => (bool) $value)
                 ->all(),
+            'flash' => [
+                'status' => fn () => $request->session()->get('status'),
+            ],
         ];
     }
 }

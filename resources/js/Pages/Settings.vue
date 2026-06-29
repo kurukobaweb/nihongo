@@ -1,59 +1,85 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
-import { computed, reactive, ref } from 'vue';
+import { Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
 
-const questionOrderOptions = [
-    { value: 'order', label: '順番', description: '問題一覧の並びに沿って練習します。' },
-    { value: 'random', label: 'ランダム', description: '練習ごとに順序を変える想定の表示です。' },
+const props = defineProps({
+    settings: {
+        type: Object,
+        required: true,
+    },
+});
+
+const page = usePage();
+
+const questionFormatOptions = [
+    { value: 'single_prompt', label: '単体問題', description: '1つの出題文に対してスピーチを練習します。' },
+    { value: 'two_choice', label: '二者択一', description: '2つの選択肢から立場を選んで話す練習に使います。' },
 ];
 
 const speechDurationOptions = [
-    { value: 'recommended', label: '問題の推奨秒数', description: '各問題に設定された推奨時間を使う想定です。' },
-    { value: '10', label: '10秒', description: '短い確認用の時間です。' },
-    { value: '40', label: '40秒', description: '短めのスピーチ向けです。' },
-    { value: '60', label: '60秒', description: '標準的な練習時間です。' },
-    { value: '90', label: '90秒', description: '少し長めに話す練習向けです。' },
-    { value: '120', label: '120秒', description: '長めのスピーチ練習向けです。' },
+    { value: 30, label: '30秒', description: '短い回答やウォームアップ向けです。' },
+    { value: 60, label: '60秒', description: '標準的な練習時間です。' },
+    { value: 90, label: '90秒', description: '少し長めに説明する練習向けです。' },
+    { value: 120, label: '120秒', description: '構成を意識して話す練習向けです。' },
+    { value: 180, label: '180秒', description: '長めのスピーチ練習向けです。' },
 ];
 
 const timerDisplayOptions = [
-    { value: 'count_up', label: 'カウントアップ', description: '経過時間を確認する想定です。' },
-    { value: 'count_down', label: 'カウントダウン', description: '残り時間を確認する想定です。' },
-    { value: 'hidden', label: '非表示', description: 'タイマーを見ずに練習する想定です。' },
+    { value: 'count_down', label: 'カウントダウン', description: '残り時間を見ながら話します。' },
+    { value: 'count_up', label: 'カウントアップ', description: '経過時間を見ながら話します。' },
+    { value: 'hidden', label: '非表示', description: 'タイマーを見ずに練習します。' },
 ];
 
-const initialSettings = {
-    questionOrder: 'order',
-    speechDuration: 'recommended',
-    timerDisplay: 'count_down',
-    forceFinish: true,
-    transcriptVisible: true,
-};
+const form = useForm({
+    question_format_preference: props.settings.question_format_preference,
+    speech_duration_seconds: props.settings.speech_duration_seconds,
+    timer_display_mode: props.settings.timer_display_mode,
+    force_stop_enabled: props.settings.force_stop_enabled,
+    transcript_display_enabled: props.settings.transcript_display_enabled,
+});
 
-const settings = reactive({ ...initialSettings });
-const demoSnapshot = reactive({ ...initialSettings });
-const demoNotice = ref('');
-const demoErrorVisible = ref(false);
+const savedSettings = ref({ ...props.settings });
+const successMessage = ref('');
 
-const isDirty = computed(() => Object.keys(initialSettings).some((key) => settings[key] !== demoSnapshot[key]));
+watch(
+    () => props.settings,
+    (settings) => {
+        savedSettings.value = { ...settings };
+    },
+    { deep: true },
+);
+
+const isDirty = computed(() => Object.keys(savedSettings.value).some((key) => form[key] !== savedSettings.value[key]));
 
 const selectedSummary = computed(() => [
-    questionOrderOptions.find((option) => option.value === settings.questionOrder)?.label,
-    speechDurationOptions.find((option) => option.value === settings.speechDuration)?.label,
-    timerDisplayOptions.find((option) => option.value === settings.timerDisplay)?.label,
-    settings.forceFinish ? '強制終了 ON' : '強制終了 OFF',
-    settings.transcriptVisible ? '文字起こし表示 ON' : '文字起こし表示 OFF',
+    questionFormatOptions.find((option) => option.value === form.question_format_preference)?.label,
+    speechDurationOptions.find((option) => option.value === Number(form.speech_duration_seconds))?.label,
+    timerDisplayOptions.find((option) => option.value === form.timer_display_mode)?.label,
+    form.force_stop_enabled ? '強制終了 ON' : '強制終了 OFF',
+    form.transcript_display_enabled ? '文字起こし表示 ON' : '文字起こし表示 OFF',
 ].filter(Boolean).join(' / '));
 
-const applyDemoSave = () => {
-    Object.assign(demoSnapshot, settings);
-    demoErrorVisible.value = false;
-    demoNotice.value = 'この設定はまだ保存されません。画面内の確認用です。保存機能は後続タスクで実装予定です。';
-};
+const hasErrors = computed(() => Object.keys(form.errors).length > 0);
 
-const showDemoError = () => {
-    demoNotice.value = '';
-    demoErrorVisible.value = true;
+const submit = () => {
+    successMessage.value = '';
+
+    form.put('/settings', {
+        preserveScroll: true,
+        onSuccess: () => {
+            savedSettings.value = {
+                question_format_preference: form.question_format_preference,
+                speech_duration_seconds: form.speech_duration_seconds,
+                timer_display_mode: form.timer_display_mode,
+                force_stop_enabled: form.force_stop_enabled,
+                transcript_display_enabled: form.transcript_display_enabled,
+            };
+            successMessage.value = page.props.flash?.status === 'settings-saved'
+                ? '設定を保存しました。次回表示時もこの内容が読み込まれます。'
+                : '設定を保存しました。';
+            form.clearErrors();
+        },
+    });
 };
 </script>
 
@@ -65,7 +91,7 @@ const showDemoError = () => {
                     <p class="text-sm font-medium text-emerald-300">Nihongo</p>
                     <h1 class="mt-3 text-3xl font-semibold tracking-normal">設定</h1>
                     <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                        練習条件を画面上で調整できます。現在はUI確認用の一時状態のみで、保存先はOI-023で検討中です。
+                        練習条件をログインユーザーごとに保存できます。保存した内容は設定画面を開き直したときにも再読込されます。
                     </p>
                 </div>
                 <div class="flex flex-wrap gap-3">
@@ -84,37 +110,37 @@ const showDemoError = () => {
                 </div>
             </div>
 
-            <div class="mt-6 rounded border border-amber-800 bg-amber-950 px-4 py-4 text-sm text-amber-100">
-                <p class="font-semibold">永続化は未実装です</p>
-                <p class="mt-2 leading-6 text-amber-200">
-                    設定5項目の保存方式はOI-023で未確定です。この画面ではDB、API、ブラウザ保存を使わず、変更内容は画面内の確認用としてのみ扱います。
+            <div class="mt-6 rounded border border-emerald-800 bg-emerald-950 px-4 py-4 text-sm text-emerald-100">
+                <p class="font-semibold">設定保存が有効です</p>
+                <p class="mt-2 leading-6 text-emerald-200">
+                    設定5項目はログインユーザーごとの専用保存先へ保存されます。
                 </p>
             </div>
 
-            <div class="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <form class="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]" @submit.prevent="submit">
                 <section class="space-y-5">
                     <article class="rounded border border-slate-800 bg-slate-900 p-5">
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <h2 class="text-lg font-semibold tracking-normal text-white">出題方式</h2>
-                                <p class="mt-2 text-sm leading-6 text-slate-300">練習で問題を表示する順序を選びます。</p>
+                                <p class="mt-2 text-sm leading-6 text-slate-300">練習で使う問題形式の希望を選びます。</p>
                             </div>
                             <span class="text-sm font-medium text-emerald-300">
-                                {{ questionOrderOptions.find((option) => option.value === settings.questionOrder)?.label }}
+                                {{ questionFormatOptions.find((option) => option.value === form.question_format_preference)?.label }}
                             </span>
                         </div>
                         <div class="mt-4 grid gap-3 md:grid-cols-2">
                             <label
-                                v-for="option in questionOrderOptions"
+                                v-for="option in questionFormatOptions"
                                 :key="option.value"
                                 class="block rounded border p-4 transition"
-                                :class="settings.questionOrder === option.value ? 'border-emerald-500 bg-emerald-950' : 'border-slate-800 bg-slate-950 hover:border-slate-600'"
+                                :class="form.question_format_preference === option.value ? 'border-emerald-500 bg-emerald-950' : 'border-slate-800 bg-slate-950 hover:border-slate-600'"
                             >
                                 <span class="flex items-start gap-3">
                                     <input
-                                        v-model="settings.questionOrder"
+                                        v-model="form.question_format_preference"
                                         type="radio"
-                                        name="question_order"
+                                        name="question_format_preference"
                                         :value="option.value"
                                         class="mt-1 accent-emerald-400"
                                     >
@@ -125,16 +151,19 @@ const showDemoError = () => {
                                 </span>
                             </label>
                         </div>
+                        <p v-if="form.errors.question_format_preference" class="mt-3 text-sm text-red-300">
+                            {{ form.errors.question_format_preference }}
+                        </p>
                     </article>
 
                     <article class="rounded border border-slate-800 bg-slate-900 p-5">
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <h2 class="text-lg font-semibold tracking-normal text-white">スピーチ時間</h2>
-                                <p class="mt-2 text-sm leading-6 text-slate-300">練習時に使う想定の時間表示を選びます。</p>
+                                <p class="mt-2 text-sm leading-6 text-slate-300">録音時に使う予定時間を選びます。</p>
                             </div>
                             <span class="text-sm font-medium text-emerald-300">
-                                {{ speechDurationOptions.find((option) => option.value === settings.speechDuration)?.label }}
+                                {{ speechDurationOptions.find((option) => option.value === Number(form.speech_duration_seconds))?.label }}
                             </span>
                         </div>
                         <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -142,13 +171,13 @@ const showDemoError = () => {
                                 v-for="option in speechDurationOptions"
                                 :key="option.value"
                                 class="block rounded border p-4 transition"
-                                :class="settings.speechDuration === option.value ? 'border-emerald-500 bg-emerald-950' : 'border-slate-800 bg-slate-950 hover:border-slate-600'"
+                                :class="Number(form.speech_duration_seconds) === option.value ? 'border-emerald-500 bg-emerald-950' : 'border-slate-800 bg-slate-950 hover:border-slate-600'"
                             >
                                 <span class="flex items-start gap-3">
                                     <input
-                                        v-model="settings.speechDuration"
+                                        v-model.number="form.speech_duration_seconds"
                                         type="radio"
-                                        name="speech_duration"
+                                        name="speech_duration_seconds"
                                         :value="option.value"
                                         class="mt-1 accent-emerald-400"
                                     >
@@ -159,6 +188,9 @@ const showDemoError = () => {
                                 </span>
                             </label>
                         </div>
+                        <p v-if="form.errors.speech_duration_seconds" class="mt-3 text-sm text-red-300">
+                            {{ form.errors.speech_duration_seconds }}
+                        </p>
                     </article>
 
                     <article class="rounded border border-slate-800 bg-slate-900 p-5">
@@ -168,7 +200,7 @@ const showDemoError = () => {
                                 <p class="mt-2 text-sm leading-6 text-slate-300">録音中のタイマーの見せ方を選びます。</p>
                             </div>
                             <span class="text-sm font-medium text-emerald-300">
-                                {{ timerDisplayOptions.find((option) => option.value === settings.timerDisplay)?.label }}
+                                {{ timerDisplayOptions.find((option) => option.value === form.timer_display_mode)?.label }}
                             </span>
                         </div>
                         <div class="mt-4 grid gap-3 md:grid-cols-3">
@@ -176,13 +208,13 @@ const showDemoError = () => {
                                 v-for="option in timerDisplayOptions"
                                 :key="option.value"
                                 class="block rounded border p-4 transition"
-                                :class="settings.timerDisplay === option.value ? 'border-emerald-500 bg-emerald-950' : 'border-slate-800 bg-slate-950 hover:border-slate-600'"
+                                :class="form.timer_display_mode === option.value ? 'border-emerald-500 bg-emerald-950' : 'border-slate-800 bg-slate-950 hover:border-slate-600'"
                             >
                                 <span class="flex items-start gap-3">
                                     <input
-                                        v-model="settings.timerDisplay"
+                                        v-model="form.timer_display_mode"
                                         type="radio"
-                                        name="timer_display"
+                                        name="timer_display_mode"
                                         :value="option.value"
                                         class="mt-1 accent-emerald-400"
                                     >
@@ -193,6 +225,9 @@ const showDemoError = () => {
                                 </span>
                             </label>
                         </div>
+                        <p v-if="form.errors.timer_display_mode" class="mt-3 text-sm text-red-300">
+                            {{ form.errors.timer_display_mode }}
+                        </p>
                     </article>
 
                     <article class="rounded border border-slate-800 bg-slate-900 p-5">
@@ -203,10 +238,10 @@ const showDemoError = () => {
                             <label class="flex min-h-32 items-center justify-between gap-4 rounded border border-slate-800 bg-slate-950 p-4">
                                 <span>
                                     <span class="block text-sm font-semibold text-white">強制終了</span>
-                                    <span class="mt-1 block text-sm leading-6 text-slate-300">時間に達したときに録音を終える想定です。</span>
+                                    <span class="mt-1 block text-sm leading-6 text-slate-300">時間に達したときに録音を終了する想定です。</span>
                                 </span>
                                 <input
-                                    v-model="settings.forceFinish"
+                                    v-model="form.force_stop_enabled"
                                     type="checkbox"
                                     class="h-6 w-6 shrink-0 accent-emerald-400"
                                 >
@@ -218,12 +253,18 @@ const showDemoError = () => {
                                     <span class="mt-1 block text-sm leading-6 text-slate-300">結果画面でtranscriptを表示する想定です。</span>
                                 </span>
                                 <input
-                                    v-model="settings.transcriptVisible"
+                                    v-model="form.transcript_display_enabled"
                                     type="checkbox"
                                     class="h-6 w-6 shrink-0 accent-emerald-400"
                                 >
                             </label>
                         </div>
+                        <p v-if="form.errors.force_stop_enabled" class="mt-3 text-sm text-red-300">
+                            {{ form.errors.force_stop_enabled }}
+                        </p>
+                        <p v-if="form.errors.transcript_display_enabled" class="mt-3 text-sm text-red-300">
+                            {{ form.errors.transcript_display_enabled }}
+                        </p>
                     </article>
                 </section>
 
@@ -236,46 +277,38 @@ const showDemoError = () => {
                             class="mt-5 rounded border px-4 py-3 text-sm"
                             :class="isDirty ? 'border-amber-700 bg-amber-950 text-amber-100' : 'border-slate-800 bg-slate-950 text-slate-300'"
                         >
-                            <p class="font-semibold">{{ isDirty ? '未保存の変更があります' : '画面内の確認状態と一致しています' }}</p>
+                            <p class="font-semibold">{{ isDirty ? '未保存の変更があります' : '保存済みの設定と一致しています' }}</p>
                             <p class="mt-1 leading-6">
-                                {{ isDirty ? '保存ボタンで画面内デモ状態に反映できます。永続保存は行われません。' : 'この状態も永続保存済みではありません。' }}
+                                {{ isDirty ? '保存ボタンで変更を反映できます。' : '次回表示時もこの内容が読み込まれます。' }}
                             </p>
                         </div>
 
                         <button
-                            type="button"
-                            class="mt-5 w-full rounded bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-                            @click="applyDemoSave"
+                            type="submit"
+                            :disabled="form.processing"
+                            class="mt-5 w-full rounded bg-emerald-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            保存する（画面内デモ）
-                        </button>
-
-                        <button
-                            type="button"
-                            class="mt-3 w-full rounded border border-slate-700 px-4 py-3 text-sm font-medium text-slate-100 transition hover:border-slate-500"
-                            @click="showDemoError"
-                        >
-                            保存失敗表示を確認
+                            {{ form.processing ? '保存中...' : '設定を保存' }}
                         </button>
 
                         <div
-                            v-if="demoNotice"
+                            v-if="successMessage"
                             class="mt-4 rounded border border-emerald-800 bg-emerald-950 px-4 py-3 text-sm text-emerald-100"
                             role="status"
                         >
-                            {{ demoNotice }}
+                            {{ successMessage }}
                         </div>
 
                         <div
-                            v-if="demoErrorVisible"
+                            v-if="hasErrors"
                             class="mt-4 rounded border border-red-900 bg-red-950 px-4 py-3 text-sm text-red-100"
                             role="alert"
                         >
-                            保存失敗表示のUI確認です。API保存は実行していません。
+                            入力内容を確認してください。保存はまだ完了していません。
                         </div>
                     </div>
                 </aside>
-            </div>
+            </form>
         </section>
     </main>
 </template>
