@@ -3697,7 +3697,7 @@
 
 ### T011-02: OI-023確定後の設定保存実装
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-06-30 確認済み）
 - 種別: 実装
 - 目的:
   - OI-023確定方針に従い、設定項目を `user_learning_settings` テーブルへ保存・再読込できるようにする
@@ -3741,6 +3741,32 @@
   - OI-023は `user_learning_settings` テーブル方式で確定済み
   - `users` JSONB方式は採用しない
   - T011-02では実装のみを行い、保存方式を再検討しない
+- 完了確認:
+  - 実装PR: #23
+  - 実装commit: `ee1214d468d6610ea4572272725eed0437ff471b`
+  - merge commit: `8af8d58e958397b1d33917e1f549424cb3b95f6a`
+  - commit message: `feat: persist user learning settings`
+  - `user_learning_settings` テーブル方式で実装済み
+  - `database/migrations/2026_06_29_080000_create_user_learning_settings_table.php` を追加
+  - `app/Models/UserLearningSetting.php` を追加
+  - `User::learningSetting()` relation を追加
+  - `app/Http/Controllers/SettingsController.php` を追加
+  - `GET /settings` / `PUT /settings` を `SettingsController` で処理
+  - `resources/js/Pages/Settings.vue` を Inertia `useForm` による保存・再読込へ変更
+  - Inertia flash message 共有を追加
+  - `tests/Feature/SettingsPageTest.php` を永続化検証へ更新
+  - `users` JSONB方式は採用していない
+  - `users` テーブルへの設定JSON追加なし
+  - localStorage / sessionStorage / Cookie保存なし
+  - docs変更なし
+  - `.env` / `.env.example` 変更なし
+  - Stripe / Azure / Google OAuth / 管理画面関連の変更なし
+  - T011-03以降への踏み込みなし
+  - `php artisan migrate`: 成功
+  - `php artisan test --filter=SettingsPageTest`: 成功、9 tests / 76 assertions
+  - `npm.cmd run build`: 成功
+  - `php artisan route:list`: 成功、`GET settings` / `PUT settings` 確認
+  - full `php artisan test`: 未実行
 
 ---
 
