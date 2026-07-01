@@ -8,12 +8,12 @@ use App\Dto\PythonEvaluationResult;
 use App\Models\Evaluation;
 use App\Models\Submission;
 use App\Services\PythonEvaluationClient;
+use App\Services\TemporaryAudioFileCleaner;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
@@ -149,28 +149,7 @@ class ProcessSpeechEvaluationJob implements ShouldQueue
 
     private function deleteTemporaryAudioFile(Submission $submission): void
     {
-        if (! is_string($submission->audio_path) || $submission->audio_path === '') {
-            return;
-        }
-
-        try {
-            $deleted = Storage::disk('local')->delete($submission->audio_path);
-        } catch (Throwable $exception) {
-            Log::warning('Failed to delete temporary audio file.', [
-                'submission_id' => $submission->id,
-                'audio_path' => $submission->audio_path,
-                'exception' => $exception->getMessage(),
-            ]);
-
-            return;
-        }
-
-        if ($deleted === false) {
-            Log::warning('Temporary audio file was not deleted.', [
-                'submission_id' => $submission->id,
-                'audio_path' => $submission->audio_path,
-            ]);
-        }
+        app(TemporaryAudioFileCleaner::class)->deleteForSubmission($submission, 'process_speech_evaluation_job');
     }
 
     private function failureMessage(PythonEvaluationResult $result): string
