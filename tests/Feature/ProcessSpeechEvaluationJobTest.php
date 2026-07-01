@@ -276,6 +276,10 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $submission = $this->createSubmission(['status' => 'processing']);
         $disk = \Mockery::mock();
 
+        $disk->shouldReceive('exists')
+            ->once()
+            ->with($submission->audio_path)
+            ->andReturn(true);
         $disk->shouldReceive('delete')
             ->once()
             ->with($submission->audio_path)
