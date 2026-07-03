@@ -122,6 +122,10 @@ CleanupTempFilesJob は、音声一時ファイルの即時削除失敗時の回
 500 / 502 / 503 / タイムアウトはリトライ・障害調査対象とする。
 422 音声認識不可はリトライ前提のサーバー障害ではなく、UI 上でエラー表示後に再録音 / 再提出へ戻す対象とする。
 
+Queue Worker 停止時は `jobs` テーブルの滞留を確認し、再開時は `php artisan queue:work --once` または `php artisan queue:work --stop-when-empty` で処理再開を確認する。
+失敗ジョブは `php artisan queue:failed` と `failed_jobs` テーブルを確認する。再実行は安全に再実行できるジョブに限定し、原因不明または重複処理リスクがある場合は `queue:retry` せず、ログと対象データ状態を保全して調査する。
+`.env` / Secrets は commit しない。Redis / SQS 移行、Supervisor 本番設定、cron 本番設定、OI-003 / OI-008 / OI-021 の確定は別途判断する。
+
 ### 3.3 FastAPI 接続タイムアウト時
 
 Laravel から Python サービスへの接続タイムアウト発生時は、1回目の再試行前に `/health` を確認する。
