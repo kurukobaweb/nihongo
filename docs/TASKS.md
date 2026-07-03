@@ -3873,7 +3873,7 @@
 
 ### T012-03: Feature Flag反映確認タスク
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-03確認済み）
 - 種別: 運用
 - 目的:
   - `.env` 変更後にFeature FlagがLaravel / Queue / Vueへ反映されることを確認する
@@ -3901,6 +3901,35 @@
   - Queue経由のfeature_flags伝達
 - CodeX投入時の注意:
   - ON確認は開発環境の検証に限定する
+- 完了メモ:
+  - PR #31でFeature Flag反映確認テストを追加・補強済み
+  - implementation commit: `4ec9cd97796961493a901b3b30977034898c2e64`
+  - merge commit: `f281468689335dc175aed2a9a7da8e8d48e24e21`
+  - 変更ファイル:
+    - `tests/Feature/FeatureFlagReflectionTest.php`
+    - `tests/Feature/ProcessSpeechEvaluationJobTest.php`
+    - `tests/Feature/SubmissionResultTest.php`
+  - Laravel configへのFeature Flag OFF / ON反映確認を追加済み
+  - `SPEECH_PRONUNCIATION_ASSESSMENT_ENABLED` / `SPEECH_FLUENCY_ASSESSMENT_ENABLED` のenv反映確認を追加済み
+  - `php artisan config:clear` / `php artisan config:cache` / `php artisan config:clear` によりconfig cache再生成後の確認を実施済み
+  - Inertia shared dataの `features` boolean cast確認を追加済み
+  - Result画面でFeature Flag表示制御のDOMガードと空オブジェクト非表示ガードを補強済み
+  - `ProcessSpeechEvaluationJob` が現在configのON/OFFを `PythonEvaluationClient::evaluate()` の `featureFlags` payloadへ渡す確認を追加済み
+  - 対象テスト `php artisan test tests/Feature/FeatureFlagReflectionTest.php tests/Feature/SubmissionResultTest.php tests/Feature/ProcessSpeechEvaluationJobTest.php` は `31 passed, 219 assertions`
+  - `php artisan route:list` 成功、27 routes
+  - `npm.cmd run build` 成功
+  - `php artisan test` 全体はT012-03対象外のため未実行
+  - Feature Flagの本番ON固定はしていない
+  - `.env` / `.env.example` / 実Secretsはcommitしていない
+  - Feature Flag DB管理化、Feature Flag管理画面作成はしていない
+  - Redis / SQS移行、Supervisor本番設定、cron本番設定はしていない
+  - Python側Feature Flag管理、Azure接続実装、音声評価ロジック変更はしていない
+  - 認証・Google OAuth周辺8 failedの実体確認はしていない
+  - T013-01は開始していない
+  - T012-04以降には着手していない
+  - OI-003 / OI-008 / OI-021 は確定していない
+  - `docs/operations/` 配下の個別タスク補助ドキュメント追加はしていない
+  - PR #31関連branch `codex/t012-03-feature-flag-reflection` はremote/localとも削除済み
 
 ### T012-04: 音声提出E2E前ログ確認基盤
 
