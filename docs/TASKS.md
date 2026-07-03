@@ -3915,6 +3915,7 @@
   - Inertia shared dataの `features` boolean cast確認を追加済み
   - 保存済み `evaluation.pronunciation_result` / `evaluation.fluency_result` を使ったResult画面のFeature Flag表示制御テストとして、DOMガードと空オブジェクト非表示ガードを補強済み
   - `ProcessSpeechEvaluationJob` が現在configのON/OFFを `PythonEvaluationClient::evaluate()` の `featureFlags` payloadへ渡す確認を追加済み
+  - T012-03で確認したQueue側の内容は、`ProcessSpeechEvaluationJob` が現在configのON/OFFを `PythonEvaluationClient::evaluate()` の `featureFlags` payloadへ渡すFeature testであり、長時間起動するQueue Workerの再読込確認ではない
   - 今回確認できた範囲:
     - Feature FlagがLaravel configへ反映されること
     - config cache再生成後もFeature Flag値を確認できること
@@ -3931,6 +3932,7 @@
     - VPS / Dockerテスト環境、公開前検証環境など、ローカルFeature test以外の環境でのFeature Flag ON運用確認
     - ここでいう公開前検証環境は、実ユーザー公開前に、VPS / Docker / ドメイン / nginx / php-fpm / PostgreSQL / Queue Worker / 外部API接続などを含めて確認する環境を指す
     - ただし、現時点のT012-03ではその環境での確認は行っていない
+    - Queue Worker / アプリケーションプロセスについて、`.env` / config cache変更後に再起動 / reload等を経て新しいFeature Flag設定を参照していることの実運用確認はT012-03では未確認
   - 今回確認していない理由:
     - T012-03はFeature Flag反映確認タスクであり、Azure実評価・実音声E2E・VPS / Dockerテスト環境での運用確認を行うタスクではないため
     - PoC前にFeature Flagを本番運用前提でON固定しない方針のため
@@ -3944,6 +3946,7 @@
     - 発音・流暢さセクションの実ブラウザ表示はUI / E2E確認タスクで扱う
     - VPS / Dockerテスト環境または公開前検証環境でのFeature Flag ON運用確認は、TASKS.md上に明確な回収先タスクがある場合はそのタスクで扱う
     - TASKS.md上に明確な回収先タスクが見つからない場合は、後続で別途タスク化が必要
+    - Queue Worker / アプリケーションプロセスの新Feature Flag設定参照確認は、T012-04には含めず、T012-04完了後かつT013-02着手前に、T012-05で回収する
   - 対象テスト `php artisan test tests/Feature/FeatureFlagReflectionTest.php tests/Feature/SubmissionResultTest.php tests/Feature/ProcessSpeechEvaluationJobTest.php` は `31 passed, 219 assertions`
   - `php artisan route:list` 成功、27 routes
   - `npm.cmd run build` 成功
@@ -3994,6 +3997,50 @@
   - 外部監視基盤導入はMVPスコープ外
   - 課金なし音声提出E2E前のログ確認基盤として、音声提出経路に限定する
   - Stripe Webhook受信 / 処理ログはT014-05 / T014-06側で扱う
+
+### T012-05: Queue Worker Feature Flag再読込確認タスク
+
+- [ ] 状態: 未着手
+- 種別: 運用
+- 目的:
+  - `.env` / config cache変更後に、Queue Worker / アプリケーションプロセスが新しいFeature Flag設定を参照することを確認する
+- 位置づけ:
+  - T012-03で未確認として残った、長時間起動するQueue Worker / アプリケーションプロセスのFeature Flag再読込確認を回収する
+  - T012-04には含めず、T012-04完了後かつT013-02着手前に実施する
+  - 本タスクは、確認環境を未決定のまま実施しない
+  - 確認環境の選択は、T012-05実施指示文作成前のユーザー承認事項とする
+- 変更対象:
+  - `docs/TASKS.md`
+  - 後続実施時に必要な確認手順またはテスト
+- 依存タスク:
+  - T012-03
+  - T012-04
+- 実装内容:
+  - 詳細な確認手順は、このタスク投入時に別途1ステップ指示として具体化する
+- 実装してはいけないこと:
+  - T012-04のログ基盤確認と混在させない
+  - Azure実評価を含めない
+  - 実音声E2Eを含めない
+  - VPS本番運用を含めない
+  - Supervisor本番設定を含めない
+  - Redis / SQS移行を含めない
+  - cron本番設定を含めない
+- 完了条件:
+  - `.env` / config cache変更後、Queue Worker / アプリケーションプロセスが新しいFeature Flag設定を参照する確認方針が具体化され、実施結果が記録されている
+- テスト観点:
+  - Queue Worker再起動 / reload後のconfig参照
+  - stale config回避
+  - `feature_flags` payloadへの反映
+- CodeX投入時の注意:
+  - T012-05をCodeXへ投入する前に、ユーザーが確認環境を明示的に選択する
+  - 選択肢は以下のいずれかとする
+    - ローカル開発環境
+    - Dockerテスト環境
+    - VPSテスト環境
+  - CodeXは確認環境を推測で決めてはいけない
+  - 確認環境が未決定の場合、T012-05の実施指示文を作成してはいけない
+  - 選択された確認環境に応じて、対象プロセス、確認コマンド、完了条件、確認できない範囲をT012-05投入時の1ステップ指示文で具体化する
+  - 本タスク追加時点では、確認環境、確認コマンド、VPS接続手順、Supervisor設定、Docker構成変更を確定しない
 
 ---
 
@@ -4054,6 +4101,7 @@
   - T009-05
   - T010-03
   - T012-04
+  - T012-05
 - 実装内容:
   - 問題選択
   - 録音
