@@ -116,6 +116,46 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         Storage::disk('local')->assertMissing($submission->audio_path);
     }
 
+    public function test_feature_flags_follow_current_config_when_job_calls_python_evaluation(): void
+    {
+        Storage::fake('local');
+        config()->set('features.speech_pronunciation_assessment_enabled', true);
+        config()->set('features.speech_fluency_assessment_enabled', true);
+        config()->set('features.speech_content_assessment_enabled', false);
+        config()->set('features.comment_llm_generation_enabled', false);
+
+        $submission = $this->createSubmission();
+        Storage::disk('local')->put($submission->audio_path, 'dummy audio');
+
+        $this->mock(PythonEvaluationClient::class, function (MockInterface $mock) use ($submission) {
+            $mock->shouldReceive('evaluate')
+                ->once()
+                ->withArgs(function (
+                    string $audioFilePath,
+                    string $submissionId,
+                    int $questionId,
+                    int $expectedDuration,
+                    array $featureFlags,
+                ) use ($submission) {
+                    return is_file($audioFilePath)
+                        && $submissionId === $submission->id
+                        && $questionId === $submission->question_id
+                        && $expectedDuration === 60
+                        && $featureFlags === [
+                            'pronunciation_assessment' => true,
+                            'fluency_assessment' => true,
+                            'content_assessment' => false,
+                            'comment' => ['llm_generation' => false],
+                        ];
+                })
+                ->andReturn($this->successfulEvaluationResult($submission->id));
+        });
+
+        app()->call([new ProcessSpeechEvaluationJob($submission->id), 'handle']);
+
+        $this->assertSame('completed', $submission->refresh()->status);
+    }
+
     public function test_completed_submission_is_not_processed_twice(): void
     {
         Storage::fake('local');
