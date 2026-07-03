@@ -3946,7 +3946,7 @@
     - 発音・流暢さセクションの実ブラウザ表示はUI / E2E確認タスクで扱う
     - VPS / Dockerテスト環境または公開前検証環境でのFeature Flag ON運用確認は、TASKS.md上に明確な回収先タスクがある場合はそのタスクで扱う
     - TASKS.md上に明確な回収先タスクが見つからない場合は、後続で別途タスク化が必要
-    - Queue Worker / アプリケーションプロセスの新Feature Flag設定参照確認は、T012-04には含めず、T012-04完了後かつT013-01 / T013-02着手前に、T012-05で回収する
+    - Queue Worker / アプリケーションプロセスの新Feature Flag設定参照確認は、T012-04には含めず、T012-04完了後かつT013-02着手前に、T012-05で回収する
   - 対象テスト `php artisan test tests/Feature/FeatureFlagReflectionTest.php tests/Feature/SubmissionResultTest.php tests/Feature/ProcessSpeechEvaluationJobTest.php` は `31 passed, 219 assertions`
   - `php artisan route:list` 成功、27 routes
   - `npm.cmd run build` 成功
@@ -4006,7 +4006,7 @@
   - `.env` / config cache変更後に、Queue Worker / アプリケーションプロセスが新しいFeature Flag設定を参照することを確認する
 - 位置づけ:
   - T012-03で未確認として残った、長時間起動するQueue Worker / アプリケーションプロセスのFeature Flag再読込確認を回収する
-  - T012-04には含めず、T012-04完了後かつT013-01 / T013-02着手前に実施する
+  - T012-04には含めず、T012-04完了後かつT013-02着手前に実施する
   - 本タスクは、確認環境を未決定のまま実施しない
   - 確認環境の選択は、T012-05実施指示文作成前のユーザー承認事項とする
 - 変更対象:
@@ -4101,6 +4101,7 @@
   - T009-05
   - T010-03
   - T012-04
+  - T012-05
 - 実装内容:
   - 問題選択
   - 録音
