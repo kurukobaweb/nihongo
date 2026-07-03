@@ -3823,7 +3823,7 @@
 
 ### T012-02: Queue Worker運用確認タスク
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-03確認済み）
 - 種別: 運用
 - 目的:
   - Queue Workerの起動・停止・失敗確認手順を実装環境で確認する
@@ -3850,6 +3850,26 @@
   - 再実行
 - CodeX投入時の注意:
   - Redis移行条件はOI-003 / OI-008の検証対象
+- 完了メモ:
+  - PR #28で `docs/OPERATIONS.md` にQueue Worker停止・再開・失敗ジョブ確認の運用観点を最小追記済み
+  - merge commit: `4db702a2a60c34cee68ed9a28ab010b1c20a1327`
+  - Queue Worker起動確認: `php artisan queue:work --once --stop-when-empty` 成功
+  - Worker停止時確認: 既存 `CleanupTempFilesJob` をdispatchし、`jobs` 1件滞留を確認
+  - Worker再開時確認: `php artisan queue:work --once` で `CleanupTempFilesJob` が `DONE`、処理後 `jobs` 0件を確認
+  - `failed_jobs`確認: `php artisan queue:failed` の最終状態は `No failed jobs found.`
+  - 失敗Job再実行: `queue:retry` 手順は確認したが、検証用closure失敗Jobはtinker由来のため再実行せず調査/削除扱い
+  - `docs/operations/queue-worker-check.md` は恒久ファイルとして採用せず削除済み
+  - `docs/operations/` 配下の個別タスク補助ドキュメント追加運用は開始していない
+  - 今回変更は `docs/TASKS.md` のみ
+  - Redis / SQS移行はしていない
+  - Supervisor本番設定、cron本番設定はしていない
+  - OI-003 / OI-008 / OI-021 は確定していない
+  - `.env` / 実Secretsはcommitしていない
+  - Laravelコードは変更していない
+  - `php artisan route:list` 成功、27 routes
+  - `npm.cmd run build` 成功
+  - `php artisan test` は初回T012-02確認時に 132 passed / 8 failed
+  - 8 failed は認証・Google OAuth周辺で、今回のT012-02ドキュメント反映範囲外
 
 ### T012-03: Feature Flag反映確認タスク
 
