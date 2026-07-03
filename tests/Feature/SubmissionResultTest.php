@@ -254,10 +254,12 @@ class SubmissionResultTest extends TestCase
         $this->assertStringContainsString('useFeatureFlag', $source);
         $this->assertStringContainsString("isFeatureEnabled('speech_pronunciation_assessment_enabled')", $source);
         $this->assertStringContainsString("isFeatureEnabled('speech_fluency_assessment_enabled')", $source);
+        $this->assertStringContainsString('v-if="showPronunciation || showFluency"', $source);
         $this->assertStringContainsString('v-if="showPronunciation"', $source);
         $this->assertStringContainsString('v-if="showFluency"', $source);
         $this->assertStringContainsString('hasDisplayableValue(props.evaluation.pronunciation_result)', $source);
         $this->assertStringContainsString('hasDisplayableValue(props.evaluation.fluency_result)', $source);
+        $this->assertStringContainsString('Object.keys(value).length > 0', $source);
         $this->assertStringNotContainsString('error_type', $source);
         $this->assertStringNotContainsString('user_action', $source);
     }
