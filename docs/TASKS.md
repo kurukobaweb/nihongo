@@ -3913,8 +3913,34 @@
   - `SPEECH_PRONUNCIATION_ASSESSMENT_ENABLED` / `SPEECH_FLUENCY_ASSESSMENT_ENABLED` のenv反映確認を追加済み
   - `php artisan config:clear` / `php artisan config:cache` / `php artisan config:clear` によりconfig cache再生成後の確認を実施済み
   - Inertia shared dataの `features` boolean cast確認を追加済み
-  - Result画面でFeature Flag表示制御のDOMガードと空オブジェクト非表示ガードを補強済み
+  - 保存済み `evaluation.pronunciation_result` / `evaluation.fluency_result` を使ったResult画面のFeature Flag表示制御テストとして、DOMガードと空オブジェクト非表示ガードを補強済み
   - `ProcessSpeechEvaluationJob` が現在configのON/OFFを `PythonEvaluationClient::evaluate()` の `featureFlags` payloadへ渡す確認を追加済み
+  - 今回確認できた範囲:
+    - Feature FlagがLaravel configへ反映されること
+    - config cache再生成後もFeature Flag値を確認できること
+    - Inertia shared dataとして `features` がVue側へ渡ること
+    - Result画面について、保存済み `evaluation.pronunciation_result` / `evaluation.fluency_result` を使ったFeature Flag表示制御を確認したこと
+    - Flag OFF時、Flag ONかつデータあり時、Flag ONかつnull時の挙動を確認したこと
+    - Queue / JobからPython evaluate payloadへ `feature_flags` が渡ること
+  - 今回確認していない範囲:
+    - 実音声ファイルを使った発音評価
+    - Azure Pronunciation Assessmentの実行
+    - Azureから返る実際の発音スコア / 流暢さスコアの妥当性確認
+    - ブラウザ録音から提出、評価Job、結果表示までの実E2E確認
+    - 実ブラウザDOM上での発音セクション / 流暢さセクション表示確認
+    - 本番相当環境でのFeature Flag ON運用確認
+  - 今回確認していない理由:
+    - T012-03はFeature Flag反映確認タスクであり、Azure実評価・実音声E2E・本番相当確認を行うタスクではないため
+    - PoC前にFeature Flagを本番相当でON固定しない方針のため
+    - 実音声提出、Azure評価、実ブラウザDOM確認は後続E2Eまたは本番公開前確認で扱うため
+  - 後続で回収する範囲:
+    - 実音声提出E2E前のログ確認はT012-04で扱う
+    - 認証・Google OAuth周辺8 failed確認はT013-01開始前または開始時に扱う
+    - 認証E2EはT013-01で扱う
+    - 実音声提出から評価Job、結果表示までのE2Eは後続の音声提出E2Eタスクで扱う
+    - Azure Pronunciation Assessment実接続はAzure / Python評価連携系タスク、または音声評価E2E時に扱う
+    - 発音・流暢さセクションの実ブラウザ表示はUI / E2E確認タスクで扱う
+    - 本番相当Feature Flag ON運用はPoC後、または本番公開前チェックで扱う
   - 対象テスト `php artisan test tests/Feature/FeatureFlagReflectionTest.php tests/Feature/SubmissionResultTest.php tests/Feature/ProcessSpeechEvaluationJobTest.php` は `31 passed, 219 assertions`
   - `php artisan route:list` 成功、27 routes
   - `npm.cmd run build` 成功
