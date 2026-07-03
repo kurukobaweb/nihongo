@@ -3968,7 +3968,9 @@
 - [ ] 状態: 未着手
 - 種別: 運用
 - 目的:
-  - 課金なし音声提出E2Eに必要な、音声評価・削除失敗・422傾向を追跡できるログを整える
+  - T013-02「課金なし音声提出E2Eテスト」の前提として、E2E失敗時に原因箇所を切り分けられるようにする診断ログを整える
+  - 音声提出1件を `submission_id` で追跡し、評価Job・422非retry失敗・音声一時ファイル削除失敗を最低限診断できる状態にする
+  - ログ出力の観測点・出力項目・禁止項目を明確にしたうえで、既存の音声提出 / 評価Job / 一時音声削除処理に必要最小限のログを整える
 - 参照仕様書:
   - `OPERATIONS.md`
   - `ARCHITECTURE.md`
@@ -3979,24 +3981,109 @@
   - T008-03
   - T012-01
 - 実装内容:
-  - submission_id付き音声評価ログ
-  - 評価Jobの正常 / 失敗ログ
-  - 削除失敗ログ
-  - 422発生ログ
+  - `submission_id` は、音声提出1件を upload / evaluation job / completed / failed / cleanup の各段階で追跡するための相関IDとして扱う
+  - ログでは、音声提出1件の処理経路を後から追跡できるよう、可能な範囲で `submission_id` を含める
+  - `submission_id` は処理追跡のための識別子であり、音声内容・transcript全文・ユーザー個人情報の代替として使ってはいけない
+  - T013-02実施時に最低限追跡したい処理区間:
+    - 音声提出受付後、評価Jobが開始されたか
+    - 評価JobからPython評価処理へ進んだか
+    - Python評価処理が成功したか、失敗したか
+    - 成功時にevaluation保存とsubmission completed更新まで進んだか
+    - 失敗時にretry対象 / 非retry対象として分類できるか
+    - 422が非retry失敗として記録されているか
+    - failed確定時にsubmission failed更新まで進んだか
+    - 評価完了後またはfailed確定後に音声一時ファイル削除が試行されたか
+    - 音声一時ファイル削除失敗を追跡できるか
+  - 正常系ログでは、既存コード構造に合わせて以下の段階を識別できる粒度にする:
+    - evaluation job started
+    - evaluation request prepared
+    - evaluation succeeded
+    - evaluation saved
+    - submission marked completed
+    - temporary audio delete succeeded
+  - 失敗系ログでは、retry対象か非retry対象か、422か、削除失敗かを区別できる粒度にする:
+    - evaluation failed retryable
+    - evaluation failed non_retryable
+    - 422 non_retryable occurred
+    - submission marked failed
+    - temporary audio delete failed
+    - cleanup delete failed
+  - ここでいう422は、音声評価処理における非retry失敗として扱う422を主対象とする
+  - 422発生時は、retryable=false であること、submission_id、HTTP status code、error categoryを追跡できるようにする
+  - 422発生ログは、後続のT013-02で再録音 / 再提出導線や録音品質問題を切り分けるための材料とする
+  - 評価完了後またはfailed確定後の音声一時ファイル削除に失敗した場合、submission_idと削除失敗の事実を追跡できるようにする
+  - CleanupTempFilesJobによる削除失敗も、対象コード上で扱える場合は追跡対象に含める
+  - 記録してよい項目:
+    - submission_id
+    - evaluation_id が既に存在する場合のみ evaluation_id
+    - question_id
+    - job class
+    - event name
+    - status
+    - retryable
+    - attempt count
+    - error category
+    - exception class
+    - HTTP status code
+    - 音声一時ファイルの安全な識別子またはbasename程度
+  - 既存コード上に存在しない項目を無理に新設せず、存在する範囲でT013-02の切り分けに必要な最小情報を使う
+  - 記録してはいけない項目:
+    - 音声ファイル内容
+    - transcript全文
+    - Azureレスポンス全文
+    - Python評価サービスへのrequest body全文
+    - access token
+    - internal token
+    - Secrets
+    - user email
+    - 個人情報
+    - 音声ファイルの絶対パス
 - 実装してはいけないこと:
+  - 課金なし音声提出E2Eの実施
+  - Azure実評価
+  - 実音声ファイルを使ったE2E確認
+  - Queue Worker Feature Flag再読込確認
+  - T012-05の実施
+  - T013-01の開始
+  - T013-02の開始
   - Stripe Webhookログをこのタスクに含めない
   - Stripe Webhook受信 / 処理ログはT014-05 / T014-06側で扱う
   - 音声ファイル内容や機密情報をログに出さない
+  - 422をサーバー障害として再試行する処理変更は行わない
+  - UI文言や再録音導線そのものは実装しない
+  - 削除失敗を理由に音声ファイルを永続保存扱いにしない
+  - 削除失敗ログには、音声ファイル内容を含めない
+  - 音声ファイルの絶対パスや環境固有パスを不用意に露出しない
+  - 外部監視基盤導入
+  - Feature Flag本番ON固定
+  - Feature Flag DB管理化
+  - Feature Flag管理画面作成
+  - Redis / SQS移行
+  - Supervisor本番設定
+  - cron本番設定
+  - Python側Feature Flag管理
+  - Azure接続実装
+  - 音声評価ロジック変更
 - 完了条件:
   - 課金なし音声提出E2Eの主要経路をログで追跡できる
+  - T013-02の課金なし音声提出E2E実施時に、音声提出1件の処理経路をsubmission_idで追跡できるログが整っている
+  - 評価Jobの開始・成功・失敗・completed / failed確定をログ上で区別できる
+  - 422非retry失敗をログ上で区別できる
+  - 音声一時ファイル削除失敗をログ上で区別できる
+  - 音声内容・transcript全文・Secrets・個人情報をログに出していない
 - テスト観点:
-  - 正常系ログ
-  - 失敗系ログ
+  - 正常系ログがsubmission_id付きで出力される
+  - 失敗系ログがsubmission_id付きで出力される
+  - 422非retry失敗ログを識別できる
+  - 削除失敗ログを識別できる
+  - retryable / non_retryable の区別がログで追跡できる
   - 機密情報非出力
+  - 音声ファイル内容・transcript全文・Secrets・個人情報がログに含まれない
 - CodeX投入時の注意:
   - 外部監視基盤導入はMVPスコープ外
   - 課金なし音声提出E2E前のログ確認基盤として、音声提出経路に限定する
   - Stripe Webhook受信 / 処理ログはT014-05 / T014-06側で扱う
+  - 今回の定義補強ではテストコードを作成せず、実際のテスト追加・実装は後続のT012-04実装指示で扱う
 
 ### T012-05: Queue Worker Feature Flag再読込確認タスク
 
