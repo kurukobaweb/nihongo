@@ -3892,7 +3892,7 @@
   - Queue Worker再起動確認
   - 結果画面表示確認
 - 実装してはいけないこと:
-  - PoC前に本番相当でON固定しない
+  - PoC前にFeature Flagを本番運用前提でON固定しない
 - 完了条件:
   - Flag OFF / ONの表示差分を確認できる
 - テスト観点:
@@ -3928,19 +3928,22 @@
     - Azureから返る実際の発音スコア / 流暢さスコアの妥当性確認
     - ブラウザ録音から提出、評価Job、結果表示までの実E2E確認
     - 実ブラウザDOM上での発音セクション / 流暢さセクション表示確認
-    - 本番相当環境でのFeature Flag ON運用確認
+    - VPS / Dockerテスト環境、公開前検証環境など、ローカルFeature test以外の環境でのFeature Flag ON運用確認
+    - ここでいう公開前検証環境は、実ユーザー公開前に、VPS / Docker / ドメイン / nginx / php-fpm / PostgreSQL / Queue Worker / 外部API接続などを含めて確認する環境を指す
+    - ただし、現時点のT012-03ではその環境での確認は行っていない
   - 今回確認していない理由:
-    - T012-03はFeature Flag反映確認タスクであり、Azure実評価・実音声E2E・本番相当確認を行うタスクではないため
-    - PoC前にFeature Flagを本番相当でON固定しない方針のため
-    - 実音声提出、Azure評価、実ブラウザDOM確認は後続E2Eまたは本番公開前確認で扱うため
+    - T012-03はFeature Flag反映確認タスクであり、Azure実評価・実音声E2E・VPS / Dockerテスト環境での運用確認を行うタスクではないため
+    - PoC前にFeature Flagを本番運用前提でON固定しない方針のため
+    - 実音声提出、Azure評価、実ブラウザDOM確認、VPS / Dockerテスト環境での確認は後続タスクまたは別途タスク化で扱うため
   - 後続で回収する範囲:
     - 実音声提出E2E前のログ確認はT012-04で扱う
     - 認証・Google OAuth周辺8 failed確認はT013-01開始前または開始時に扱う
     - 認証E2EはT013-01で扱う
-    - 実音声提出から評価Job、結果表示までのE2Eは後続の音声提出E2Eタスクで扱う
+    - 実音声提出から評価Job、結果表示までの課金なしE2EはT013-02で扱う
     - Azure Pronunciation Assessment実接続はAzure / Python評価連携系タスク、または音声評価E2E時に扱う
     - 発音・流暢さセクションの実ブラウザ表示はUI / E2E確認タスクで扱う
-    - 本番相当Feature Flag ON運用はPoC後、または本番公開前チェックで扱う
+    - VPS / Dockerテスト環境または公開前検証環境でのFeature Flag ON運用確認は、TASKS.md上に明確な回収先タスクがある場合はそのタスクで扱う
+    - TASKS.md上に明確な回収先タスクが見つからない場合は、後続で別途タスク化が必要
   - 対象テスト `php artisan test tests/Feature/FeatureFlagReflectionTest.php tests/Feature/SubmissionResultTest.php tests/Feature/ProcessSpeechEvaluationJobTest.php` は `31 passed, 219 assertions`
   - `php artisan route:list` 成功、27 routes
   - `npm.cmd run build` 成功
