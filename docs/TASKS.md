@@ -3873,7 +3873,7 @@
 
 ### T012-03: Feature Flag反映確認タスク
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-03確認済み）
 - 種別: 運用
 - 目的:
   - `.env` 変更後にFeature FlagがLaravel / Queue / Vueへ反映されることを確認する
@@ -3892,7 +3892,7 @@
   - Queue Worker再起動確認
   - 結果画面表示確認
 - 実装してはいけないこと:
-  - PoC前に本番相当でON固定しない
+  - PoC前にFeature Flagを本番運用前提でON固定しない
 - 完了条件:
   - Flag OFF / ONの表示差分を確認できる
 - テスト観点:
@@ -3901,6 +3901,64 @@
   - Queue経由のfeature_flags伝達
 - CodeX投入時の注意:
   - ON確認は開発環境の検証に限定する
+- 完了メモ:
+  - PR #31でFeature Flag反映確認テストを追加・補強済み
+  - implementation commit: `4ec9cd97796961493a901b3b30977034898c2e64`
+  - merge commit: `f281468689335dc175aed2a9a7da8e8d48e24e21`
+  - 変更ファイル:
+    - `tests/Feature/FeatureFlagReflectionTest.php`
+    - `tests/Feature/ProcessSpeechEvaluationJobTest.php`
+    - `tests/Feature/SubmissionResultTest.php`
+  - Laravel configへのFeature Flag OFF / ON反映確認を追加済み
+  - `SPEECH_PRONUNCIATION_ASSESSMENT_ENABLED` / `SPEECH_FLUENCY_ASSESSMENT_ENABLED` のenv反映確認を追加済み
+  - `php artisan config:clear` / `php artisan config:cache` / `php artisan config:clear` によりconfig cache再生成後の確認を実施済み
+  - Inertia shared dataの `features` boolean cast確認を追加済み
+  - 保存済み `evaluation.pronunciation_result` / `evaluation.fluency_result` を使ったResult画面のFeature Flag表示制御テストとして、DOMガードと空オブジェクト非表示ガードを補強済み
+  - `ProcessSpeechEvaluationJob` が現在configのON/OFFを `PythonEvaluationClient::evaluate()` の `featureFlags` payloadへ渡す確認を追加済み
+  - 今回確認できた範囲:
+    - Feature FlagがLaravel configへ反映されること
+    - config cache再生成後もFeature Flag値を確認できること
+    - Inertia shared dataとして `features` がVue側へ渡ること
+    - Result画面について、保存済み `evaluation.pronunciation_result` / `evaluation.fluency_result` を使ったFeature Flag表示制御を確認したこと
+    - Flag OFF時、Flag ONかつデータあり時、Flag ONかつnull時の挙動を確認したこと
+    - Queue / JobからPython evaluate payloadへ `feature_flags` が渡ること
+  - 今回確認していない範囲:
+    - 実音声ファイルを使った発音評価
+    - Azure Pronunciation Assessmentの実行
+    - Azureから返る実際の発音スコア / 流暢さスコアの妥当性確認
+    - ブラウザ録音から提出、評価Job、結果表示までの実E2E確認
+    - 実ブラウザDOM上での発音セクション / 流暢さセクション表示確認
+    - VPS / Dockerテスト環境、公開前検証環境など、ローカルFeature test以外の環境でのFeature Flag ON運用確認
+    - ここでいう公開前検証環境は、実ユーザー公開前に、VPS / Docker / ドメイン / nginx / php-fpm / PostgreSQL / Queue Worker / 外部API接続などを含めて確認する環境を指す
+    - ただし、現時点のT012-03ではその環境での確認は行っていない
+  - 今回確認していない理由:
+    - T012-03はFeature Flag反映確認タスクであり、Azure実評価・実音声E2E・VPS / Dockerテスト環境での運用確認を行うタスクではないため
+    - PoC前にFeature Flagを本番運用前提でON固定しない方針のため
+    - 実音声提出、Azure評価、実ブラウザDOM確認、VPS / Dockerテスト環境での確認は後続タスクまたは別途タスク化で扱うため
+  - 後続で回収する範囲:
+    - 実音声提出E2E前のログ確認はT012-04で扱う
+    - 認証・Google OAuth周辺8 failed確認はT013-01開始前または開始時に扱う
+    - 認証E2EはT013-01で扱う
+    - 実音声提出から評価Job、結果表示までの課金なしE2EはT013-02で扱う
+    - Azure Pronunciation Assessment実接続はAzure / Python評価連携系タスク、または音声評価E2E時に扱う
+    - 発音・流暢さセクションの実ブラウザ表示はUI / E2E確認タスクで扱う
+    - VPS / Dockerテスト環境または公開前検証環境でのFeature Flag ON運用確認は、TASKS.md上に明確な回収先タスクがある場合はそのタスクで扱う
+    - TASKS.md上に明確な回収先タスクが見つからない場合は、後続で別途タスク化が必要
+  - 対象テスト `php artisan test tests/Feature/FeatureFlagReflectionTest.php tests/Feature/SubmissionResultTest.php tests/Feature/ProcessSpeechEvaluationJobTest.php` は `31 passed, 219 assertions`
+  - `php artisan route:list` 成功、27 routes
+  - `npm.cmd run build` 成功
+  - `php artisan test` 全体はT012-03対象外のため未実行
+  - Feature Flagの本番ON固定はしていない
+  - `.env` / `.env.example` / 実Secretsはcommitしていない
+  - Feature Flag DB管理化、Feature Flag管理画面作成はしていない
+  - Redis / SQS移行、Supervisor本番設定、cron本番設定はしていない
+  - Python側Feature Flag管理、Azure接続実装、音声評価ロジック変更はしていない
+  - 認証・Google OAuth周辺8 failedの実体確認はしていない
+  - T013-01は開始していない
+  - T012-04以降には着手していない
+  - OI-003 / OI-008 / OI-021 は確定していない
+  - `docs/operations/` 配下の個別タスク補助ドキュメント追加はしていない
+  - PR #31関連branch `codex/t012-03-feature-flag-reflection` はremote/localとも削除済み
 
 ### T012-04: 音声提出E2E前ログ確認基盤
 
