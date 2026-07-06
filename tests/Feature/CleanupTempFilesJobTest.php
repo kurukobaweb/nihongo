@@ -139,11 +139,20 @@ class CleanupTempFilesJobTest extends TestCase
 
         return $context['submission_id'] === $submission->id
             && $context['submission_status'] === $submission->status
-            && $context['audio_path'] === $submission->audio_path
+            && $context['audio_file'] === basename($submission->audio_path)
             && $context['cleanup_context'] === 'cleanup_temp_files_job'
+            && in_array($context['event'], [
+                'temporary_audio_delete_succeeded',
+                'temporary_audio_delete_missing',
+                'temporary_audio_delete_failed',
+            ], true)
+            && in_array($context['delete_result'], ['deleted', 'missing', 'failed'], true)
             && is_string($encoded)
+            && ! array_key_exists('audio_path', $context)
             && ! str_contains($encoded, 'SECRET_AUDIO_BYTES')
-            && ! str_contains($encoded, 'secret-token');
+            && ! str_contains($encoded, 'secret-token')
+            && ! str_contains($encoded, 'C:\\')
+            && ! str_contains($encoded, '/tmp/');
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Models\Submission;
 use App\Models\User;
 use App\Services\PythonEvaluationClient;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Mockery\MockInterface;
@@ -40,6 +41,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
 
     public function test_pending_submission_is_completed_and_evaluation_is_saved(): void
     {
+        Log::spy();
         Storage::fake('local');
 
         $submission = $this->createSubmission();
@@ -89,6 +91,19 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertNull($evaluation->pronunciation_result);
         $this->assertNull($evaluation->fluency_result);
         Storage::disk('local')->assertMissing($submission->audio_path);
+        $this->assertInfoLogEvent('evaluation_job_started', $submission);
+        $this->assertInfoLogEvent('evaluation_request_prepared', $submission, ['status' => 'processing']);
+        $this->assertInfoLogEvent('evaluation_succeeded', $submission, ['http_status_code' => 200]);
+        $this->assertInfoLogEvent('evaluation_saved', $submission, ['evaluation_id' => $evaluation->id]);
+        $this->assertInfoLogEvent('submission_marked_completed', $submission, [
+            'status' => 'completed',
+            'evaluation_id' => $evaluation->id,
+        ]);
+        $this->assertInfoLogEvent('temporary_audio_delete_succeeded', $submission, [
+            'status' => 'completed',
+            'delete_result' => 'deleted',
+            'audio_file' => 'recording.webm',
+        ]);
     }
 
     public function test_fallback_comment_is_saved_when_speech_rate_is_missing(): void
@@ -293,6 +308,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
 
     public function test_failed_callback_marks_submission_failed_after_retries_are_exhausted(): void
     {
+        Log::spy();
         Storage::fake('local');
 
         $submission = $this->createSubmission(['status' => 'processing']);
@@ -309,10 +325,16 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertNotNull($submission->completed_at);
         $this->assertSame(0, Evaluation::query()->count());
         Storage::disk('local')->assertMissing($submission->audio_path);
+        $this->assertWarningLogEvent('submission_marked_failed', $submission, [
+            'status' => 'failed',
+            'retryable' => true,
+            'exception_class' => RuntimeException::class,
+        ]);
     }
 
     public function test_delete_failure_does_not_break_final_failure_update(): void
     {
+        Log::spy();
         $submission = $this->createSubmission(['status' => 'processing']);
         $disk = \Mockery::mock();
 
@@ -339,6 +361,11 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertSame('python_read_timeout: Python evaluation request timed out', $submission->error_message);
         $this->assertNotNull($submission->completed_at);
         $this->assertSame(0, Evaluation::query()->count());
+        $this->assertWarningLogEvent('temporary_audio_delete_failed', $submission, [
+            'status' => 'failed',
+            'delete_result' => 'failed',
+            'audio_file' => 'recording.webm',
+        ]);
     }
 
     public function test_retry_policy_is_bounded_with_backoff_seconds(): void
@@ -372,6 +399,7 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         PythonEvaluationResult $result,
         string $expectedErrorMessage,
     ): void {
+        Log::spy();
         Storage::fake('local');
 
         $submission = $this->createSubmission();
@@ -392,12 +420,29 @@ class ProcessSpeechEvaluationJobTest extends TestCase
         $this->assertNotNull($submission->completed_at);
         $this->assertSame(0, Evaluation::query()->count());
         Storage::disk('local')->assertMissing($submission->audio_path);
+
+        $this->assertWarningLogEvent(
+            $result->httpStatus === 422 ? '422_non_retryable_occurred' : 'evaluation_failed_non_retryable',
+            $submission,
+            [
+                'retryable' => false,
+                'error_category' => $result->errorType,
+                'http_status_code' => $result->httpStatus,
+            ],
+        );
+        $this->assertWarningLogEvent('submission_marked_failed', $submission, [
+            'status' => 'failed',
+            'retryable' => false,
+            'error_category' => $result->errorType,
+            'http_status_code' => $result->httpStatus,
+        ]);
     }
 
     private function assertRetryableResultThrowsForRetry(
         PythonEvaluationResult $result,
         string $expectedErrorMessage,
     ): void {
+        Log::spy();
         Storage::fake('local');
 
         $submission = $this->createSubmission();
@@ -422,7 +467,80 @@ class ProcessSpeechEvaluationJobTest extends TestCase
             $this->assertNull($submission->completed_at);
             $this->assertSame(0, Evaluation::query()->count());
             Storage::disk('local')->assertExists($submission->audio_path);
+            $this->assertWarningLogEvent('evaluation_failed_retryable', $submission, [
+                'retryable' => true,
+                'error_category' => $result->errorType,
+                'http_status_code' => $result->httpStatus,
+            ]);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $expected
+     */
+    private function assertInfoLogEvent(string $event, Submission $submission, array $expected = []): void
+    {
+        Log::shouldHaveReceived('info')
+            ->with(\Mockery::type('string'), \Mockery::on(
+                fn (array $context): bool => $this->logContextMatches($context, $event, $submission, $expected),
+            ))
+            ->atLeast()
+            ->once();
+    }
+
+    /**
+     * @param  array<string, mixed>  $expected
+     */
+    private function assertWarningLogEvent(string $event, Submission $submission, array $expected = []): void
+    {
+        Log::shouldHaveReceived('warning')
+            ->with(\Mockery::type('string'), \Mockery::on(
+                fn (array $context): bool => $this->logContextMatches($context, $event, $submission, $expected),
+            ))
+            ->atLeast()
+            ->once();
+    }
+
+    /**
+     * @param  array<string, mixed>  $expected
+     */
+    private function logContextMatches(
+        array $context,
+        string $event,
+        Submission $submission,
+        array $expected = [],
+    ): bool {
+        if (($context['event'] ?? null) !== $event
+            || ($context['submission_id'] ?? null) !== $submission->id
+            || ! $this->logContextIsSafe($context)) {
+            return false;
+        }
+
+        foreach ($expected as $key => $value) {
+            if (($context[$key] ?? null) !== $value) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function logContextIsSafe(array $context): bool
+    {
+        $encoded = json_encode($context);
+
+        return is_string($encoded)
+            && ! array_key_exists('audio_path', $context)
+            && ! array_key_exists('audioFilePath', $context)
+            && ! array_key_exists('transcript', $context)
+            && ! array_key_exists('rawAzureResponse', $context)
+            && ! array_key_exists('raw_azure_response', $context)
+            && ! array_key_exists('user_email', $context)
+            && ! str_contains($encoded, 'dummy audio')
+            && ! str_contains($encoded, 'recognition_mode')
+            && ! str_contains($encoded, 'secret-token')
+            && ! str_contains($encoded, 'C:\\')
+            && ! str_contains($encoded, '/tmp/');
     }
 
     private function successfulEvaluationResult(string $submissionId, array|null $speechRate = null): PythonEvaluationResult
