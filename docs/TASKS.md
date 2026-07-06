@@ -4084,6 +4084,12 @@
   - 課金なし音声提出E2E前のログ確認基盤として、音声提出経路に限定する
   - Stripe Webhook受信 / 処理ログはT014-05 / T014-06側で扱う
   - 今回の定義補強ではテストコードを作成せず、実際のテスト追加・実装は後続のT012-04実装指示で扱う
+  - T012-04はログ確認基盤の実装・テストであり、音声判定機能全体の完成確認ではない
+  - T012-04で確認するのは、Feature test等でのログevent / context / 機密情報非出力である
+  - T012-04では、実Queue Worker経由のログ出力、実音声アップロード経由のログ出力、Azure AI Speech実接続、Azure実評価、VPSテスト環境接続、本番公開前のVPSサーバー接続確認は行わない
+  - T012-04のPR本文または最終報告では、確認済み範囲と未確認範囲を明記する
+  - T012-04で確認済みとできるのは、ログ基盤の単体 / Feature test上の確認であり、Azure Speech実評価やVPS接続確認ではない
+  - T012-04完了後も、T012-05およびT013-02の依存関係は残る
 
 ### T012-05: Queue Worker Feature Flag再読込確認タスク
 
@@ -4094,6 +4100,9 @@
 - 位置づけ:
   - T012-03で未確認として残った、長時間起動するQueue Worker / アプリケーションプロセスのFeature Flag再読込確認を回収する
   - T012-04には含めず、T012-04完了後かつT013-02着手前に実施する
+  - T012-04からの引き継ぎとして、Queue Worker / アプリケーションプロセスのFeature Flag再読込、stale config回避、`feature_flags` payloadへの反映確認を扱う
+  - T012-05で確認するのは、Feature Flag設定変更がQueue Worker / アプリケーションプロセスへ反映されることである
+  - T013-02へ進む前にT012-05完了が必要
   - 本タスクは、確認環境を未決定のまま実施しない
   - 確認環境の選択は、T012-05実施指示文作成前のユーザー承認事項とする
 - 変更対象:
@@ -4106,6 +4115,7 @@
   - 詳細な確認手順は、このタスク投入時に別途1ステップ指示として具体化する
 - 実装してはいけないこと:
   - T012-04のログ基盤確認と混在させない
+  - Azure AI Speech実接続を含めない
   - Azure実評価を含めない
   - 実音声E2Eを含めない
   - VPS本番運用を含めない
@@ -4128,6 +4138,7 @@
   - 確認環境が未決定の場合、T012-05の実施指示文を作成してはいけない
   - 選択された確認環境に応じて、対象プロセス、確認コマンド、完了条件、確認できない範囲をT012-05投入時の1ステップ指示文で具体化する
   - 本タスク追加時点では、確認環境、確認コマンド、VPS接続手順、Supervisor設定、Docker構成変更を確定しない
+  - T012-05はAzure AI Speech実接続、Azure実評価、実音声E2E、VPS本番運用確認を扱わない
 
 ---
 
@@ -4174,6 +4185,7 @@
 - 種別: テスト
 - 目的:
   - T014のStripeタスク前に、最初の大マイルストーンである課金なし音声提出E2Eを確認する
+  - T012-04で追加したログを使って、音声提出1件を `submission_id` で追跡する
 - 参照仕様書:
   - `ARCHITECTURE.md`
   - `DESIGN.md`
@@ -4199,21 +4211,68 @@
   - completed
   - 結果表示
   - 音声削除
+  - T012-04ログによる処理段階の切り分け
 - 実装してはいけないこと:
   - Stripe前提にしない
   - Pronunciation / Fluency ON前提にしない
+  - 確認環境、Azure AI Speech実接続有無、実音声、Azure資格情報、ログ確認方法を未定義のまま投入しない
 - 完了条件:
   - 課金なしで音声提出から結果表示まで通る
+  - T012-04ログで、音声提出1件の処理経路を `submission_id` で追跡できる
 - テスト観点:
   - 正常音声
   - 音声削除
   - Feature Flag OFF表示
   - Queue Worker停止時
+  - 正常系の期待ログ順:
+    1. evaluation_job_started
+    2. evaluation_request_prepared
+    3. evaluation_succeeded
+    4. evaluation_saved
+    5. submission_marked_completed
+    6. temporary_audio_delete_*
+  - 失敗系の期待ログ順:
+    1. evaluation_job_started
+    2. evaluation_request_prepared
+    3. evaluation_failed_* または 422_non_retryable_occurred
+    4. submission_marked_failed
+    5. temporary_audio_delete_*
+  - 失敗系では `evaluation_saved` を必須にしない
+  - 422発生時は `422_non_retryable_occurred` を確認する
+  - 削除失敗時は `temporary_audio_delete_failed` と `delete_result=failed` を確認する
+  - ログが出ない場合は、どの段階で止まったかを切り分ける
 - CodeX投入時の注意:
   - MVP最初の大マイルストーンとして最優先で通す
   - T014のStripeタスク前に実施する課金なし音声提出E2Eとして扱う
   - 依存するT012-04は、Stripeを含まない音声提出E2E前ログ確認基盤を指す
   - T013-02は「課金なしで音声提出E2Eが動くこと」の判定であり、Stripe、退会、管理画面、運用確認を含むMVP全体完了判定とは分ける
+  - T013-02投入前に、確認環境を明示する
+  - 確認環境の候補は、ローカル開発環境、Dockerテスト環境、VPSテスト環境とする
+  - 本番公開前の課金なし音声提出E2E確認は、実際のVPSテスト環境接続で行う
+  - T013-02でいうPython STTがAzure AI Speech実接続を含むか、T013-02投入前に明示する
+  - Azure AI Speech実接続を含める場合は、実音声、Azure資格情報、確認環境、ログ確認方法、失敗時切り分け方法を指示文で具体化する
+  - Azure AI Speech実接続を含めない場合は、Azure実評価を確認する別タスクを追加する
+  - Pronunciation / Fluency ON前提ではない場合、発音・流暢さ実評価は未確認として残す
+  - Azure Speech実評価とは、実際の音声ファイルを使い、Python FastAPIがAzure AI Speechに実接続し、Azure資格情報が実値で設定され、Azure由来のtranscript / duration / speech_rate / azure_request_id等が返り、Laravel側でevaluationが保存され、submissionがcompletedになり、結果画面で表示でき、失敗時はT012-04ログでどの段階で止まったか追跡できることを指す
+  - モック / Feature testで確認できること:
+    - Laravel側の処理制御
+    - status更新
+    - evaluation保存
+    - retryable / non_retryable分岐
+    - 422 failed扱い
+    - 音声一時ファイル削除
+    - ログevent / context
+    - 機密情報非出力
+  - モック / Feature testで確認できないこと:
+    - Azure AI Speechへ実際に接続できるか
+    - japaneast / S0 / key / endpoint / network が正しいか
+    - WebM/Opus → WAV変換後の音声がAzureで認識されるか
+    - 日本語音声が期待どおりSTTされるか
+    - 無音・ノイズ・短すぎる音声が422になるか
+    - Azure応答遅延・timeout・502/503相当の挙動
+    - 実際の azure_request_id が得られるか
+    - Azureの実レスポンスをもとにした評価保存が妥当か
+    - 発音・流暢さ評価をONにした場合の結果妥当性
 
 ### T013-03: 422認識不可E2Eテスト
 
