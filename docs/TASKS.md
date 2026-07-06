@@ -4224,13 +4224,20 @@
   - 音声削除
   - Feature Flag OFF表示
   - Queue Worker停止時
-  - 期待ログ順:
+  - 正常系の期待ログ順:
     1. evaluation_job_started
     2. evaluation_request_prepared
-    3. evaluation_succeeded または evaluation_failed_*
+    3. evaluation_succeeded
     4. evaluation_saved
-    5. submission_marked_completed または submission_marked_failed
+    5. submission_marked_completed
     6. temporary_audio_delete_*
+  - 失敗系の期待ログ順:
+    1. evaluation_job_started
+    2. evaluation_request_prepared
+    3. evaluation_failed_* または 422_non_retryable_occurred
+    4. submission_marked_failed
+    5. temporary_audio_delete_*
+  - 失敗系では `evaluation_saved` を必須にしない
   - 422発生時は `422_non_retryable_occurred` を確認する
   - 削除失敗時は `temporary_audio_delete_failed` と `delete_result=failed` を確認する
   - ログが出ない場合は、どの段階で止まったかを切り分ける
