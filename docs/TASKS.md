@@ -4143,7 +4143,7 @@
 
 ### T012-05: Queue Worker Feature Flag再読込確認タスク
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-09 確認済み）
 - 種別: 運用
 - 目的:
   - `.env` / config cache変更後に、Queue Worker / アプリケーションプロセスが新しいFeature Flag設定を参照することを確認する
@@ -4189,6 +4189,59 @@
   - 選択された確認環境に応じて、対象プロセス、確認コマンド、完了条件、確認できない範囲をT012-05投入時の1ステップ指示文で具体化する
   - 本タスク追加時点では、確認環境、確認コマンド、VPS接続手順、Supervisor設定、Docker構成変更を確定しない
   - T012-05はAzure AI Speech実接続、Azure実評価、実音声E2E、VPS本番運用確認を扱わない
+- 完了メモ:
+  - 実装PR: #38
+  - 実装commit: `8030d64fa108f47726f44ab3a1c10d83d296bab5`
+  - merge commit: `c6b7dd443eedafc3379143179a7c30f8a08bd078`
+  - commit message: `test: verify worker feature flag reload`
+  - 変更ファイル:
+    - `tests/Feature/FeatureFlagReflectionTest.php`
+  - 確認環境:
+    - ローカル開発環境
+  - 実装結果:
+    - 起動中プロセスはboot時のFeature Flag configを保持することをFeature test上で確認
+    - アプリケーション再boot相当後に、変更後のFeature Flag値を参照することをFeature test上で確認
+    - `config:clear` / `config:cache` 後に、現在のFeature Flag環境値がcached configへ反映されることを確認
+    - 既存Jobテストにより、Feature Flag OFF / ON時の `feature_flags` payload反映を確認
+    - stale configが残る前提になっていないことを、ローカルFeature test上で確認
+  - 確認済み範囲:
+    - ローカル開発環境でのFeature test確認
+    - Laravelアプリケーション再boot相当の確認
+    - 起動中プロセスのboot時config保持
+    - 再boot後のFeature Flag再読込
+    - config cache再生成後のFeature Flag反映
+    - `ProcessSpeechEvaluationJob` から `PythonEvaluationClient::evaluate()` へ渡る `feature_flags` payloadの既存テスト確認
+  - 未確認範囲:
+    - 実Queue Worker常駐プロセスのreload / restart確認は未実施
+    - Dockerテスト環境での確認は未実施
+    - VPSテスト環境での確認は未実施
+    - VPS本番運用確認は未実施
+    - Azure AI Speech実接続は未確認
+    - Azure実評価は未確認
+    - 実音声アップロードは未実施
+    - 実音声E2Eは未実施
+    - T013-01は未実施
+    - T013-02は未実施
+  - 未確認範囲の回収タイミング:
+    - Azure AI Speech実接続は、T013-02投入前にT013-02へ含める / 含めないを判断する
+    - Azure実評価は、T013-02に含める場合はT013-02で確認し、含めない場合は別タスクを追加する
+    - 実音声E2Eは、T013-02「課金なし音声提出E2Eテスト」で確認する
+    - 実音声アップロード経由ログは、T013-02でT012-04ログを使って `submission_id` 単位で確認する
+    - VPSテスト環境接続は、本番公開前の課金なし音声提出E2E確認として扱う
+    - VPS本番運用確認は、MVP全体完了判定または運用確認タスク側で扱う
+  - 確認結果:
+    - `php artisan config:clear`: success
+    - `php artisan config:cache`: success
+    - final `php artisan config:clear`: success
+    - `php artisan test tests/Feature/FeatureFlagReflectionTest.php tests/Feature/ProcessSpeechEvaluationJobTest.php`: 21 passed / 130 assertions
+    - `php artisan route:list`: success / 27 routes
+    - `npm run build`: 未実行、UI変更なしのため
+  - 申し送り:
+    - T012-05は、ローカル開発環境でのFeature test / アプリ再boot相当確認として完了
+    - 実Queue Worker常駐プロセスの運用確認ではない
+    - Azure AI Speech実接続、Azure実評価、実音声E2E、VPS / Docker確認は未確認として残る
+    - T013-02へ進む前に、確認環境、Azure AI Speech実接続有無、実音声、Azure資格情報、ログ確認方法、失敗時切り分け方法を明示する
+    - T013-02でAzure AI Speech実接続を含めない場合は、Azure実評価確認タスクを別途追加する
 
 ---
 
