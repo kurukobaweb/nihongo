@@ -2,16 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\Consent;
+use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\URL;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -289,10 +289,9 @@ class AuthenticationTest extends TestCase
 
     public function test_verified_user_can_view_dashboard(): void
     {
-        $user = User::query()->create([
+        $user = $this->createVerifiedUser([
             'name' => 'Test User',
             'email' => 'test@example.com',
-            'email_verified_at' => now(),
             'password' => Hash::make('password'),
         ]);
 
@@ -316,10 +315,9 @@ class AuthenticationTest extends TestCase
 
     public function test_verified_user_is_redirected_from_verification_notice(): void
     {
-        $user = User::query()->create([
+        $user = $this->createVerifiedUser([
             'name' => 'Test User',
             'email' => 'test@example.com',
-            'email_verified_at' => now(),
             'password' => Hash::make('password'),
         ]);
 
@@ -349,10 +347,9 @@ class AuthenticationTest extends TestCase
     {
         Notification::fake();
 
-        $user = User::query()->create([
+        $user = $this->createVerifiedUser([
             'name' => 'Test User',
             'email' => 'test@example.com',
-            'email_verified_at' => now(),
             'password' => Hash::make('password'),
         ]);
 
@@ -462,10 +459,9 @@ class AuthenticationTest extends TestCase
 
     public function test_authenticated_user_is_redirected_from_auth_pages(): void
     {
-        $user = User::query()->create([
+        $user = $this->createVerifiedUser([
             'name' => 'Test User',
             'email' => 'test@example.com',
-            'email_verified_at' => now(),
             'password' => Hash::make('password'),
         ]);
 
@@ -501,10 +497,9 @@ class AuthenticationTest extends TestCase
 
     public function test_existing_google_user_can_login_with_google_oauth(): void
     {
-        $user = User::query()->create([
+        $user = $this->createVerifiedUser([
             'name' => 'Google User',
             'email' => 'google@example.com',
-            'email_verified_at' => now(),
             'password' => null,
             'google_id' => 'google-123',
         ]);
@@ -640,9 +635,17 @@ class AuthenticationTest extends TestCase
             ->andReturn($provider);
     }
 
+    private function createVerifiedUser(array $attributes): User
+    {
+        $user = User::query()->create($attributes);
+        $user->forceFill(['email_verified_at' => now()])->save();
+
+        return $user;
+    }
+
     private function googleUser(array $attributes): SocialiteUser
     {
-        return (new SocialiteUser())->setRaw([
+        return (new SocialiteUser)->setRaw([
             'sub' => $attributes['id'],
             'name' => $attributes['name'],
             'email' => $attributes['email'],

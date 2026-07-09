@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Consent;
 use App\Models\User;
-use Illuminate\Support\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
@@ -53,19 +53,21 @@ class GoogleOAuthController extends Controller
             return redirect()
                 ->route('login')
                 ->withErrors([
-                    'email' => '既存メールアドレスの扱いは未確定のため、メール/パスワードでログインしてください。',
+                    'email' => 'このメールアドレスは登録済みです。メール/パスワードでログインしてください。',
                 ]);
         }
 
         $user = DB::transaction(function () use ($request, $googleUser, $googleId, $email): User {
-            $user = User::query()->create([
+            $user = new User([
                 'name' => $googleUser->getName() ?: $email,
                 'email' => $email,
-                'email_verified_at' => $this->emailVerifiedAt($googleUser),
                 'password' => null,
                 'google_id' => $googleId,
                 'avatar_url' => $googleUser->getAvatar(),
             ]);
+            $user->forceFill([
+                'email_verified_at' => $this->emailVerifiedAt($googleUser),
+            ])->save();
 
             Consent::query()->create([
                 'user_id' => $user->id,
