@@ -4143,7 +4143,7 @@
 
 ### T012-05: Queue Worker Feature Flag再読込確認タスク
 
-- [ ] 状態: 未完了（一部確認済み / 2026-07-09）
+- [x] 状態: 完了（2026-07-09）
 - 種別: 運用
 - 目的:
   - `.env` / config cache変更後に、Queue Worker / アプリケーションプロセスが新しいFeature Flag設定を参照することを確認する
@@ -4174,7 +4174,7 @@
   - cron本番設定を含めない
 - 完了条件:
   - `.env` / config cache変更後、Queue Worker / アプリケーションプロセスが新しいFeature Flag設定を参照する確認方針が具体化され、実施結果が記録されている
-  - 現時点では、PR #38によりローカルFeature test上の一部確認は済んでいるが、実Queue Worker / 長時間起動プロセス確認は未完了である
+  - PR #38でローカルFeature test上の一部確認を行い、PR #40で実Queue Worker / 長時間起動プロセス確認を完了した
 - テスト観点:
   - Queue Worker再起動 / reload後のconfig参照
   - stale config回避
@@ -4212,7 +4212,7 @@
     - 再boot後のFeature Flag再読込
     - config cache再生成後のFeature Flag反映
     - `ProcessSpeechEvaluationJob` から `PythonEvaluationClient::evaluate()` へ渡る `feature_flags` payloadの既存テスト確認
-  - 未確認範囲:
+  - PR #38時点の未確認範囲:
     - 実Queue Worker常駐プロセスのreload / restart確認は未実施
     - Dockerテスト環境での確認は未実施
     - VPSテスト環境での確認は未実施
@@ -4223,7 +4223,7 @@
     - 実音声E2Eは未実施
     - T013-01は未実施
     - T013-02は未実施
-  - T012-05でまだ回収できていない中核未確認:
+  - PR #38時点で回収できていなかった中核未確認:
     - T012-03で未確認として残った、長時間起動するQueue Worker / アプリケーションプロセスのFeature Flag再読込確認
     - 実Queue Worker常駐プロセスを起動した状態でのconfig参照確認
     - `.env` / config cache変更後、Worker restart / reloadを経て新しいFeature Flag値を参照すること
@@ -4235,12 +4235,12 @@
     - T012-04はログ確認基盤のFeature test確認であり、Queue Worker Feature Flag再読込確認は実施していない
     - T012-05は、T012-03で残った未確認をT013-02着手前に回収するためのタスクである
   - T013-02への影響:
-    - T012-05は現時点では未完了
-    - そのため、T013-02の依存条件はまだ満たしていない
-    - T013-02へ進む前に、実Queue Worker / 長時間起動プロセスのFeature Flag再読込確認を追加で実施する
-    - T013-02開始前に、確認環境、対象プロセス、Worker restart / reload手順、確認コマンド、確認ログ、完了条件を明示する
+    - T012-05はPR #40により完了
+    - T013-02のT012-05依存は満たされた
+    - ただし、T013-02はこの時点では開始済みにしない
+    - T013-02投入前に、確認環境、Azure AI Speech実接続有無、実音声、Azure資格情報、ログ確認方法、失敗時切り分け方法を明示する
   - 未確認範囲の回収タイミング:
-    - 実Queue Worker / 長時間起動プロセスのFeature Flag再読込確認は、T012-05の残作業として、T013-02着手前に回収する
+    - 実Queue Worker / 長時間起動プロセスのFeature Flag再読込確認は、PR #40で回収済み
     - Azure AI Speech実接続は、T013-02投入前にT013-02へ含める / 含めないを判断する
     - Azure実評価は、T013-02に含める場合はT013-02で確認し、含めない場合は別タスクを追加する
     - 実音声E2Eは、T013-02「課金なし音声提出E2Eテスト」で確認する
@@ -4256,12 +4256,46 @@
     - `npm run build`: 未実行、UI変更なしのため
   - 申し送り:
     - PR #38は、ローカル開発環境でのFeature test / アプリ再boot相当 / config cache再生成確認として有効
-    - ただし、T012-05の完了条件である実Queue Worker / 長時間起動プロセスのrestart / reload確認は未完了
-    - そのため、T012-05は現時点では完了扱いにしない
-    - 実Queue Worker常駐プロセスの運用確認ではない
+    - PR #38時点では、T012-05の完了条件である実Queue Worker / 長時間起動プロセスのrestart / reload確認は未完了だった
+    - PR #40で実Queue Worker / 長時間起動プロセス確認を回収し、T012-05を完了扱いとした
     - Azure AI Speech実接続、Azure実評価、実音声E2E、VPS / Docker確認は未確認として残る
     - T013-02へ進む前に、確認環境、Azure AI Speech実接続有無、実音声、Azure資格情報、ログ確認方法、失敗時切り分け方法を明示する
     - T013-02でAzure AI Speech実接続を含めない場合は、Azure実評価確認タスクを別途追加する
+- 残作業回収・完了メモ:
+  - 完了PR: #40
+  - merge commit: `239df462d65298ea9da268e736850194c2805a43`
+  - commit: `3a9b37057dce0899c933db9bf37f2fda5d07bf53`
+  - commit message: `test: verify worker process feature flag reload`
+  - 確認環境: ローカル開発環境
+  - 実Queue Worker: `php artisan queue:work database`
+  - queue driver: database（一時SQLite）
+  - 変更ファイル:
+    - `tests/Feature/QueueWorkerFeatureFlagReloadTest.php`
+    - `tests/Fixtures/Jobs/RecordFeatureFlagsJob.php`
+    - `tests/Support/dispatch_worker_flag_probe.php`
+  - PR #38との関係:
+    - PR #38は、ローカルFeature test / Laravelアプリケーション再boot相当 / config cache再生成確認として有効
+    - PR #38では、実Queue Worker常駐プロセスのrestart / reload確認は未完了だった
+    - PR #40で、PR #38に残った実Queue Worker / 長時間起動プロセス確認を回収
+    - PR #40によりT012-05の中核未確認は回収済み
+  - 確認済み:
+    - 実Queue Workerプロセスを別プロセスとして起動して確認
+    - Worker boot時のFeature Flag OFF保持を確認
+    - config cache再生成後も、既存Workerがboot時configを保持することを確認
+    - Worker restart / reload相当後に、新しいFeature Flag ON値を参照することを確認
+    - database queue経由でJobを実行し、`feature_flags` payload形状で記録されることを確認
+    - stale configをWorker再起動後に掴み続けていないことを確認
+  - T012-05完了後も未確認:
+    - Azure AI Speech実接続
+    - Azure実評価
+    - 実音声アップロード
+    - 実音声E2E
+    - Dockerテスト環境
+    - VPSテスト環境
+    - VPS本番運用確認
+    - T013-01
+    - T013-02
+  - これらはT012-05の対象外であり、T012-05完了を妨げない
 
 ---
 
