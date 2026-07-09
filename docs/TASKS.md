@@ -3965,7 +3965,7 @@
 
 ### T012-04: 音声提出E2E前ログ確認基盤
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-09 確認済み）
 - 種別: 運用
 - 目的:
   - T013-02「課金なし音声提出E2Eテスト」の前提として、E2E失敗時に原因箇所を切り分けられるようにする診断ログを整える
@@ -4090,6 +4090,56 @@
   - T012-04のPR本文または最終報告では、確認済み範囲と未確認範囲を明記する
   - T012-04で確認済みとできるのは、ログ基盤の単体 / Feature test上の確認であり、Azure Speech実評価やVPS接続確認ではない
   - T012-04完了後も、T012-05およびT013-02の依存関係は残る
+- 完了メモ:
+  - 実装PR: #36
+  - 実装commit: `f8b94ba1fa1dba632226fb471d22457ab0a42420`
+  - merge commit: `c67d06ef616329c67df8ee7a1ed0c09b63258edc`
+  - commit message: `test: add audio evaluation diagnostic logging`
+  - 変更ファイル:
+    - `app/Jobs/ProcessSpeechEvaluationJob.php`
+    - `app/Services/TemporaryAudioFileCleaner.php`
+    - `tests/Feature/ProcessSpeechEvaluationJobTest.php`
+    - `tests/Feature/CleanupTempFilesJobTest.php`
+  - 実装結果:
+    - `ProcessSpeechEvaluationJob` に診断ログを追加
+    - `evaluation_job_started` / `evaluation_request_prepared` / `evaluation_succeeded` / `evaluation_saved` / `submission_marked_completed` を識別できるようにした
+    - retryable失敗 / non-retryable失敗 / 422 non-retryable / `submission_marked_failed` を識別できるようにした
+    - `TemporaryAudioFileCleaner` に削除成功 / missing / failed / skipped の安全なログを追加
+    - 音声ファイルの絶対パスではなく、basename相当の `audio_file` のみをログに出すようにした
+    - ログcontextに `submission_id` / `question_id` / `job_class` / `status` / `attempt_count` / `evaluation_id` / `retryable` / `error_category` / `http_status_code` / `delete_result` / `audio_file` 等を含めるようにした
+  - 確認済み範囲:
+    - Feature test上で、正常系ログevent / contextを確認済み
+    - Feature test上で、失敗系ログevent / contextを確認済み
+    - Feature test上で、422 non-retryableログを確認済み
+    - Feature test上で、retryable / non-retryable の区別を確認済み
+    - Feature test上で、音声一時ファイル削除成功 / missing / failed のログを確認済み
+    - Feature test上で、`submission_id` による追跡に必要なログcontextを確認済み
+    - Feature test上で、音声内容・transcript全文・raw Azure response・Secrets・user email・絶対パスがログcontextに含まれないことを確認済み
+  - 未確認範囲:
+    - 実Queue Worker経由のログ出力は未確認
+    - 実音声アップロード経由のログ出力は未確認
+    - Azure AI Speech実接続は未確認
+    - Azure実評価は未確認
+    - 実音声E2Eは未実施
+    - VPSテスト環境接続は未実施
+    - 本番公開前VPSサーバー接続確認は未実施
+    - Queue Worker Feature Flag再読込確認は未実施
+    - T012-05は未実施
+    - T013-02は未実施
+  - 確認結果:
+    - `php artisan test tests/Feature/ProcessSpeechEvaluationJobTest.php`: 16 passed
+    - `php artisan test tests/Feature/CleanupTempFilesJobTest.php`: 3 passed
+    - `npm run build`: 未実行、UI変更なしのため
+    - `php artisan route:list`: 未実行、route変更なしのため
+    - full `php artisan test`: 136 passed / 8 failed
+    - 8 failed は `AuthenticationTest` / Google OAuth 周辺であり、T012-04実装範囲外として扱う
+  - 申し送り:
+    - T012-04はログ確認基盤のFeature test上の確認として完了
+    - 音声判定機能全体の完成確認ではない
+    - Azure Speech実評価の確認ではない
+    - VPS / Dockerテスト環境での確認ではない
+    - T012-04完了後も、T012-05およびT013-02の依存関係は残る
+    - 次工程はT012-05の確認環境選択と実施方針確認であり、T013-02へ直接進まない
 
 ### T012-05: Queue Worker Feature Flag再読込確認タスク
 
