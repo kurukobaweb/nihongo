@@ -4348,7 +4348,7 @@
 
 ### T013-02: 課金なし音声提出E2Eテスト
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-10）
 - 種別: テスト
 - 目的:
   - T014のStripeタスク前に、最初の大マイルストーンである課金なし音声提出E2Eを確認する
@@ -4453,6 +4453,28 @@
   - Windows環境でAzure Speech SDKが一時WAVファイルを保持したままになるため、STT後にSDKオブジェクト参照を解放してから一時ディレクトリを削除する最小修正を実施
   - T013-02本体、音声提出E2E、Queue Worker本格確認、結果表示確認、音声削除E2Eには未着手
   - Pronunciation / Fluency はON前提にしていない
+- 完了記録（2026-07-10）:
+  - 確認環境: ローカル開発環境
+  - Azure実接続: あり
+  - 使用Azure: 接続確認用 Free SpeechServices リソース（本番用Azureリソースは未使用）
+  - API種類: SpeechServices、価格レベル: Free、region: `japaneast`、endpoint: `https://japaneast.api.cognitive.microsoft.com/`
+  - `AZURE_SPEECH_KEY` 実値、Subscription ID、Authorization header、raw Azure response全文は記録していない
+  - 使用音声: `storage/app/local/test-audio/azure-stt-ja-sample.wav` のローカル短文日本語音声を使用し、repositoryには追加していない
+  - `tests/Feature/AudioSubmissionE2ETest.php` を追加し、`RUN_AZURE_AUDIO_E2E=1` の手動E2Eとして実行
+  - 実行コマンド: `php artisan test tests/Feature/AudioSubmissionE2ETest.php`（1 passed / 39 assertions）
+  - `POST /api/submissions` で 202 Accepted を確認
+  - database Queue Worker（`queue:work --once`）経由で `ProcessSpeechEvaluationJob` が処理されることを確認
+  - Python FastAPI `/evaluate` 経由で Azure STT 実接続が成功することを確認
+  - transcript、duration、speech_rate が返り、`evaluations` に保存されることを確認
+  - `submissions.status = completed`、`completed_at`、`GET /api/submissions/{submission}/status`、`GET /submissions/{submission}/result` を確認
+  - 一時音声が処理完了後に削除され、`temporary_audio_delete_succeeded` が出ることを確認
+  - T012-04ログevent `evaluation_job_started` → `evaluation_request_prepared` → `evaluation_succeeded` → `evaluation_saved` → `submission_marked_completed` → `temporary_audio_delete_succeeded` が同一 `submission_id` で追跡できることを確認
+  - transcript: `これは、日本語の音声認識テストです。 この音声は様々なテストに活用されます。 よろしくお願いいたします。`
+  - `azure_session_id` はFastAPI smokeで取得確認済み。現行DB schemaでは `azure_session_id` 永続化カラムがないため evaluation には保存していない
+  - `azure_request_id` は未取得
+  - Stripe / Cashier / subscription / webhook / 課金導線には触れていない
+  - Pronunciation / Fluency はON前提にしていない
+  - T013-03には未着手
 
 ### T013-03: 422認識不可E2Eテスト
 
