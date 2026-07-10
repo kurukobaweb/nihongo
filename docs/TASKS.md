@@ -4570,14 +4570,78 @@
 - CodeX投入時の注意:
   - `storage/app/audio/` の残存確認を含める
 
+### T013-06-pre: VPSテスト環境・GitHub接続確認
+
+- [ ] 状態: 未着手
+- 種別: 確認
+- 目的:
+  - T013-06の3秒ポーリング簡易負荷確認を、意味のあるVPSテスト環境で実施できる前提を確認する
+  - VPSテスト環境上で、どのGitHub branch / commit SHA のコードが動作しているかを明確にする
+  - ローカル環境でのスクリプト動作確認と、VPSテスト環境での負荷判断を混同しない
+- 参照仕様書:
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+- 関連OI:
+  - OI-003
+  - OI-008
+- 変更対象:
+  - 確認手順
+  - 必要に応じて運用メモ
+- 依存タスク:
+  - T013-02
+- 実装内容:
+  - VPSテスト環境へSSH接続できることを確認する
+  - VPS上に `kurukobaweb/nihongo` がclone済み、またはpull可能であることを確認する
+  - `git remote -v` が `https://github.com/kurukobaweb/nihongo.git` または同等の正しいremoteを指すことを確認する
+  - VPS上の作業ディレクトリ、branch、commit SHAを確認する
+  - VPSテスト環境へ反映する対象branchまたはcommit SHAを明示する
+  - Docker / nginx / php-fpm / PostgreSQL / Laravel / Python FastAPI の起動状態を確認する
+  - テストURLを確認する
+  - テストDBであることを確認する
+  - 本番環境、本番DB、本番Azure Speechリソース、本番Stripe環境に接続していないことを確認する
+  - VPSテスト環境に未committed変更がないことを確認する
+- 実装してはいけないこと:
+  - GitHub Actions自動デプロイを前提にしない
+  - 本番環境へ接続しない
+  - 本番DBを使わない
+  - 本番Azure Speechリソースを使わない
+  - Stripe本番環境を使わない
+  - VPS接続情報、秘密鍵、Secrets、IP制限情報を `TASKS.md` に記録しない
+  - このタスク内で負荷テストを実施しない
+- 完了条件:
+  - VPSテスト環境で稼働しているbranch / commit SHAを特定できている
+  - GitHub上の対象branch / commit SHAと、VPS上の稼働コードの対応が確認できている
+  - テストURL、テストDB、Dockerサービス構成、ログ確認場所が特定できている
+  - 本番環境と分離されていることを確認できている
+  - T013-06を実施してよい対象環境が明確である
+- テスト観点:
+  - SSH接続可否
+  - Git remote
+  - branch
+  - commit SHA
+  - `git status`
+  - Docker service状態
+  - nginx / php-fpm / PostgreSQL / Laravel / Python FastAPI の稼働
+  - テストURL到達性
+  - テストDB接続
+  - ログ確認場所
+  - 本番環境との分離
+- CodeX投入時の注意:
+  - このタスクはT013-06の前提確認であり、負荷テスト本体ではない
+  - SSH接続先、秘密鍵、IPアドレス、環境変数の実値は指示文・報告・commitに含めない
+  - VPS上で対象branchまたはcommit SHAが不明な場合は、T013-06に進まない
+  - VPSテスト環境が未構築またはGitHub接続不可の場合は、T013-06を未着手のまま止める
+
 ### T013-06: 3秒ポーリング簡易負荷確認
 
 - [ ] 状態: 未着手
 - 種別: テスト
 - 目的:
-  - 課金なし音声提出E2E後、3秒ポーリングのDB負荷とUX上の妥当性を簡易確認する
+  - 課金なし音声提出E2E後、3秒ポーリングのDB負荷とUX上の妥当性を、VPSテスト環境で簡易確認する
+  - OI-008の後続判断材料を得る
 - 参照仕様書:
   - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
 - 関連OI:
   - OI-008
   - OI-003
@@ -4587,19 +4651,69 @@
 - 依存タスク:
   - T009-02
   - T013-02
+  - T013-06-pre
+- 対象環境:
+  - VPSテスト環境
+  - 対象URLはVPSテスト環境の非本番URLとする
+  - 対象branchまたはcommit SHAはT013-06-preで確認済みのものに限定する
+- 対象外:
+  - ローカル開発環境を負荷判断対象にしない
+  - 本番環境へ負荷をかけない
+  - 本番DBを使わない
+  - 本番Azure Speechリソースを使わない
+  - Stripe本番環境を使わない
 - 実装内容:
-  - 複数同時ポーリング時のjobs / DB負荷確認
-  - 最大60回の挙動確認
+  - 3秒ポーリング対象のsubmission status APIに対して、VPSテスト環境で簡易負荷をかける
+  - 複数同時ポーリング時のLaravel / nginx / php-fpm / PostgreSQLへの影響を確認する
+  - 最大60回ポーリングで停止する挙動を確認する
+  - completed / failed 後にポーリングが停止することを確認する
+  - Queue WorkerやAzure STT本体への負荷試験ではなく、status APIポーリングの簡易確認として扱う
+  - 実施前に対象URL、対象branch、commit SHA、開始時刻、終了時刻、同時ポーリング数を記録する
 - 実装してはいけないこと:
   - 検証前にRedis移行しない
+  - VPSテスト環境・GitHub接続確認前に実施しない
+  - 本番環境に負荷をかけない
+  - 負荷確認結果だけでインフラ構成を確定しない
+  - 大規模負荷試験として扱わない
 - 完了条件:
+  - VPSテスト環境で実施している
+  - 対象branch / commit SHAが明確である
+  - 想定同時ポーリング数でstatus APIが継続応答する
+  - 5xxが継続発生しない
+  - タイムアウトが継続発生しない
+  - DB接続枯渇が発生しない
+  - Laravel / nginx / PostgreSQL に重大エラーが出ない
+  - completed / failed 後にポーリングが停止する
   - OI-008の判断材料が得られる
 - テスト観点:
-  - DB負荷
-  - レスポンス遅延
-  - タイムアウト
+  - 同時ポーリング数
+  - 3秒間隔
+  - 最大60回停止
+  - completed / failed 後の停止
+  - status API平均応答時間
+  - status API最大応答時間
+  - 4xx / 5xx発生有無
+  - タイムアウト発生有無
+  - DB接続数
+  - jobs / failed_jobs の変化
+  - PostgreSQL CPU / memory / slow query傾向
+  - Laravel log error有無
+  - nginx access/error log
+  - php-fpm error有無
+  - VPS CPU / memory / disk I/O
+- 中止基準:
+  - 5xxが継続発生する
+  - タイムアウトが継続発生する
+  - DB接続枯渇が疑われる
+  - VPS CPU / memory / disk I/O が高止まりする
+  - 本番環境へ誤ってリクエストしている可能性がある
+  - 本番DB / 本番Azure / 本番Stripeに接続している疑いがある
 - CodeX投入時の注意:
-  - 性能検証結果に基づき後続判断する
+  - T013-06-pre完了後に実施する
+  - ローカル環境でのスクリプト動作確認は、負荷判断とは分けて扱う
+  - 負荷テスト用branchを作るのは、テストスクリプト追加などrepository変更が必要な場合に限定する
+  - VPS上で稼働中のbranch / commit SHAを必ず報告する
+  - 測定結果はOI-008の判断材料として扱い、Redis移行やインフラ変更をこのタスク内で確定しない
 
 ---
 
