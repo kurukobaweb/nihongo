@@ -4305,7 +4305,7 @@
 
 ### T013-01: 認証E2Eテスト
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-10）
 - 種別: テスト
 - 目的:
   - 課金なし音声提出E2Eの前提として、認証導線が一通り動作することを確認する
@@ -4335,6 +4335,16 @@
   - Google OAuthは別テストに分ける
   - T012-02確認時の `php artisan test` で 132 passed / 8 failed が報告されている。8 failed は認証・Google OAuth周辺として報告されているため、T013-01開始前または開始時に、失敗テストの内容・再現条件・既知失敗か実装不備かを確認する
   - OI-016はMVPで自動リンクしない方針として確定済みであり、既存メール一致時は `google_id` を保存せず通常ログイン導線へ安全停止する
+- 完了記録（2026-07-10）:
+  - `php artisan test tests/Feature/AuthenticationTest.php` で 29 passed / 142 assertions を確認
+  - 新規登録、同意なし登録不可、`consents` への同意記録、メール認証、未認証アクセス制御、ログイン、ログアウト、パスワード再設定導線を Feature test で確認
+  - Google OAuth は mock test として、redirect開始、新規Googleユーザー作成、既存 `google_id` ユーザーログイン、既存メール一致時の安全停止、既存メール一致時に `google_id` を保存しないことを確認
+  - Google Client ID / Secret / Redirect URI 実値は投入しておらず、実Google OAuth疎通は未実施
+  - 実ブラウザE2Eは未実施。T013-01の完了判定は既存Feature testとローカル確認コマンドによる認証導線確認とする
+  - T013-02には未着手
+  - Stripe / Azure / 音声提出 / Queue Worker / Python STT には触れていない
+  - OI-016確定方針（既存メール一致ユーザーを自動リンクしない、既存メール一致時に `google_id` を保存しない、通常ログイン導線へ安全停止する）を維持
+  - T013-02へ進む条件: PRレビュー後に本記録を `develop` へ反映し、T013-02投入前に確認環境、Azure AI Speech実接続有無、実音声、Azure資格情報、ログ確認方法を明示する
 
 ### T013-02: 課金なし音声提出E2Eテスト
 
