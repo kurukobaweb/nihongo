@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import gc
 import json
 from pathlib import Path
 import re
@@ -76,6 +77,9 @@ def transcribe_wav_bytes(
     speech_config = _build_speech_config(active_settings)
     config_diagnostic = _config_diagnostic(active_settings)
 
+    recognizer = None
+    audio_config = None
+
     with tempfile.TemporaryDirectory(prefix="speech-stt-") as temp_dir:
         try:
             wav_path = Path(temp_dir) / "input.wav"
@@ -91,11 +95,16 @@ def transcribe_wav_bytes(
                 diagnostic=_sdk_exception_diagnostic(exc, config_diagnostic),
             ) from exc
 
-        return _run_continuous_recognition(
-            recognizer,
-            timeout_seconds,
-            config_diagnostic,
-        )
+        try:
+            return _run_continuous_recognition(
+                recognizer,
+                timeout_seconds,
+                config_diagnostic,
+            )
+        finally:
+            recognizer = None
+            audio_config = None
+            gc.collect()
 
 
 def build_speech_rate(

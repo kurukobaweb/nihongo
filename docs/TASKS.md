@@ -4440,6 +4440,19 @@
     - 実際の azure_request_id が得られるか
     - Azureの実レスポンスをもとにした評価保存が妥当か
     - 発音・流暢さ評価をONにした場合の結果妥当性
+- T013-02投入前 Azure STT事前確認（2026-07-10）:
+  - 接続確認用Azure Speechリソースを使用し、本番用Azureリソースは使用していない
+  - API種類: SpeechServices
+  - 価格レベル: Free
+  - region: `japaneast`
+  - endpoint: `https://japaneast.api.cognitive.microsoft.com/`
+  - `AZURE_SPEECH_KEY` 実値およびSubscription IDは記録していない
+  - ローカル確認用音声 `storage/app/local/test-audio/azure-stt-ja-sample.wav` を使用し、repositoryには追加していない
+  - 既存Python Azure STT service（`python/app/services/azure_stt.py`）を直接呼び出し、短い日本語音声でAzure STT疎通成功を確認
+  - transcript、Azure由来の `azure_session_id` が返ることを確認。`azure_request_id` は未取得
+  - Windows環境でAzure Speech SDKが一時WAVファイルを保持したままになるため、STT後にSDKオブジェクト参照を解放してから一時ディレクトリを削除する最小修正を実施
+  - T013-02本体、音声提出E2E、Queue Worker本格確認、結果表示確認、音声削除E2Eには未着手
+  - Pronunciation / Fluency はON前提にしていない
 
 ### T013-03: 422認識不可E2Eテスト
 
