@@ -17,3 +17,9 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+
+# Python
+python/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
