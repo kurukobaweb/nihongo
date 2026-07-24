@@ -4478,7 +4478,7 @@
 
 ### T013-03: 422認識不可E2Eテスト
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-24）
 - 種別: テスト
 - 目的:
   - 課金なし音声提出E2Eの異常系として、STT認識不可時の422相当エラーを、500 / 502 / 503 / timeout等のシステム障害と区別して処理できることを確認する
@@ -4650,6 +4650,48 @@
   - OI-006未確定の具体文言やUI詳細を推測しない
   - 既存実装上のログevent名が異なる場合は、同等の意味を持つ既存eventを使用し、その対応を報告する
   - T013-03で必要な最小修正のみを行い、他タスクへスコープを広げない
+
+- 完了確認（2026-07-24）:
+  - 実装PR: #49
+  - PR title: `test: cover unrecognizable speech flow`
+  - 実装commit: `f266605cac67c133bccc1a3090ba1511b667b822`
+  - merge commit: `a508d111330ca623149c328a8654c649620f6605`
+  - changed files:
+    - `tests/Feature/UnrecognizableSpeechFlowTest.php`
+    - `python/app/services/azure_stt.py`
+    - `python/tests/test_azure_stt.py`
+  - Laravel側で制御可能な422認識不可E2Eを追加
+  - 202 Accepted後の評価処理を確認
+  - 422をnon-retryableとして処理
+  - submissionがfailedになることを確認
+  - completed / processing残存にならないことを確認
+  - 空のevaluationを作成しないことを確認
+  - status APIがfailedを返すことを確認
+  - failed後にpollingを停止することを確認
+  - 結果画面へ遷移しないことを確認
+  - 再提出時に新しいsubmissionを作成することを確認
+  - 正常再提出後にcompletedへ復帰することを確認
+  - temporary audio削除ログを確認
+  - 422と500系を区別
+  - Python Azure STTをfile-backed入力からstream入力へ変更
+  - `AudioConfig(filename=...)`を除去
+  - `PushAudioInputStream`を使用
+  - WAVを16kHz / 16bit / mono / PCMとして検証
+  - WAV headerを除いたPCM payloadをstreamへ書き込み
+  - cleanup lifecycleを明示
+  - Python対象test: 24 passed
+  - Python全体test: 43 passed
+  - Laravel側T013-03 E2E: 成功
+  - 実Azure `/evaluate`補助確認: HTTP 422 / `speech_unrecognized`
+  - 実Azure補助確認: `retryable=false`
+  - cleanup warning: なし
+  - Secrets実値: 記録なし
+  - DB schema / migration: 変更なし
+  - T013-04以降: 未着手
+  - protected Job / Queue / Laravel実経路での最新実Azure422確認: 未実施
+  - OI-006の最終UI文言・配置: 未確定のまま
+  - GitHub Actions: workflow runなし
+  - submitted review: なし
 
 ### T013-04: Feature Flag OFF結果画面テスト
 
