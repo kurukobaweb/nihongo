@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import gc
+import io
 import json
-from pathlib import Path
 import re
-import tempfile
 import threading
-from typing import Any
+from typing import Any, Callable
+import wave
 
 from app.settings import Settings, load_settings
 
@@ -76,35 +75,89 @@ def transcribe_wav_bytes(
     active_settings = settings or load_settings()
     speech_config = _build_speech_config(active_settings)
     config_diagnostic = _config_diagnostic(active_settings)
+    pcm_bytes = _pcm_from_wav_bytes(wav_bytes, config_diagnostic)
 
     recognizer = None
     audio_config = None
+    audio_stream = None
+    stream_close_attempted = False
+    pending_result: AzureSttResult | None = None
+    pending_error: AzureSttError | None = None
+    pending_cause: Exception | None = None
 
-    with tempfile.TemporaryDirectory(prefix="speech-stt-") as temp_dir:
-        try:
-            wav_path = Path(temp_dir) / "input.wav"
-            wav_path.write_bytes(wav_bytes)
-            audio_config = speechsdk.audio.AudioConfig(filename=str(wav_path))
-            recognizer = speechsdk.SpeechRecognizer(
-                speech_config=speech_config,
-                audio_config=audio_config,
-            )
-        except Exception as exc:
-            raise AzureSttServiceUnavailableError(
-                "Azure Speech SDK error",
-                diagnostic=_sdk_exception_diagnostic(exc, config_diagnostic),
-            ) from exc
+    def close_audio_stream() -> None:
+        nonlocal stream_close_attempted
+        if audio_stream is None or stream_close_attempted:
+            return
 
-        try:
-            return _run_continuous_recognition(
-                recognizer,
-                timeout_seconds,
-                config_diagnostic,
-            )
-        finally:
-            recognizer = None
-            audio_config = None
-            gc.collect()
+        stream_close_attempted = True
+        audio_stream.close()
+
+    def feed_audio_stream() -> None:
+        audio_stream.write(pcm_bytes)
+        close_audio_stream()
+
+    try:
+        stream_format = speechsdk.audio.AudioStreamFormat(
+            samples_per_second=16000,
+            bits_per_sample=16,
+            channels=1,
+        )
+        audio_stream = speechsdk.audio.PushAudioInputStream(
+            stream_format=stream_format,
+        )
+        audio_config = speechsdk.audio.AudioConfig(stream=audio_stream)
+        recognizer = speechsdk.SpeechRecognizer(
+            speech_config=speech_config,
+            audio_config=audio_config,
+        )
+
+        pending_result = _run_continuous_recognition(
+            recognizer,
+            timeout_seconds,
+            config_diagnostic,
+            after_start=feed_audio_stream,
+        )
+    except AzureSttError as exc:
+        pending_error = exc
+    except Exception as exc:
+        pending_error = AzureSttServiceUnavailableError(
+            "Azure Speech SDK error",
+            diagnostic=_sdk_exception_diagnostic(exc, config_diagnostic),
+        )
+        pending_cause = exc
+    finally:
+        if audio_stream is not None and not stream_close_attempted:
+            try:
+                close_audio_stream()
+            except Exception as exc:
+                if pending_error is None and pending_result is None:
+                    pending_error = AzureSttServiceUnavailableError(
+                        "Azure Speech SDK error",
+                        diagnostic=_sdk_exception_diagnostic(exc, config_diagnostic),
+                    )
+                    pending_cause = exc
+        recognizer = None
+        audio_config = None
+        audio_stream = None
+
+    if pending_error is not None:
+        if pending_cause is not None:
+            raise pending_error from pending_cause
+        raise pending_error
+
+    if pending_result is None:
+        raise AzureSttServiceUnavailableError(
+            "Azure Speech SDK error",
+            diagnostic={
+                "category": "sdk_exception",
+                "exception_type": "UnknownRecognitionState",
+                "message": "Recognition finished without a result or error",
+                "config": config_diagnostic,
+            },
+        )
+
+    return pending_result
 
 
 def build_speech_rate(
@@ -117,6 +170,45 @@ def build_speech_rate(
     return {
         "characters_per_minute": len(transcript) / recognized_duration_seconds * 60,
     }
+
+
+def _pcm_from_wav_bytes(
+    wav_bytes: bytes,
+    config_diagnostic: dict[str, Any],
+) -> bytes:
+    try:
+        with wave.open(io.BytesIO(wav_bytes), "rb") as wav_file:
+            channels = wav_file.getnchannels()
+            sample_width = wav_file.getsampwidth()
+            frame_rate = wav_file.getframerate()
+            compression = wav_file.getcomptype()
+            frame_count = wav_file.getnframes()
+
+            if (
+                channels != 1
+                or sample_width != 2
+                or frame_rate != 16000
+                or compression != "NONE"
+            ):
+                raise ValueError(
+                    "WAV must be 16 kHz, 16-bit, mono PCM for Azure stream input"
+                )
+
+            pcm_bytes = wav_file.readframes(frame_count)
+    except (EOFError, OSError, ValueError, wave.Error) as exc:
+        raise AzureSttServiceUnavailableError(
+            "Azure Speech SDK error",
+            diagnostic=_sdk_exception_diagnostic(exc, config_diagnostic),
+        ) from exc
+
+    if not pcm_bytes:
+        exc = ValueError("WAV contains no PCM payload")
+        raise AzureSttServiceUnavailableError(
+            "Azure Speech SDK error",
+            diagnostic=_sdk_exception_diagnostic(exc, config_diagnostic),
+        ) from exc
+
+    return pcm_bytes
 
 
 def _build_speech_config(settings: Settings):
@@ -181,6 +273,7 @@ def _run_continuous_recognition(
     recognizer,
     timeout_seconds: int,
     config_diagnostic: dict[str, Any],
+    after_start: Callable[[], None] | None = None,
 ) -> AzureSttResult:
     done = threading.Event()
     segments: list[dict[str, Any]] = []
@@ -218,6 +311,12 @@ def _run_continuous_recognition(
 
     try:
         recognizer.start_continuous_recognition()
+        if after_start is not None:
+            try:
+                after_start()
+            except Exception:
+                if not done.is_set():
+                    raise
         if not done.wait(timeout_seconds):
             raise AzureSttTimeoutError(
                 "Azure STT recognition timed out",
@@ -239,6 +338,7 @@ def _run_continuous_recognition(
             recognizer.stop_continuous_recognition()
         except Exception:
             pass
+        _disconnect_recognizer_callbacks(recognizer)
 
     transcript_parts = [segment["text"] for segment in segments if segment["text"]]
     transcript = " ".join(transcript_parts).strip()
@@ -301,6 +401,22 @@ def _run_continuous_recognition(
         session_id,
         segments,
     )
+
+
+def _disconnect_recognizer_callbacks(recognizer) -> None:
+    for signal_name in (
+        "recognized",
+        "canceled",
+        "session_started",
+        "session_stopped",
+    ):
+        signal = getattr(recognizer, signal_name, None)
+        disconnect_all = getattr(signal, "disconnect_all", None)
+        if callable(disconnect_all):
+            try:
+                disconnect_all()
+            except Exception:
+                pass
 
 
 def _stt_result_from_segments(
