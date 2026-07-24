@@ -140,6 +140,11 @@ class SubmissionResultTest extends TestCase
         ]);
 
         $this->createEvaluation($submission, [
+            'transcript' => 'Feature flags should not hide this transcript.',
+            'duration_seconds' => 61.25,
+            'characters_per_minute' => 280,
+            'overall_score' => 76.50,
+            'comment' => 'Core feedback remains visible.',
             'pronunciation_result' => ['accuracy_score' => 92],
             'fluency_result' => ['fluency_score' => 88],
         ]);
@@ -151,6 +156,11 @@ class SubmissionResultTest extends TestCase
                 ->component('Submissions/Result')
                 ->where('features.speech_pronunciation_assessment_enabled', false)
                 ->where('features.speech_fluency_assessment_enabled', false)
+                ->where('evaluation.transcript', 'Feature flags should not hide this transcript.')
+                ->where('evaluation.duration_seconds', 61.25)
+                ->where('evaluation.characters_per_minute', 280)
+                ->where('evaluation.overall_score', 76.5)
+                ->where('evaluation.comment', 'Core feedback remains visible.')
                 ->where('evaluation.pronunciation_result.accuracy_score', 92)
                 ->where('evaluation.fluency_result.fluency_score', 88));
     }
@@ -183,6 +193,19 @@ class SubmissionResultTest extends TestCase
                 ->where('evaluation.fluency_result.fluency_score', 88));
     }
 
+    public function test_result_page_feature_flag_display_contract_requires_enabled_flags_and_displayable_results(): void
+    {
+        $source = file_get_contents(resource_path('js/Pages/Submissions/Result.vue'));
+
+        $this->assertStringContainsString("isFeatureEnabled('speech_pronunciation_assessment_enabled')", $source);
+        $this->assertStringContainsString('&& hasDisplayableValue(props.evaluation.pronunciation_result)', $source);
+        $this->assertStringContainsString("isFeatureEnabled('speech_fluency_assessment_enabled')", $source);
+        $this->assertStringContainsString('&& hasDisplayableValue(props.evaluation.fluency_result)', $source);
+        $this->assertStringContainsString('v-if="showPronunciation || showFluency"', $source);
+        $this->assertStringContainsString('v-if="showPronunciation"', $source);
+        $this->assertStringContainsString('v-if="showFluency"', $source);
+    }
+
     public function test_result_page_preserves_null_pronunciation_and_fluency_results(): void
     {
         config()->set('features.speech_pronunciation_assessment_enabled', true);
@@ -207,6 +230,19 @@ class SubmissionResultTest extends TestCase
                 ->component('Submissions/Result')
                 ->where('evaluation.pronunciation_result', null)
                 ->where('evaluation.fluency_result', null));
+    }
+
+    public function test_result_page_feature_flag_display_contract_rejects_empty_and_missing_assessment_results(): void
+    {
+        $source = file_get_contents(resource_path('js/Pages/Submissions/Result.vue'));
+
+        $this->assertStringContainsString("if (value === null || value === undefined || value === '')", $source);
+        $this->assertStringContainsString('Array.isArray(value)', $source);
+        $this->assertStringContainsString('return value.length > 0', $source);
+        $this->assertStringContainsString("if (typeof value === 'object')", $source);
+        $this->assertStringContainsString('return Object.keys(value).length > 0', $source);
+        $this->assertStringContainsString('hasDisplayableValue(props.evaluation.pronunciation_result)', $source);
+        $this->assertStringContainsString('hasDisplayableValue(props.evaluation.fluency_result)', $source);
     }
 
     public function test_non_completed_status_api_keeps_result_url_null_and_failed_keeps_error_message_only(): void
