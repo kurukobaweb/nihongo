@@ -1,4 +1,6 @@
+import io
 from types import SimpleNamespace
+import wave
 
 import pytest
 
@@ -32,6 +34,22 @@ def _settings(
     )
 
 
+def _valid_wav_bytes(
+    frames: bytes | None = None,
+    channels: int = 1,
+    sample_width: int = 2,
+    frame_rate: int = 16000,
+) -> bytes:
+    pcm = frames if frames is not None else b"\x01\x02" * 160
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav_file:
+        wav_file.setnchannels(channels)
+        wav_file.setsampwidth(sample_width)
+        wav_file.setframerate(frame_rate)
+        wav_file.writeframes(pcm)
+    return buffer.getvalue()
+
+
 class _Signal:
     def __init__(self) -> None:
         self.handlers = []
@@ -42,6 +60,9 @@ class _Signal:
     def emit(self, event) -> None:
         for handler in self.handlers:
             handler(event)
+
+    def disconnect_all(self) -> None:
+        self.handlers.clear()
 
 
 class _Properties:
@@ -85,12 +106,50 @@ class _SpeechConfig:
         self.calls.append(self)
 
 
+class _AudioStreamFormat:
+    calls = []
+
+    def __init__(self, samples_per_second, bits_per_sample, channels) -> None:
+        self.samples_per_second = samples_per_second
+        self.bits_per_sample = bits_per_sample
+        self.channels = channels
+        self.calls.append(self)
+
+
+class _PushAudioInputStream:
+    calls = []
+    fail_write = False
+    fail_close = False
+
+    def __init__(self, stream_format) -> None:
+        self.stream_format = stream_format
+        self.writes = []
+        self.close_call_count = 0
+        self.calls.append(self)
+
+    def write(self, buffer: bytes) -> None:
+        if self.fail_write:
+            raise RuntimeError("stream write failed")
+        self.writes.append(buffer)
+
+    def close(self) -> None:
+        self.close_call_count += 1
+        if self.fail_close:
+            raise RuntimeError("stream close failed")
+
+
 class _AudioConfig:
-    def __init__(self, filename) -> None:
+    calls = []
+
+    def __init__(self, filename=None, stream=None) -> None:
         self.filename = filename
+        self.stream = stream
+        self.calls.append(self)
 
 
 class _BaseRecognizer:
+    instances = []
+
     def __init__(self, speech_config, audio_config) -> None:
         self.speech_config = speech_config
         self.audio_config = audio_config
@@ -99,6 +158,7 @@ class _BaseRecognizer:
         self.session_started = _Signal()
         self.session_stopped = _Signal()
         self.stopped = False
+        self.instances.append(self)
 
     def stop_continuous_recognition(self) -> None:
         self.stopped = True
@@ -255,7 +315,11 @@ class _SpeechSdk:
     SpeechConfig = _SpeechConfig
     CancellationDetails = _CancellationDetails
     PropertyId = SimpleNamespace(SpeechServiceResponse_JsonResult="json")
-    audio = SimpleNamespace(AudioConfig=_AudioConfig)
+    audio = SimpleNamespace(
+        AudioConfig=_AudioConfig,
+        AudioStreamFormat=_AudioStreamFormat,
+        PushAudioInputStream=_PushAudioInputStream,
+    )
 
     def __init__(self, recognizer_class) -> None:
         self.SpeechRecognizer = recognizer_class
@@ -265,12 +329,29 @@ class _SpeechSdkWithoutCancellationDetails(_SpeechSdk):
     CancellationDetails = None
 
 
+def _reset_stream_mocks() -> None:
+    _BaseRecognizer.instances = []
+    _AudioConfig.calls = []
+    _AudioStreamFormat.calls = []
+    _PushAudioInputStream.calls = []
+    _PushAudioInputStream.fail_write = False
+    _PushAudioInputStream.fail_close = False
+
+
+@pytest.fixture(autouse=True)
+def _reset_azure_stt_mocks():
+    _reset_stream_mocks()
+    yield
+    _reset_stream_mocks()
+
+
 def test_transcribe_wav_bytes_uses_endpoint_first_and_returns_result(monkeypatch) -> None:
+    _reset_stream_mocks()
     _SpeechConfig.calls = []
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
 
     result = transcribe_wav_bytes(
-        b"wav bytes",
+        _valid_wav_bytes(),
         settings=_settings(endpoint="https://example.invalid/speech"),
     )
 
@@ -283,26 +364,141 @@ def test_transcribe_wav_bytes_uses_endpoint_first_and_returns_result(monkeypatch
     assert _SpeechConfig.calls[-1].endpoint == "https://example.invalid/speech"
     assert _SpeechConfig.calls[-1].region is None
     assert _SpeechConfig.calls[-1].speech_recognition_language == "ja-JP"
+    assert _AudioConfig.calls[-1].filename is None
+    assert _AudioConfig.calls[-1].stream is _PushAudioInputStream.calls[-1]
+    assert _AudioStreamFormat.calls[-1].samples_per_second == 16000
+    assert _AudioStreamFormat.calls[-1].bits_per_sample == 16
+    assert _AudioStreamFormat.calls[-1].channels == 1
+    assert _PushAudioInputStream.calls[-1].writes == [b"\x01\x02" * 160]
+    assert _PushAudioInputStream.calls[-1].close_call_count == 1
+    recognizer = _BaseRecognizer.instances[-1]
+    assert recognizer.recognized.handlers == []
+    assert recognizer.canceled.handlers == []
+    assert recognizer.session_started.handlers == []
+    assert recognizer.session_stopped.handlers == []
 
 
 def test_transcribe_wav_bytes_requires_key(monkeypatch) -> None:
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
 
     with pytest.raises(AzureSttConfigError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings(key=None))
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings(key=None))
 
     assert exc_info.value.diagnostic["category"] == "config_error"
     assert exc_info.value.diagnostic["config"]["key_configured"] is False
 
 
 def test_transcribe_wav_bytes_raises_no_match(monkeypatch) -> None:
+    _reset_stream_mocks()
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_NoMatchRecognizer))
 
     with pytest.raises(AzureSttNoMatchError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     assert exc_info.value.diagnostic["category"] == "no_match"
     assert exc_info.value.diagnostic["result_reason"] == "NoMatch"
+    assert _PushAudioInputStream.calls[-1].close_call_count == 1
+
+
+def test_transcribe_wav_bytes_does_not_use_temporary_wav_file(monkeypatch) -> None:
+    _reset_stream_mocks()
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
+
+    result = transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
+
+    assert result.transcript == "abcde"
+    assert _AudioConfig.calls[-1].filename is None
+    assert _AudioConfig.calls[-1].stream is _PushAudioInputStream.calls[-1]
+
+
+def test_transcribe_wav_bytes_raises_service_unavailable_when_stream_write_fails(
+    monkeypatch,
+) -> None:
+    _reset_stream_mocks()
+    _PushAudioInputStream.fail_write = True
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_TimeoutRecognizer))
+
+    with pytest.raises(AzureSttServiceUnavailableError) as exc_info:
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
+
+    diagnostic = exc_info.value.diagnostic
+    assert diagnostic["category"] == "sdk_exception"
+    assert diagnostic["exception_type"] == "RuntimeError"
+    assert _PushAudioInputStream.calls[-1].close_call_count == 1
+
+
+def test_transcribe_wav_bytes_keeps_success_when_stream_close_fails_after_result(
+    monkeypatch,
+) -> None:
+    _reset_stream_mocks()
+    _PushAudioInputStream.fail_close = True
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
+
+    result = transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
+
+    assert result.transcript == "abcde"
+    assert _PushAudioInputStream.calls[-1].close_call_count == 1
+
+
+def test_transcribe_wav_bytes_rejects_invalid_wav(monkeypatch) -> None:
+    _reset_stream_mocks()
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
+
+    with pytest.raises(AzureSttServiceUnavailableError) as exc_info:
+        transcribe_wav_bytes(b"not a wav", settings=_settings())
+
+    assert exc_info.value.diagnostic["category"] == "sdk_exception"
+    assert _PushAudioInputStream.calls == []
+
+
+def test_transcribe_wav_bytes_rejects_non_16khz_wav(monkeypatch) -> None:
+    _reset_stream_mocks()
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
+
+    with pytest.raises(AzureSttServiceUnavailableError) as exc_info:
+        transcribe_wav_bytes(_valid_wav_bytes(frame_rate=8000), settings=_settings())
+
+    assert exc_info.value.diagnostic["category"] == "sdk_exception"
+    assert _PushAudioInputStream.calls == []
+
+
+def test_transcribe_wav_bytes_rejects_non_mono_wav(monkeypatch) -> None:
+    _reset_stream_mocks()
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
+
+    with pytest.raises(AzureSttServiceUnavailableError) as exc_info:
+        transcribe_wav_bytes(
+            _valid_wav_bytes(frames=b"\x01\x02\x03\x04" * 160, channels=2),
+            settings=_settings(),
+        )
+
+    assert exc_info.value.diagnostic["category"] == "sdk_exception"
+    assert _PushAudioInputStream.calls == []
+
+
+def test_transcribe_wav_bytes_rejects_non_16bit_wav(monkeypatch) -> None:
+    _reset_stream_mocks()
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
+
+    with pytest.raises(AzureSttServiceUnavailableError) as exc_info:
+        transcribe_wav_bytes(
+            _valid_wav_bytes(frames=b"\x01" * 160, sample_width=1),
+            settings=_settings(),
+        )
+
+    assert exc_info.value.diagnostic["category"] == "sdk_exception"
+    assert _PushAudioInputStream.calls == []
+
+
+def test_transcribe_wav_bytes_rejects_empty_pcm_payload(monkeypatch) -> None:
+    _reset_stream_mocks()
+    monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_SuccessfulRecognizer))
+
+    with pytest.raises(AzureSttServiceUnavailableError) as exc_info:
+        transcribe_wav_bytes(_valid_wav_bytes(frames=b""), settings=_settings())
+
+    assert exc_info.value.diagnostic["category"] == "sdk_exception"
+    assert _PushAudioInputStream.calls == []
 
 
 def test_transcribe_wav_bytes_raises_canceled_with_sanitized_diagnostic(
@@ -311,7 +507,7 @@ def test_transcribe_wav_bytes_raises_canceled_with_sanitized_diagnostic(
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_CanceledRecognizer))
 
     with pytest.raises(AzureSttCanceledError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["category"] == "azure_canceled"
@@ -334,7 +530,7 @@ def test_transcribe_wav_bytes_does_not_require_from_result(monkeypatch) -> None:
     monkeypatch.setattr(azure_stt, "speechsdk", speech_sdk)
 
     with pytest.raises(AzureSttCanceledError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     assert exc_info.value.diagnostic["cancellation_details_source"] == (
         "sdk_cancellation_details"
@@ -354,7 +550,7 @@ def test_transcribe_wav_bytes_keeps_missing_cancellation_fields(
     )
 
     with pytest.raises(AzureSttCanceledError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
     assert "cancellation_error_code" in diagnostic
@@ -372,7 +568,7 @@ def test_transcribe_wav_bytes_treats_end_of_stream_without_transcript_as_unrecog
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_EndOfStreamRecognizer))
 
     with pytest.raises(AzureSttNoMatchError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["category"] == "speech_unrecognized"
@@ -394,7 +590,7 @@ def test_transcribe_wav_bytes_treats_end_of_stream_with_transcript_as_success(
         _SpeechSdk(_EndOfStreamWithTranscriptRecognizer),
     )
 
-    result = transcribe_wav_bytes(b"wav bytes", settings=_settings())
+    result = transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     assert result.transcript == "abcde"
     assert result.recognized_duration_seconds == 3.0
@@ -413,7 +609,7 @@ def test_transcribe_wav_bytes_keeps_end_of_stream_with_error_as_canceled(
     )
 
     with pytest.raises(AzureSttCanceledError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["category"] == "azure_canceled"
@@ -431,7 +627,7 @@ def test_transcribe_wav_bytes_reports_cancellation_details_fallback(
     monkeypatch.setattr(azure_stt, "speechsdk", speech_sdk)
 
     with pytest.raises(AzureSttCanceledError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["cancellation_details_source"] == "result_fallback"
@@ -454,7 +650,7 @@ def test_transcribe_wav_bytes_reports_failed_when_result_unavailable(
     )
 
     with pytest.raises(AzureSttCanceledError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["cancellation_details_source"] == "failed"
@@ -473,7 +669,7 @@ def test_transcribe_wav_bytes_reports_result_fallback_when_sdk_details_missing(
     )
 
     with pytest.raises(AzureSttCanceledError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["cancellation_details_source"] == "result_fallback"
@@ -492,7 +688,7 @@ def test_transcribe_wav_bytes_raises_sdk_exception_with_diagnostic(
     monkeypatch.setattr(azure_stt, "speechsdk", _SpeechSdk(_ExceptionRecognizer))
 
     with pytest.raises(AzureSttServiceUnavailableError) as exc_info:
-        transcribe_wav_bytes(b"wav bytes", settings=_settings())
+        transcribe_wav_bytes(_valid_wav_bytes(), settings=_settings())
 
     diagnostic = exc_info.value.diagnostic
     assert diagnostic["category"] == "sdk_exception"
@@ -505,7 +701,7 @@ def test_transcribe_wav_bytes_raises_timeout(monkeypatch) -> None:
 
     with pytest.raises(AzureSttTimeoutError) as exc_info:
         transcribe_wav_bytes(
-            b"wav bytes",
+            _valid_wav_bytes(),
             settings=_settings(),
             timeout_seconds=0,
         )
