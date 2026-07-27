@@ -4695,7 +4695,7 @@
 
 ### T013-04: Feature Flag OFF結果画面テスト
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-07-27 確認済み）
 - 種別: テスト
 - 目的:
   - 課金なし音声提出E2E後の結果画面で、発音・流暢さFeature Flag OFF時の表示を確認する
@@ -4721,6 +4721,75 @@
   - nullable JSONB
 - CodeX投入時の注意:
   - ON時の本格評価はPoC完了後に扱う
+- 完了確認（2026-07-27）:
+  - 実装PR: #52
+  - PR title: `test: cover feature flag result visibility`
+  - 実装commit: `ef39a45bbc924fd33fadcf614e7b6990e74d8e4b`
+  - merge commit: `8ed1daa37b8144dbbe00919d68f02cee396c4ccc`
+  - changed files:
+    - `tests/Feature/SubmissionResultTest.php`
+  - Laravel Feature test:
+    - `php artisan test tests/Feature/SubmissionResultTest.php`
+    - 14 tests / 140 assertions passed
+  - ResultController / Inertia props確認:
+    - Feature Flag OFFでも基本結果propsを保持することを確認
+    - transcript / duration / speech rate / overall score / commentを保持することを確認
+    - pronunciation_result / fluency_resultに表示可能な値が存在しても、Flag OFFが優先される契約を確認
+  - Result.vue source contract確認:
+    - 発音・流暢さセクションはFeature Flag enabledかつdisplayable valueがある場合のみ表示
+    - null / undefined / 空文字 / 空array / 空object / key不存在は表示対象外
+  - 実ブラウザ受入（ユーザー確認済み）:
+    - fixture userでpassword reset後にlogin成功
+    - result URLへ到達成功
+    - redirectなし
+    - visible errorなし
+    - status `completed`表示
+    - fixture submissionであることを確認
+    - overall score表示
+    - speech rate表示
+    - speed assessment表示
+    - duration表示
+    - transcript表示
+    - comment表示
+    - Pronunciation section非表示
+    - Fluency section非表示
+    - `null`、未評価、raw Feature Flag名等の不正表示なし
+    - JavaScript Console errorなし
+  - Laravel log確認:
+    - successful result request自体の直接entryはなし
+    - Laravel標準設定上、正常requestがapplication logへ出ないことはblocker扱いしない
+    - reset通知以降の推定対象範囲で重大errorなし
+    - exception / fatal / critical / DB error / QueryException / route error / authorization error / model relation error / JSON cast error / Inertia view error / Feature Flag error / result payload errorなし
+    - warning / notice / deprecated / stack traceなし
+  - fixture:
+    - local DB上にT013-04専用fixtureとしてuser / completed submission / evaluationをEloquent + transactionで作成
+    - existing questionを読み取り利用し、変更していない
+    - Queue / Python / Azure / audio file作成なし
+    - jobs / failed_jobs増加なし
+    - 実ブラウザ受入後、evaluation → submission → userの順でcleanup済み
+    - existing questionと既存データは維持
+    - fixture codeおよびfixture dataはrepositoryへ混入していない
+  - 終了処理:
+    - local `develop`はmerge commit `8ed1daa37b8144dbbe00919d68f02cee396c4ccc`へ同期済み
+    - local作業branchはsafe deleteで削除済み
+    - Laravel serverは停止済み
+    - remote作業branch `origin/codex/t013-04-feature-flag-result-test` は残存しているが、今回の対象外でありT013-04完了blockerではない
+  - application code / schema / migration: 変更なし
+  - documentation: `docs/TASKS.md`のT013-04完了記録のみ変更
+  - dependency: 変更なし
+  - Secrets / password / reset token: 記録なし
+  - 未確認・対象外:
+    - Feature Flag ON時の実ブラウザ表示確認は未実施
+    - Feature Flag ON時のAzure実評価は未実施
+    - Azure Pronunciation Assessmentの実スコア妥当性は未確認
+    - 実音声提出から発音・流暢さ評価までの本格E2Eは対象外
+    - VPS / Docker環境での確認は未実施。T013-06で扱う
+    - frontend component test frameworkは追加していない
+    - empty object / empty array / missing keyはFeature testおよびVue source contractとして確認
+    - 実DOMで確認した主対象はFeature Flag OFF時
+    - 実DOM確認はユーザー実ブラウザ受入で確認し、CodeX自身によるbrowser操作ではない
+    - Chapter 13全体は未完了
+    - T013-05以降は別タスクとして継続
 
 ### T013-05: 音声ファイル削除テスト
 
