@@ -43,8 +43,10 @@
 - `questions` は `has_model_answer` で模範解答有無を表す
 - `question_format` と `has_model_answer` は別概念として扱う
 - 問題は **1カテゴリ** に属し、**複数タグ** を持てる
-- ユーザー設定5項目の保存先は OI-023 で確定済み。`user_learning_settings` テーブル方式を採用し、`users` JSONB 方式は採用しない
-- `evaluations` は `submissions` と **1対1**、`submission_id` は UNIQUE
+- ユーザー設定2項目（出題方式・タイマー表示方式）は `user_learning_settings` テーブルへ保存し、`users` JSONB 方式は採用しない
+- 評価プロファイルの値域は `10 / 40 / 60 / 90 / 120` 秒とし、問題ごとの初期値を `questions.recommended_duration_seconds` へ明示保存する
+- 提出時に実際に使用した設問文と最終選択評価プロファイルを `submissions` へ保存し、Queue・採点・結果表示はその保存値を使用する
+- `submissions` : `evaluations` = **1 : 0..1** とし、`evaluations.submission_id` は UNIQUE
 - `submissions.audio_path` は **一時ファイルパス**。`completed` / `failed` 時に物理削除し、音声は永続保存しない
 - 退会は `users.deleted_at` による soft delete、保持期間は **30日**
 - Stripe は Laravel Cashier v15+ 準拠、単一プラン **Standard / 月額660円（税込）/ 7日間トライアル / クレジットカードのみ / 解約は期間終了時**
@@ -82,23 +84,26 @@
 
 ### 2.2 ユーザー設定保存先
 
-設定画面の5項目は、OI-023で `user_learning_settings` テーブル方式に確定済みである。
+設定画面の2項目は、OI-023確定方針に従い `user_learning_settings` テーブルへ保存する。
 
 対象:
 
 - 出題方式
-- スピーチ時間
 - タイマー表示方式
-- 強制終了ON/OFF
-- 文字起こし表示ON/OFF
 
 保存方式:
 
-- `user_learning_settings` テーブルを新規追加する
+- `user_learning_settings` テーブルを使用する
 - `users` JSONB 方式は採用しない
 - `users` テーブルに設定JSONを追加しない
-- `users` : `user_learning_settings` = 1 : 1
-- T011-02で migration / model / 保存API / 設定画面保存処理を実装する
+- `users` : `user_learning_settings` = 1 : 0..1
+- 1ユーザーにつき `user_learning_settings` は0件または1件とする
+- `user_learning_settings.user_id` の UNIQUE 制約により、同一ユーザーに複数の設定レコードを作成できない
+- 設定レコード作成後はユーザーと設定レコードを論理上一対一として扱うが、全ユーザーへの設定レコード必須生成および既存ユーザーへのバックフィル方法は本書では確定しない
+- `question_format_preference` は出題開始時の初期選択・絞り込み条件にのみ使用し、問題形式、submission、採点条件を上書きしない
+- `timer_display_mode` は数値タイマーの表示方式のみを制御する
+- どちらのタイマー表示方式でも、評価プロファイル別上限監視を常時有効とする
+- 文字起こしは常時表示する
 
 ---
 
@@ -132,10 +137,7 @@ erDiagram
         bigint id PK
         bigint user_id FK,UK
         varchar question_format_preference
-        integer speech_duration_seconds
         varchar timer_display_mode
-        boolean force_stop_enabled
-        boolean transcript_display_enabled
     }
 
     questions {
@@ -144,6 +146,9 @@ erDiagram
         varchar title
         varchar difficulty
         varchar question_format
+        text prompt_text
+        text prompt_text_1
+        text prompt_text_2
         integer recommended_duration_seconds
         boolean has_model_answer
         boolean is_published
@@ -160,6 +165,8 @@ erDiagram
         bigint question_id FK
         varchar audio_path
         numeric audio_duration_seconds
+        text prompt_snapshot
+        integer evaluation_profile_seconds
         varchar status
         timestamp submitted_at
         timestamp completed_at
@@ -168,9 +175,16 @@ erDiagram
     evaluations {
         bigint id PK
         uuid submission_id FK,UK
+        text transcript
         numeric duration_seconds
-        integer characters_per_minute
+        integer character_count
+        numeric characters_per_minute
         varchar speed_assessment
+        numeric character_score
+        numeric time_score
+        numeric final_score
+        varchar evaluation_result
+        varchar scoring_version
         numeric overall_score
         jsonb pronunciation_result
         jsonb fluency_result
@@ -211,6 +225,7 @@ erDiagram
 ### 3.1 主要リレーション
 
 - `users` : `submissions` = 1:N
+- `users` : `user_learning_settings` = 1:0..1
 - `submissions` : `evaluations` = 1:0..1
 - `categories` : `questions` = 1:N
 - `questions` : `tags` = N:N（`question_tag` 経由）
@@ -276,14 +291,14 @@ WHERE email = $1
 - 個人情報: `name`, `email`, `google_id`, `avatar_url`
 - 監査対象: `role`, `deleted_at`
 - soft delete 後の同一メール再登録を許容するため、通常 UNIQUE ではなく部分 UNIQUE を採用する
-- ユーザー設定5項目は `users` に保持しない。OI-023確定方針により、`user_learning_settings` テーブルへ分離する
+- ユーザー設定2項目は `users` に保持しない。OI-023確定方針により、`user_learning_settings` テーブルへ分離する
 
 ---
 
 #### 4-1-2. `user_learning_settings`
 
 **目的 / 役割**  
-ユーザーごとの練習条件設定を管理する。T011-02で migration / model / 保存API / 設定画面保存処理を実装する前提仕様であり、本書更新時点では実装済みテーブルではない。
+ユーザーごとの出題方式とタイマー表示方式を管理する。設定は出題開始時の初期状態と録音中の表示だけに使用し、問題形式、submission、採点条件を上書きしない。
 
 **カラム定義表**
 
@@ -291,11 +306,8 @@ WHERE email = $1
 |---|---|---:|---|---|
 | `id` | bigint | No | IDENTITY | ユーザー設定 ID |
 | `user_id` | bigint | No | なし | `users.id` への参照。1ユーザーにつき1設定レコード |
-| `question_format_preference` | varchar(50) | No | `'single_prompt'` | 出題方式。`questions.question_format` の値域方針と整合させる |
-| `speech_duration_seconds` | integer | No | 60 | スピーチ時間。許容範囲はアプリケーション側バリデーションで制御する |
-| `timer_display_mode` | varchar(50) | No | `'count_down'` | タイマー表示方式。設定画面UIの選択肢と整合させる |
-| `force_stop_enabled` | boolean | No | true | 強制終了ON/OFF |
-| `transcript_display_enabled` | boolean | No | true | 文字起こし表示ON/OFF |
+| `question_format_preference` | varchar(50) | No | `'single_prompt'` | 出題方式。`single_prompt` / `two_choice` |
+| `timer_display_mode` | varchar(50) | No | `'count_down'` | タイマー表示方式。`count_down` / `hidden` |
 | `created_at` | timestamp | No | CURRENT_TIMESTAMP | 作成日時 |
 | `updated_at` | timestamp | No | CURRENT_TIMESTAMP | 更新日時 |
 
@@ -308,6 +320,10 @@ WHERE email = $1
 **ユニーク制約**  
 - UNIQUE: `user_id`
 
+**CHECK 制約**
+- `question_format_preference IN ('single_prompt', 'two_choice')`
+- `timer_display_mode IN ('count_down', 'hidden')`
+
 **代表的なインデックス**  
 - UNIQUE: `user_id`
 
@@ -316,10 +332,7 @@ WHERE email = $1
 ```sql
 SELECT user_id,
        question_format_preference,
-       speech_duration_seconds,
-       timer_display_mode,
-       force_stop_enabled,
-       transcript_display_enabled
+       timer_display_mode
 FROM user_learning_settings
 WHERE user_id = $1;
 ```
@@ -328,9 +341,11 @@ WHERE user_id = $1;
 - OI-023確定方針により、`users` JSONB方式は採用しない
 - 1ユーザーにつき1設定レコードとする
 - ユーザー削除時は `user_learning_settings` も CASCADE で削除する
-- `question_format_preference` は `questions.question_format` の値域方針と整合させる
-- `timer_display_mode` は設定画面UIの選択肢と整合させる
-- `speech_duration_seconds` の許容範囲は DB CHECK ではなくアプリケーション側バリデーションで制御する
+- `question_format_preference` は出題開始時の初期選択・絞り込み条件であり、`questions.question_format`、submission、採点条件を上書きしない
+- `count_down` は評価プロファイルの残り時間を0まで表示し、その後は残り時間表示を終了して経過時間表示へ切り替える
+- `hidden` は録音中の数値タイマーを表示しない
+- タイマー表示方式にかかわらず、評価プロファイル別上限監視を常時有効とする
+- 文字起こしは常時表示する
 
 ---
 
@@ -518,10 +533,12 @@ ORDER BY name ASC;
 | `id` | bigint | No | IDENTITY | 問題 ID |
 | `category_id` | bigint | No | なし | 所属カテゴリ ID |
 | `title` | varchar(255) | No | なし | 問題タイトル |
-| `prompt_text` | text | No | なし | 出題文 |
 | `difficulty` | varchar(20) | No | なし | 難易度 |
 | `question_format` | varchar(50) | No | なし | 問題形式。`difficulty` とは独立した分類軸。値域は `single_prompt` / `two_choice` |
-| `recommended_duration_seconds` | integer | No | `60` | 問題マスタ側の推奨回答秒数 |
+| `prompt_text` | text | Yes | NULL | 単一設問の出題文。`single_prompt` で使用 |
+| `prompt_text_1` | text | Yes | NULL | 二テーマ選択の1件目の設問文。`two_choice` で使用 |
+| `prompt_text_2` | text | Yes | NULL | 二テーマ選択の2件目の設問文。`two_choice` で使用 |
+| `recommended_duration_seconds` | integer | No | `60` | 問題ごとの初期評価プロファイル |
 | `has_model_answer` | boolean | No | `false` | 模範解答の有無 |
 | `model_answer_text` | text | Yes | NULL | 模範解答本文 |
 | `is_published` | boolean | No | `false` | 公開状態 |
@@ -538,6 +555,34 @@ ORDER BY name ASC;
 **ユニーク制約**  
 - なし
 
+**CHECK 制約**
+- `question_format IN ('single_prompt', 'two_choice')`
+- `recommended_duration_seconds IN (10, 40, 60, 90, 120)`
+- 問題形式と設問文カラムの整合性:
+
+```sql
+CHECK (
+    (
+        question_format = 'single_prompt'
+        AND prompt_text IS NOT NULL
+        AND btrim(prompt_text) <> ''
+        AND prompt_text_1 IS NULL
+        AND prompt_text_2 IS NULL
+    )
+    OR
+    (
+        question_format = 'two_choice'
+        AND prompt_text IS NULL
+        AND prompt_text_1 IS NOT NULL
+        AND btrim(prompt_text_1) <> ''
+        AND prompt_text_2 IS NOT NULL
+        AND btrim(prompt_text_2) <> ''
+    )
+)
+```
+
+- `prompt_text_1` と `prompt_text_2` が異なる文章であることは DB 制約に含めない
+
 **代表的なインデックス**  
 - `category_id`
 - `difficulty`
@@ -548,7 +593,15 @@ ORDER BY name ASC;
 **代表的なクエリ例**
 
 ```sql
-SELECT id, title, difficulty, question_format, has_model_answer
+SELECT id,
+       title,
+       difficulty,
+       question_format,
+       prompt_text,
+       prompt_text_1,
+       prompt_text_2,
+       recommended_duration_seconds,
+       has_model_answer
 FROM questions
 WHERE category_id = $1
   AND difficulty = $2
@@ -563,12 +616,19 @@ ORDER BY display_order ASC, id ASC;
 - `has_model_answer` は「模範解答有無」を表す
 - `question_format` と `has_model_answer` は別概念である
 - `question_format` の値域は `single_prompt` / `two_choice`
-- `question_format` のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一`
+- `single_prompt` は正本文書上「単一設問」、ユーザー向け表示「単体問題」とし、1つの設問について1件のスピーチを提出する
+- `two_choice` は正本文書上「二テーマ選択」、ユーザー向け表示「2択」とし、2つのテーマから話したい方を1つ選び、選択したテーマについて1件のスピーチを提出する
+- `two_choice` は正解・不正解、正解番号、テーマごとの得点、テーマ別評価結果を持たず、常に1提出・1評価とする
+- 二テーマ選択専用テーブル、テーマ専用ID、`question_topics`、`selected_topic_id` は追加しない
 - `question_format` は PostgreSQL ENUM 型ではなく varchar + CHECK 制約方式で扱う
-- CHECK 制約は `question_format IN ('single_prompt', 'two_choice')`
-- `recommended_duration_seconds` は問題マスタ側の推奨秒数である
-- 音声評価サービスへ渡す `expected_duration` は、原則として `recommended_duration_seconds` を実行時パラメータとして渡す
-- `recommended_duration_seconds` の値域根拠は OI-009 で管理する
+- `single_prompt` は `prompt_text` のみを使用し、`two_choice` は `prompt_text_1` / `prompt_text_2` のみを使用する
+- `recommended_duration_seconds` は問題ごとの初期評価プロファイルである
+- 10秒スピーチチャレンジには `10`、それ以外の問題には原則 `60` を問題データへ明示保存する
+- タグ文字列から評価プロファイルを動的判定しない
+- 問題を開いた時点の初期選択値として使用し、ユーザーは録音開始前に変更できる
+- 提出後の録音上限、採点、結果表示には現在の問題設定を再利用せず、`submissions.evaluation_profile_seconds` を使用する
+- 音声評価サービスへ渡す実行時パラメータ `expected_duration` は `submissions.evaluation_profile_seconds` から取得する
+- technical margin は `recommended_duration_seconds`、`evaluation_profile_seconds`、`expected_duration` に加算しない。具体値は OI-030 で管理する
 - 問題分類は `category_id`、`question_format`、`question_tag` で表現する
 - 公開範囲は会員登録済みユーザーのみ
 
@@ -629,6 +689,8 @@ ORDER BY t.name ASC;
 | `audio_path` | varchar(500) | No | なし | 一時ファイルパス。`completed` / `failed` 時に物理削除し、音声データは永続保存しない |
 | `audio_size_bytes` | integer | Yes | NULL | 音声サイズ |
 | `audio_duration_seconds` | numeric(8,2) | Yes | NULL | 録音ファイルから取得した実測秒数 |
+| `prompt_snapshot` | text | No | なし | 提出時に実際に使用した設問文1件のスナップショット |
+| `evaluation_profile_seconds` | integer | No | なし | 録音開始前に最終選択されていた評価プロファイル |
 | `status` | varchar(20) | No | `'pending'` | 提出状態 |
 | `error_message` | text | Yes | NULL | 失敗時エラー |
 | `submitted_at` | timestamp | No | CURRENT_TIMESTAMP | 提出日時 |
@@ -646,6 +708,10 @@ ORDER BY t.name ASC;
 **ユニーク制約**  
 - なし
 
+**CHECK 制約**
+- `btrim(prompt_snapshot) <> ''`
+- `evaluation_profile_seconds IN (10, 40, 60, 90, 120)`
+
 **代表的なインデックス**  
 - `user_id`
 - `question_id`
@@ -655,7 +721,12 @@ ORDER BY t.name ASC;
 **代表的なクエリ例**
 
 ```sql
-SELECT id, status, submitted_at, completed_at
+SELECT id,
+       prompt_snapshot,
+       evaluation_profile_seconds,
+       status,
+       submitted_at,
+       completed_at
 FROM submissions
 WHERE id = $1
   AND user_id = $2;
@@ -664,6 +735,13 @@ WHERE id = $1
 **備考**  
 - `audio_path` は一時ファイルパスであり、永続ファイル参照ではない
 - `audio_duration_seconds` は実測値であり、`questions.recommended_duration_seconds` とは別概念である
+- `prompt_snapshot` は実際に使用した設問文1件だけを保存する。`single_prompt` では `questions.prompt_text`、`two_choice` ではユーザーが選択した `questions.prompt_text_1` または `questions.prompt_text_2` を保存する
+- `prompt_snapshot` により、提出後に問題が編集されても提出時の設問文を再現できる
+- `evaluation_profile_seconds` は提出処理で必ず明示保存し、録音上限、採点、結果表示の基準とする
+- Queue処理時に現在のquestionやuser settingから評価プロファイルを再取得しない
+- `expected_duration` はDBカラムではなく、`submissions.evaluation_profile_seconds` を Laravel から Python へ渡す実行時パラメータとする
+- technical margin は `evaluation_profile_seconds` または `expected_duration` へ加算しない。具体値は OI-030 で管理する
+- 既存データの `prompt_snapshot` / `evaluation_profile_seconds` バックフィル方法は本書では確定しない
 - `completed` / `failed` 確定時に音声ファイル実体を物理削除する
 - 即時削除に失敗した場合の回復手段は CleanupTempFilesJob とする
 - CleanupTempFilesJob の実行頻度および削除対象条件は OI-021 で管理する
@@ -676,7 +754,20 @@ WHERE id = $1
 #### 4-2-6. `evaluations`
 
 **目的 / 役割**  
-音声解析結果を保持する。`submissions` と 1対1 で紐づく。
+Azure AI Speech の認識が成功し、Stage-A評価結果が成立した提出の定量評価を保持する。`submissions` : `evaluations` = 1 : 0..1 とし、1提出に複数評価は作成しない。
+
+評価レコードを作成するケース:
+
+- 認識成功・合格
+- 認識成功・採点不合格
+
+評価レコードを作成しないケース:
+
+- STT認識不可（422）
+- Azure送信前の時間上限超過
+- システム障害
+
+認識成功後の採点不合格は `final_score = 0`、`evaluation_result = 'fail'` として評価レコードを作成する。
 
 **カラム定義表**
 
@@ -684,16 +775,22 @@ WHERE id = $1
 |---|---|---:|---|---|
 | `id` | bigint | No | IDENTITY | 評価 ID |
 | `submission_id` | uuid | No | なし | 提出 ID。1提出1評価 |
-| `transcript` | text | Yes | NULL | 書き起こし全文。想定上限 10,000 文字 |
-| `duration_seconds` | numeric(8,2) | Yes | NULL | 音声評価結果として返却された実測音声長 |
-| `characters_per_minute` | integer | Yes | NULL | 文字/分 |
-| `speed_assessment` | varchar(20) | Yes | NULL | `slow` / `appropriate` / `fast` |
-| `pronunciation_result` | jsonb | Yes | NULL | 発音評価結果。Feature Flag OFF 時は NULL |
-| `fluency_result` | jsonb | Yes | NULL | 流暢さ評価結果。Feature Flag OFF 時は NULL |
-| `overall_score` | numeric(5,2) | Yes | NULL | 総合スコア |
-| `comment` | text | Yes | NULL | コメント |
-| `azure_request_id` | varchar(255) | Yes | NULL | API 追跡 ID |
-| `raw_azure_response` | jsonb | Yes | NULL | Azure 生レスポンス。想定上限 500KB/件 |
+| `transcript` | text | No | なし | Stage-Aで認識された書き起こし全文。想定上限 10,000 文字 |
+| `duration_seconds` | numeric(8,2) | No | なし | Azure AI Speech が認識した各発話セグメントの認識時間合計 |
+| `character_count` | integer | No | なし | Azure認識結果から採点規則に従って算出した文字数 |
+| `characters_per_minute` | numeric(8,2) | No | なし | `character_count / duration_seconds × 60` の算出値 |
+| `speed_assessment` | varchar(20) | No | なし | `slow` / `appropriate` / `fast` |
+| `character_score` | numeric(5,2) | No | なし | 文字数帯による基本スコア |
+| `time_score` | numeric(5,2) | No | なし | 認識時間帯によるスコア |
+| `final_score` | numeric(5,2) | No | なし | Stage-Aで表示するスコア |
+| `evaluation_result` | varchar(20) | No | なし | `pass` / `fail` |
+| `scoring_version` | varchar(50) | No | なし | 適用した採点方式の識別子 |
+| `pronunciation_result` | jsonb | Yes | NULL | 将来のStage-B追加評価。Stage-Aのみでは NULL |
+| `fluency_result` | jsonb | Yes | NULL | 将来のStage-B追加評価。Stage-Aのみでは NULL |
+| `overall_score` | numeric(5,2) | Yes | NULL | 将来のStage-B総合スコア。Stage-Aのみでは NULL |
+| `comment` | text | Yes | NULL | 将来のStage-B追加コメント。Stage-Aのみでは NULL |
+| `azure_request_id` | varchar(255) | Yes | NULL | Stage-AのAzure AI Speechリクエスト追跡 ID |
+| `raw_azure_response` | jsonb | Yes | NULL | Stage-AのAzure AI Speech応答保存領域。想定上限 500KB/件 |
 | `processing_time_ms` | integer | Yes | NULL | 処理時間ミリ秒 |
 | `created_at` | timestamp | No | CURRENT_TIMESTAMP | 作成日時 |
 | `updated_at` | timestamp | No | CURRENT_TIMESTAMP | 更新日時 |
@@ -706,6 +803,19 @@ WHERE id = $1
 
 **ユニーク制約**  
 - `submission_id` UNIQUE
+
+**CHECK 制約**
+- `btrim(transcript) <> ''`
+- `duration_seconds > 0`
+- `character_count >= 0`
+- `characters_per_minute >= 0`
+- `speed_assessment IN ('slow', 'appropriate', 'fast')`
+- `character_score BETWEEN 0 AND 100`
+- `time_score BETWEEN 0 AND 100`
+- `final_score BETWEEN 0 AND 100`
+- `evaluation_result IN ('pass', 'fail')`
+- `btrim(scoring_version) <> ''`
+- `evaluation_result` と `final_score` の組み合わせは DB CHECK へ固定せず、採点処理とテストで保証する
 
 **代表的なインデックス**  
 - UNIQUE: `submission_id`
@@ -721,19 +831,28 @@ WHERE submission_id = $1;
 ```
 
 **備考**  
-- `duration_seconds` は音声評価結果側の実測値であり、`questions.recommended_duration_seconds` とは別概念である
-- `characters_per_minute` は実測値から算出した速度指標である
-- `speed_assessment` は分類結果のみを保存する
-- `characters_per_minute` の slow / appropriate / fast 境界値は DB 固定値にしない
+- Stage-Aは Azure AI Speech による音声認識・定量評価であり、Stage-Bは Azure OpenAI 等による内容・構成等の追加評価である
+- Stage-BはStage-Aを置き換えず、Stage-Aへ追加する拡張段階とする。Stage-B導入後も `final_score` と関連するStage-A評価を表示する
+- `duration_seconds` はAzure AI Speechが認識した各発話セグメントの認識時間合計であり、音声ファイル全体の実時間である `submissions.audio_duration_seconds`、選択評価プロファイルである `submissions.evaluation_profile_seconds` とは別概念である
+- `character_count` はAzureを再実行せずに再採点するための事実値として保存する
+- 文字数の正規化・算出規則は OI-029 で管理し、空白・句読点・数字・英字・記号・segment間空白の扱い、正規化方式、文字数計算versionの具体値を本書で先行確定しない
+- `characters_per_minute` は `character_count / duration_seconds × 60` で算出し、小数第2位まで保存する。分母にはAzure認識区間の合計時間を使い、無音・未認識区間を含めない
+- `speed_assessment` は保存した小数の `characters_per_minute` を基準に判定する。UI表示時の丸めは本書で確定しない
 - OI-015 は MVP 初期値として解消済みであり、初期閾値は `slow`: `characters_per_minute < 180`、`appropriate`: `180 <= characters_per_minute <= 320`、`fast`: `characters_per_minute > 320`
-- 速度判定閾値は T010-02 で作成する `config/comment_templates.php` 側に置き、DBスキーマ、CHECK制約、migration、Seederには固定しない
+- 速度区分は参考分類であり、`final_score` または `evaluation_result` へ直接反映しない
+- 速度判定閾値は DB CHECK へ固定せず、アプリケーション側のversion管理された評価設定で管理する。具体的な設定ファイル名は固定しない
 - 実Azure / 実音声評価データ確認後に調整可能とする
-- `pronunciation_result` / `fluency_result` は nullable JSONB
+- `character_score` と `time_score` の最終統合方式、および `scoring_version` の具体値は OI-031 で管理する
+- `pronunciation_result` / `fluency_result` / `overall_score` / `comment` は将来のStage-B用nullableカラムとして維持し、Stage-Aのみでは生成・表示せず NULL とする
+- Stage-B導入後はStage-A結果に追加して使用・表示し、`final_score` を `overall_score` へ転用しない
+- `azure_request_id` / `raw_azure_response` はStage-AのAzure AI Speech情報に限定し、将来のAzure OpenAI等のStage-B情報を混在・上書きしない
+- 今回はStage-B用カラムまたはStage-B専用テーブルを追加しない
 - `raw_azure_response` は全文検索しない
 - `raw_azure_response` に GIN インデックスは付与しない
 - 非機能要件: `raw_azure_response` は 1件 500KB を想定上限とする
 - 500KB 超過時の保持方針は OI-107 で管理する
 - 非機能要件: `transcript` は 10,000 文字を想定上限とする
+- Stage-A必須カラムの既存データ移行方法は本書では確定しない
 
 ---
 
@@ -1149,18 +1268,62 @@ ORDER BY agreed_at DESC;
 | `intermediate` | 中級 |
 | `advanced` | 上級 |
 
+#### `user_learning_settings.question_format_preference`
+
+| 値 | 説明 |
+|---|---|
+| `single_prompt` | 単一設問を出題開始時の初期選択・絞り込み条件とする |
+| `two_choice` | 二テーマ選択を出題開始時の初期選択・絞り込み条件とする |
+
+CHECK: `question_format_preference IN ('single_prompt', 'two_choice')`
+
+#### `user_learning_settings.timer_display_mode`
+
+| 値 | 説明 |
+|---|---|
+| `count_down` | 残り時間を0まで表示し、その後は経過時間表示へ切り替える |
+| `hidden` | 録音中の数値タイマーを表示しない |
+
+CHECK: `timer_display_mode IN ('count_down', 'hidden')`
+
 #### `questions.question_format`
 
 | 値 | 説明 |
 |---|---|
-| `single_prompt` | 単体問題。1つの出題文に対して回答する問題形式 |
-| `two_choice` | 二者択一。2つの選択肢から回答方針を選ぶ問題形式 |
+| `single_prompt` | 単一設問。ユーザー向け表示は「単体問題」。1つの設問について1件のスピーチを提出する |
+| `two_choice` | 二テーマ選択。ユーザー向け表示は「2択」。2つのテーマから話したい方を1つ選び、選択したテーマについて1件のスピーチを提出する |
+
+CHECK: `question_format IN ('single_prompt', 'two_choice')`
+
+設問文カラムの形式別CHECKは §4-2-3 に定義する。`two_choice` は正解・不正解またはテーマ別評価を持たない。
 
 #### `questions.recommended_duration_seconds`
 
 | 値 | 説明 |
 |---|---|
-| OI-009 で管理 | 問題マスタ側の推奨回答秒数。候補値の正式根拠は OI-009 で管理 |
+| `10` | 10秒スピーチチャレンジの初期評価プロファイル |
+| `40` | 初期評価プロファイル候補 |
+| `60` | 10秒スピーチチャレンジ以外の原則初期評価プロファイル |
+| `90` | 初期評価プロファイル候補 |
+| `120` | 初期評価プロファイル候補 |
+
+CHECK: `recommended_duration_seconds IN (10, 40, 60, 90, 120)`
+
+#### `submissions.evaluation_profile_seconds`
+
+| 値 | 説明 |
+|---|---|
+| `10` | 提出時に選択された10秒評価プロファイル |
+| `40` | 提出時に選択された40秒評価プロファイル |
+| `60` | 提出時に選択された60秒評価プロファイル |
+| `90` | 提出時に選択された90秒評価プロファイル |
+| `120` | 提出時に選択された120秒評価プロファイル |
+
+CHECK: `evaluation_profile_seconds IN (10, 40, 60, 90, 120)`
+
+#### `submissions.prompt_snapshot`
+
+CHECK: `btrim(prompt_snapshot) <> ''`
 
 #### `submissions.status`
 
@@ -1179,7 +1342,29 @@ ORDER BY agreed_at DESC;
 | `appropriate` | 適切 |
 | `fast` | 速い |
 
-速度判定の境界値は DB スキーマに固定しない。OI-015 は MVP 初期値として解消済みであり、初期閾値は `slow`: `characters_per_minute < 180`、`appropriate`: `180 <= characters_per_minute <= 320`、`fast`: `characters_per_minute > 320` とする。この値は T010-02 で作成する `config/comment_templates.php` 側に置き、実Azure / 実音声評価データ確認後に調整可能とする。
+速度判定の境界値は DB CHECK に固定しない。OI-015 のMVP初期値は `slow`: `characters_per_minute < 180`、`appropriate`: `180 <= characters_per_minute <= 320`、`fast`: `characters_per_minute > 320` とし、アプリケーション側のversion管理された評価設定で管理する。
+
+#### `evaluations.evaluation_result`
+
+| 値 | 説明 |
+|---|---|
+| `pass` | Stage-A採点合格 |
+| `fail` | Stage-A採点不合格 |
+
+CHECK: `evaluation_result IN ('pass', 'fail')`
+
+`evaluation_result` と `final_score` の組み合わせは DB CHECK へ固定せず、採点処理とテストで保証する。
+
+#### Stage-A評価値
+
+- `btrim(transcript) <> ''`
+- `duration_seconds > 0`
+- `character_count >= 0`
+- `characters_per_minute >= 0`
+- `character_score BETWEEN 0 AND 100`
+- `time_score BETWEEN 0 AND 100`
+- `final_score BETWEEN 0 AND 100`
+- `btrim(scoring_version) <> ''`
 
 #### `consents.document_type`
 
@@ -1350,11 +1535,14 @@ MVP 規模は年間 `submissions` が概ね 100,000 件未満を想定する。
 
 - `QuestionSeeder` は `questions.question_format` を投入対象に含める
 - `question_format` の値域は `single_prompt` / `two_choice`
-- `QuestionSeeder` の現在の暫定値 `mvp_verification` はT002-05で正式値へ置換する
-- `recommended_duration_seconds` は問題マスタ側の推奨秒数として投入する
-- `recommended_duration_seconds` の候補値および根拠は OI-009 で管理する
+- 定義外の暫定値を正式な `question_format` として扱わない
+- `prompt_text` / `prompt_text_1` / `prompt_text_2` は §4-2-3 の形式別使用規則に従って投入する
+- `recommended_duration_seconds` は問題ごとの初期評価プロファイルとして明示投入する
+- 10秒スピーチチャレンジには `10`、それ以外の問題には原則 `60` を明示保存する
+- タグから評価プロファイルを動的判定しない
 - `question_type` は投入しない
 - `has_model_answer` は模範解答有無として投入する
+- 本節は文書上の投入方針であり、現在のSeederコードの状態や実装反映済みかどうかを断定しない
 
 ### 10.5 文書バージョン
 
@@ -1369,16 +1557,16 @@ MVP 規模は年間 `submissions` が概ね 100,000 件未満を想定する。
 
 ### 11.1 確認項目
 
-- `ARCHITECTURE.md §13` の DB エンティティ概要と整合しているか
+- `ARCHITECTURE.md §13` の DB エンティティ概要と18テーブル / 5カテゴリ構成が整合しているか
 - `ARCHITECTURE.md §9` の Azure AI Speech 連携と `submissions.audio_path` の一時性が整合しているか
 - `ARCHITECTURE.md §11` の音声ファイル一時保管方針と矛盾しないか
 - `ARCHITECTURE.md §10` のセッション認証 / Sanctum 不使用と整合しているか
 - `questions.question_type` 不採用、`has_model_answer` 採用の方針が維持されているか
-- `questions.question_format` は `ARCHITECTURE.md §13.2` と `DB_SCHEMA.md` に反映済みであり、値域は `single_prompt` / `two_choice` として確定済みか
+- 問題形式、設問3カラム、評価プロファイル、submissionスナップショット、Stage-A評価とStage-B拡張の責務が他文書と整合しているか
 
 ### 11.2 齟齬・修正要否
 
-ARCHITECTURE.md のハブ文書化リファクタリング（2026-05-08）により、以下の齟齬はすべて解消済み。
+過去のARCHITECTURE.mdハブ文書化リファクタリング（2026-05-08）で確認済みの項目は以下のとおり。これらの履歴と、2026-07-31に確定した音声評価仕様の反映状態は分けて扱う。
 
 | ID | 対象 | 内容 | 状態 |
 |---|---|---|---|
@@ -1389,19 +1577,19 @@ ARCHITECTURE.md のハブ文書化リファクタリング（2026-05-08）によ
 
 ### 11.3 追加確認事項
 
-| ID | 対象 | 内容 | 状態 |
-|---|---|---|---|
-| A-05 | `§13` | `questions.question_format` 追加の反映 | **解消済み** — ARCHITECTURE.md §13.2 / DB_SCHEMA.md §4-2-3 に反映済み。値域は OI-022 管理 |
-| A-06 | `§13` | ユーザー設定保存先の反映 | **解消済み** — OI-023確定済み。`user_learning_settings` テーブル方式を採用し、18テーブル / 5カテゴリへ更新 |
+| ID | 仕様確定 | DB_SCHEMA.md | 実装コード | 他の正本文書 |
+|---|---|---|---|---|
+| A-05 問題形式・設問文 | OI-022で解消済み | §4-2-3、§4-2-5へ反映 | 本書では未確認 | ARCHITECTURE.md等は後続確認・補正対象 |
+| A-06 学習設定 | OI-023で解消済み | §2.2、§4-1-2へ2項目構成を反映 | 本書では未確認 | ARCHITECTURE.md / DESIGN.md等は後続確認・補正対象 |
+| A-07 評価プロファイル | OI-009で解消済み | questions初期値とsubmission最終選択値へ反映 | 本書では未確認 | ARCHITECTURE.md / DESIGN.md等は後続確認・補正対象 |
+| A-08 Stage-A評価 | OI-029〜OI-031の未確定範囲を除き方針承認済み | §4-2-6へ反映 | 本書では未確認 | ARCHITECTURE.md等は後続確認・補正対象 |
 
 ### 11.4 反映順序推奨
 
-- `questions.question_format` カラムは `DB_SCHEMA.md` / `ARCHITECTURE.md` に反映済み
-- `question_format` の具体値は `single_prompt` / `two_choice` として確定済み
-- CHECK 制約値域はT002-05で `question_format IN ('single_prompt', 'two_choice')` を反映する
-- ユーザー設定保存先は OI-023 で `user_learning_settings` テーブル方式に確定済み
-- `users` JSONB カラム追加方式は採用しない
-- T011-02で `user_learning_settings` の migration / model / 保存API / 設定画面保存処理を実装する
+- OPEN_ISSUESで確定した仕様と、本書へ反映したDB設計を基準に、実装コードと他の正本文書を個別に確認する
+- ARCHITECTURE.md本体は今回変更せず、問題形式、評価プロファイル、submissionスナップショット、Stage-A / Stage-B責務の後続補正対象とする
+- 実装コードへの反映済み・未実装は本書から推測せず、別タスクでmigration、Model、validation、Seeder、評価処理、テストを確認する
+- OI-029〜OI-031に依存する具体値・最終アルゴリズムは、各項目の解消後に本書と関連文書へ反映する
 
 ---
 
@@ -1414,8 +1602,8 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 
 | ID | 内容 | DB_SCHEMA.md での扱い | 状態 |
 |---|---|---|---|
-| OI-009 | `expected_duration` の値域（10/40/60/90/120）の正式根拠確認 | `questions.recommended_duration_seconds` と実行時 `expected_duration` の役割差分のみ本文反映。値域根拠は OI-009 参照 | 管理中 |
-| OI-015 | 速度判定の閾値 | OI-015はMVP初期値として解消済み。`slow`: `characters_per_minute < 180`、`appropriate`: `180 <= characters_per_minute <= 320`、`fast`: `characters_per_minute > 320` を初期値とし、T010-02で作成する `config/comment_templates.php` 側に置く。DBスキーマ、CHECK制約、migration、Seederには固定しない | 解消済み |
+| OI-009 | 評価プロファイル | 値域 `10 / 40 / 60 / 90 / 120`、questions側の初期値、submissions側の最終選択値保存を反映。Queue・採点・結果表示はsubmission保存値を使用する | 解消済み |
+| OI-015 | 速度判定の閾値 | MVP初期値を反映。閾値はDB CHECKへ固定せず、アプリケーション側のversion管理された評価設定で管理する | 解消済み |
 | OI-021 | CleanupTempFilesJob の実行頻度・削除対象条件 | 音声即時削除失敗時の回復手段として本文に最小限反映。頻度・条件は OI-021 参照 | 管理中 |
 | OI-101 | 年額プランの導入時期と価格 | Stripe 関連設計は単一月額プラン前提を維持。年額は OI-101 参照 | 管理中 |
 | OI-102 | PDF 領収書テンプレート要否 | Stripe 自動送信委譲を維持。アプリ内 PDF 生成は未採用 | 管理中 |
@@ -1425,11 +1613,14 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 | OI-106 | 規約更新時の再同意フロー | MVP 対象外。`consents` は新規登録時のみ記録 | 管理中 |
 | OI-107 | `raw_azure_response` 500KB 超過時の保持方針 | 想定上限と全文検索しない方針を本文反映。超過時の扱いは OI-107 参照 | 管理中 |
 | OI-108 | 利用規約 / PP 最新バージョンの永続管理方式 | 現時点ではアプリ設定値管理。専用テーブル追加要否は OI-108 参照 | 管理中 |
-| OI-022 | 問題形式の分類方式 | `questions.question_format` の値域は `single_prompt` / `two_choice` として確定済み。CHECK制約・Seeder・UIラベル・validationへの反映はT002-05で実施 | 確定済み |
-| OI-023 | ユーザー設定5項目の保存先 | `user_learning_settings` テーブル方式に確定済み。`users` JSONB方式は採用しない。T011-02で migration / model / 保存API / 設定画面保存処理を実装する | 確定済み |
+| OI-022 | 問題形式・設問文保存方式 | `single_prompt` / `two_choice`、単一設問 / 二テーマ選択、UI表示「単体問題」/「2択」、設問3カラム、専用テーマテーブルなし、1提出・1評価、`prompt_snapshot` を反映 | 解消済み |
+| OI-023 | ユーザー設定保存先と項目 | `user_learning_settings` テーブル方式と設定2項目を反映。スピーチ時間・強制終了ON/OFF・文字起こし表示ON/OFFの旧設定は廃止 | 解消済み |
 | OI-026 | 学習管理画面は MVP 対象外 | 集計テーブル追加なし。将来実装時に再検討 | 管理中 |
 | OI-027 | MVPで処理対象とする Stripe Webhook イベントの最小範囲 | `subscriptions` 同期方針に影響。イベント範囲は OI-027 参照 | 管理中 |
 | OI-028 | MVP 管理画面で実装する最小範囲 | `users.role` の admin 方針は維持。追加権限テーブルは現時点で追加しない | 管理中 |
+| OI-029 | Azure文字数算出・正規化方式 | `character_count` を再採点用事実値として保存する。文字数の正規化・算出規則と文字数計算versionの具体値は確定しない | 管理中 |
+| OI-030 | technical margin | 実測・具体値・上限判定への適用は確定しない。評価プロファイルまたは `expected_duration` へ追加回答時間として加算しない | 管理中 |
+| OI-031 | Stage-A採点統合方式 | `character_score` / `time_score` / `final_score` / `evaluation_result` / `scoring_version` の保存要件を反映。最終統合方式とversionの具体値は確定しない | 管理中 |
 
 ### 12.1 解消済み項目
 
@@ -1442,14 +1633,14 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 
 ### 12.2 変更サマリー
 
-- `questions.question_format` を追加し、`difficulty` と独立した分類軸として整理
-- `question_type` 不採用方針を維持
-- `has_model_answer` を模範解答有無として維持
-- ユーザー設定保存先は OI-023 確定方針に従い、`user_learning_settings` テーブルを追加する前提へ更新。テーブル数は 18テーブル / 5カテゴリに更新
-- `recommended_duration_seconds`、`expected_duration`、`audio_duration_seconds`、`evaluations.duration_seconds` の役割差分を整理
-- `speed_assessment` の値域を維持し、速度閾値は DB スキーマに固定しない方針を明記
-- `raw_azure_response` 500KB超過時の扱いは OI-107 参照に整理
-- AdminUserSeeder の初期パスワード管理方式は OI-104 参照に整理
-- hard delete 条件と Stripe / user 削除順序を補強
-- 音声ファイル非永続保存、CleanupTempFilesJob、バックアップ対象外方針を補足
-- OPEN_ISSUES 対応表を更新済み内容に合わせて再整理
+- OI-023確定方針に従い、`user_learning_settings` を設定5項目から設定2項目へ補正
+- `questions` を `prompt_text` / `prompt_text_1` / `prompt_text_2` の3カラム構成へ補正
+- `two_choice` の説明を二テーマ選択、ユーザー向け表示を「2択」へ補正
+- `questions.recommended_duration_seconds` の責務を問題ごとの初期評価プロファイルへ変更
+- `submissions.prompt_snapshot` / `evaluation_profile_seconds` の2スナップショットを追加
+- `evaluations` にStage-Aの再採点用事実値と採点値を追加し、成立時の必須値として整理
+- Stage-BはStage-Aを置換せず追加する方針とし、既存nullable評価カラムを将来のStage-B用として維持
+- OI-009 / OI-022 / OI-023 の解消済み仕様を本書へ反映
+- OI-029 / OI-030 / OI-031 の参照を追加し、未確定の具体値・採点統合式・version値は先行確定しない
+- 18テーブル / 5カテゴリ構成、`question_type` 不採用、`has_model_answer` 採用、音声ファイル非永続保存を維持
+- 本節はDB設計文書の補正サマリーであり、migration、Model、Seeder、評価処理、テスト等の実装更新を意味しない
