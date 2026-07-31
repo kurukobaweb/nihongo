@@ -305,7 +305,7 @@ WHERE email = $1
 | カラム名 | 型 | NULL可否 | デフォルト | 説明 |
 |---|---|---:|---|---|
 | `id` | bigint | No | IDENTITY | ユーザー設定 ID |
-| `user_id` | bigint | No | なし | `users.id` への参照。1ユーザーにつき1設定レコード |
+| `user_id` | bigint | No | なし | `users.id` への参照。1ユーザーにつき設定レコードは最大1件 |
 | `question_format_preference` | varchar(50) | No | `'single_prompt'` | 出題方式。`single_prompt` / `two_choice` |
 | `timer_display_mode` | varchar(50) | No | `'count_down'` | タイマー表示方式。`count_down` / `hidden` |
 | `created_at` | timestamp | No | CURRENT_TIMESTAMP | 作成日時 |
@@ -339,7 +339,7 @@ WHERE user_id = $1;
 
 **備考**  
 - OI-023確定方針により、`users` JSONB方式は採用しない
-- 1ユーザーにつき1設定レコードとする
+- 1ユーザーにつき設定レコードは0件または1件とする
 - ユーザー削除時は `user_learning_settings` も CASCADE で削除する
 - `question_format_preference` は出題開始時の初期選択・絞り込み条件であり、`questions.question_format`、submission、採点条件を上書きしない
 - `count_down` は評価プロファイルの残り時間を0まで表示し、その後は残り時間表示を終了して経過時間表示へ切り替える
