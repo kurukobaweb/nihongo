@@ -21,9 +21,18 @@
 - 音声ファイルを永続保存させない
 - `question_type` を復活させない
 - `questions.question_format` のDBカラム追加タスクは作成しない
-- `question_format` の具体値・値域は `single_prompt` / `two_choice` として確定済みで、T002-05で反映する
+- `question_format` の具体値・値域は `single_prompt` / `two_choice` として確定済みである
+- 正本文書上の表記とユーザー向け表示は、`single_prompt` = 「単一設問」 = 「単体問題」、`two_choice` = 「二テーマ選択」 = 「2択」とする
+- 設問文は `prompt_text` / `prompt_text_1` / `prompt_text_2` の3カラムを形式別規則に従って使用する
 - `has_model_answer` は模範解答有無として扱い、問題形式と混同しない
-- ユーザー設定保存先は OI-023 確定前に固定しない
+- OI-023は解消済みであり、`user_learning_settings` は `question_format_preference` / `timer_display_mode` の2項目だけを保存する
+- `speech_duration_seconds` / `force_stop_enabled` / `transcript_display_enabled` は仕様上廃止済みであり、現行仕様として使用しない。現在の実装からの撤去はT011-03で行う
+- OI-029 / OI-030 / OI-031は未解消・優先度「高」とし、各仕様確定タスクの完了前に依存実装を開始しない
+- 提出時に `prompt_snapshot` / `evaluation_profile_seconds` を保存し、Queue・採点・結果表示はsubmissionの保存値を使用する
+- Stage-AとStage-Bの責務を分離し、Stage-Aのみでは `pronunciation_result` / `fluency_result` / `overall_score` / `comment` をNULL・非表示とする
+- Stage-A成功時にtemplate comment、pronunciation、fluencyを生成・表示せず、`overall_score` を `final_score` の代用にしない
+- 認識成功後に採点不合格と確定した場合は、evaluationを作成し、`evaluation_result = fail` / `final_score = 0`、submissionをcompletedとして扱う
+- 完了済みタスク内の旧仕様記述は当時の実施履歴であり、2026-07-31確定仕様との差分はT000-04以降の新規差分タスクで対応する
 - Stripe Webhook対象イベントは OI-027 確定前に固定しない
 - 管理画面MVP範囲は OI-028 確定前に広げない
 - Feature Flag OFF前提の機能をデフォルトONにしない
@@ -34,11 +43,10 @@
 
 ## 現在のリポジトリ実体と変更対象の読み方
 
-- T001-01着手前の時点では、リポジトリには仕様書Markdown群、`README.md`、`.env.example` が存在する
-- Laravelプロジェクト本体は未作成であり、`composer.json`、`package.json`、`vite.config.*`、`app/`、`routes/`、`resources/`、`config/` などは未生成である
-- これらのファイル・ディレクトリは、T001-01以降で生成または更新される対象として扱う
+- T001-01着手前の初期状態は完了済みタスク内の履歴として維持する
+- 2026-07-31時点では、Laravel / Inertia / Vue / Python評価サービス、DB migration、Seeder、自動テスト等の既存実装が存在する
+- PR #53 / PR #54で確定・補正された音声仕様は既存実装へ未反映の差分を含むため、T000-04以降の新規差分タスクで段階的に反映する
 - 各タスクの変更対象は、タスク開始時点で既存のファイルだけでなく、前タスク完了後に生成済みとなるファイル、または当該タスクで新規作成するファイルを含む
-- T001-02以降に記載される `config/`、`routes/`、`resources/`、`app/`、`database/`、`package.json` などは、T001-01完了後に生成済みとなる前提の変更対象であり、現時点で既存ファイルとして存在することを意味しない
 - CodeX投入時は、開始時点で存在するもの、このタスクで新規作成するもの、既存更新するものを区別し、存在しないファイルを既存ファイルとして扱わない
 
 ## 実装順序の補足
@@ -54,6 +62,27 @@
 - Stripe Webhook受信 / 処理ログはT014-05 / T014-06側で扱い、T012-04には含めない
 - 管理画面はT016-01 / T016-02をadmin入口確認とし、T016-03はOI-028確定後に限定する
 - 依存タスク欄に複数IDがある場合、原則としてすべて完了してから着手する
+- PR #53 / PR #54後続作業は、T000-04 → T000-05 / T000-06 → T000-07 → T000-08 → T002-06 → T002-07 → T004-04 / T011-03 / T007-06 → T005-04 → T006-03 → T008-05 → T010-04 → T009-06 → T013-08 → T013-09 → T013-10 → T017-01 の順で進める
+- T000-05とT000-06、およびT004-04とT011-03とT007-06は、依存条件を満たし変更ファイルが競合しない場合に限り並行可能とする
+- 並行可能なタスクでも同一ファイルを変更する場合は同時実装せず、競合しない順序へ分ける
+
+### PR #53／PR #54後続の未処理13作業群割当
+
+| 作業群 | 割当タスク | 扱い |
+|---|---|---|
+| 1. TASKS.mdへのPR #53・PR #54影響反映 | T000-04 | 現在前提、依存関係、実施順序、新規タスクを登録する |
+| 2. 正本文書・既存実装の矛盾判定 | T000-08 / T010-04 | 正本文書を横断補正し、既存Stage-A実装との差分を解消する |
+| 3. OI-029実Azure計測・仕様確定 | T000-05 | 実Azure証跡と文字数算出規則を確定する |
+| 4. OI-030実ブラウザ計測・仕様確定 | T000-06 | MediaRecorder誤差とtechnical marginを確定する |
+| 5. OI-031採点仕様確定 | T000-07 | 採点表、統合式、合否、versionを確定する |
+| 6. 現行実装差分監査 | T002-06 / T004-04 / T005-04 / T006-03 / T007-06 / T008-05 / T009-06 / T010-04 / T011-03 | DB全体inventory後、各実装タスク開始時に担当領域を監査する |
+| 7. migration・既存データ移行設計 | T002-06 | migrationとbackfillの順序・担当を確定する |
+| 8. DB migration・Model・制約実装 | T002-07 / T004-04 / T006-03 / T008-05 / T011-03 | 先行互換差分後に各テーブルのwriter・最終制約・旧カラム削除を実装する |
+| 9. 問題形式・設定・submission snapshot実装 | T004-04 / T005-04 / T006-03 / T011-03 | 問題、録音UI、snapshot、学習設定を反映する |
+| 10. Stage-A評価・Laravel／Python連携実装 | T007-06 / T008-05 | Python事実値契約とLaravel採点・Queue保存を反映する |
+| 11. 結果画面・Feature Flag表示実装 | T009-06 / T010-04 | Stage-A結果表示とStage-B項目非表示を反映する |
+| 12. 自動テスト・既存DB移行・実Azure・実ブラウザ総合検証 | T013-08 / T013-09 | 自動リハーサル後に実環境E2Eを行う |
+| 13. OPEN_ISSUES・TASKS・CONSISTENCY_CHECK等の完了後更新 | T013-10 | 証跡に基づいてOI・台帳・正本文書を最終更新する |
 
 ---
 
@@ -168,6 +197,224 @@
   - Feature FlagのデフォルトがOFFである
 - CodeX投入時の注意:
   - 実Secrets投入はCodeXに行わせない
+
+### T000-04: PR #53／PR #54後続作業のTASKS.md登録
+
+- [ ] 状態: 実施中（2026-07-31）
+- 種別: 文書・進行管理
+- 目的:
+  - PR #53 / PR #54で生じた未処理作業を、実施前にすべてタスクIDへ割り当てる
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-009, OI-022, OI-023, OI-029, OI-030, OI-031
+  - `DB_SCHEMA.md`
+  - `TASKS.md`
+- 変更対象:
+  - `docs/TASKS.md` のみ
+- 依存タスク:
+  - なし
+- 実装内容:
+  - T000-05〜T013-10の後続17タスクを登録する
+  - T017-01へT013-10の依存を追加する
+  - 共通ルールと現在前提をPR #53 / PR #54後の仕様へ補正する
+  - 完了済み既存タスクは当時の実施履歴として維持する
+  - 未処理13作業群の未割当が0件であることを確認する
+- 実装してはいけないこと:
+  - OI-029〜OI-031の仕様を確定しない
+  - 実装コード、migration、テスト、他の正本文書を修正しない
+  - 完了済みタスクのチェックを解除しない
+- 完了条件:
+  - T000-04を含む新規18タスクが重複なしで登録されている
+  - 依存関係が循環していない
+  - 未処理13作業群がすべてタスクへ割り当てられている
+  - `TASKS.md`補正がレビュー・merge済みである
+- テスト観点:
+  - 新規タスクIDが各1件だけ存在する
+  - 依存先IDが存在し、循環依存がない
+  - 変更ファイルが`docs/TASKS.md`だけである
+- CodeX投入時の注意:
+  - 今回はタスク計画の登録だけを行い、T000-05以降へ着手しない
+  - 本タスクをmerge前に完了へ変更しない
+- 担当:
+  - CodeXが編集する
+  - ChatGPTがレビューする
+  - ユーザーが最終承認する
+- Blocker区分: Blocker
+
+### T000-05: OI-029 実Azure文字数規則確定
+
+- [ ] 状態: 未着手
+- 種別: 仕様・実Azure検証
+- 目的:
+  - Azure AI Speechのja-JP出力から`character_count`を再現可能に算出する規則を確定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-029
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - 実Azure検証手順・証跡
+  - OI-029判断材料
+  - 検証用の境界値・混在文字列テスト
+- 依存タスク:
+  - T000-04
+- 実装内容:
+  - 実Azureレスポンスサンプルを取得する
+  - 採点元の文字列フィールドを特定する
+  - 表示transcriptと採点元文字列の同一／分離を決定する
+  - Unicode正規化方式を決定する
+  - 空白、句読点、数字、英字、記号の扱いを決定する
+  - segment結合規則を決定する
+  - `character_count`算出規則と文字数計算versionを決定する
+  - 境界値・混在文字列テストを定義する
+- 実装してはいけないこと:
+  - Pythonの現行`len(transcript)`を根拠なく仕様化しない
+  - Secrets、実音声、個人情報をcommitしない
+  - OI-029承認前に本番実装を確定しない
+- 完了条件:
+  - 全成果物と`character_count`算出規則がユーザー承認済みである
+- テスト観点:
+  - 実Azureレスポンスから同じ入力に同じ文字数を再現できる
+  - 空白・句読点・数字・英字・記号・Unicode混在の境界値を網羅する
+- CodeX投入時の注意:
+  - Azure費用が発生する実行はユーザー許可後に行う
+  - 検証データを匿名化し、秘密情報をログや差分へ残さない
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Blocker
+
+### T000-06: OI-030 MediaRecorder停止誤差確定
+
+- [ ] 状態: 未着手
+- 種別: 仕様・実ブラウザ検証
+- 目的:
+  - technical marginとAzure送信前の上限超過判定を実測に基づいて確定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-030
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+- 変更対象:
+  - 実ブラウザ計測手順・証跡
+  - OI-030判断材料
+- 依存タスク:
+  - T000-04
+- 実装内容:
+  - 対象ブラウザ、OS、録音形式を記録する
+  - 10 / 40 / 60 / 90 / 120秒ごとに複数回計測する
+  - MediaRecorder停止要求時刻、Blob生成完了時刻、音声ファイル実時間を記録する
+  - 最大誤差と平均誤差を算出する
+  - technical margin、上限超過判定式、Azure送信前拒否条件を決定する
+  - 実ブラウザE2E証跡を残す
+- 実装してはいけないこと:
+  - technical marginを追加回答時間として扱わない
+  - 実測前にtechnical marginの値を固定しない
+  - 許可のないブラウザ操作や外部送信を行わない
+- 完了条件:
+  - 5つの評価プロファイルの実測結果と上限判定式がユーザー承認済みである
+- テスト観点:
+  - 各評価プロファイルを複数回計測し、最大値・平均値を再計算できる
+  - 上限内・境界・上限超過の判定例がある
+- CodeX投入時の注意:
+  - 実ブラウザ操作はユーザーと共同で行い、環境差を証跡へ明記する
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Blocker
+
+### T000-07: OI-031 Stage-A採点仕様確定
+
+- [ ] 状態: 未着手
+- 種別: 仕様
+- 目的:
+  - Stage-Aの採点式、合否条件、scoring versionを確定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-031
+  - `DB_SCHEMA.md`
+- 変更対象:
+  - OI-031判断材料
+  - 採点表、統合式、境界値、version管理、再採点手順
+- 依存タスク:
+  - T000-04
+  - T000-05
+  - T000-06
+- 実装内容:
+  - `character_score`算出表を確定する
+  - `time_score`算出表を確定する
+  - 両スコアの統合式とpass / fail条件を確定する
+  - 境界値の包含関係と小数丸め規則を確定する
+  - `scoring_version`とversion更新規則を確定する
+  - Azureを再実行しない再採点手順を確定する
+  - 入力値と期待結果の具体例を定義する
+- 固定条件:
+  - 認識成功後に採点不合格と確定した場合は`evaluation_result = fail`、`final_score = 0`とする
+  - 採点不合格でもevaluationを作成し、submissionをcompletedとして扱う
+  - fail確定後の`final_score = 0`はOI-031で再判断しない
+- 実装してはいけないこと:
+  - fail確定後の`final_score = 0`を再判断しない
+  - 暫定式を最終仕様として実装しない
+  - 未承認のscoring versionを固定しない
+- 完了条件:
+  - 採点表、統合式、合否、境界値、丸め規則、version、再採点手順がユーザー承認済みである
+- テスト観点:
+  - 各境界値の直前・一致・直後の期待結果が定義されている
+  - pass / failと`final_score`の具体例が矛盾しない
+- CodeX投入時の注意:
+  - CodeXは調査・検証を補助し、採点仕様を独断で確定しない
+- 担当:
+  - ユーザーが仕様を決定する
+  - ChatGPTが判断材料を整理する
+  - CodeXが調査・検証を補助する
+- Blocker区分: Blocker
+
+### T000-08: OI確定後の正本文書横断補正
+
+- [ ] 状態: 未着手
+- 種別: 文書
+- 目的:
+  - T000-05〜T000-07の確定結果と承認済みStage-A／Stage-B責務を正本文書へ反映する
+- 参照仕様書:
+  - `OPEN_ISSUES.md`
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `OPERATIONS.md`
+  - `CONSISTENCY_CHECK.md`
+  - `README.md`
+- 変更対象:
+  - `docs/OPEN_ISSUES.md`
+  - `docs/DB_SCHEMA.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/DESIGN.md`
+  - `docs/OPERATIONS.md`
+  - `docs/CONSISTENCY_CHECK.md`
+  - `README.md`
+  - 必要な`docs/TASKS.md`補足
+- 依存タスク:
+  - T000-05
+  - T000-06
+  - T000-07
+- 実装内容:
+  - OI-029〜OI-031の承認結果を正本文書へ横断反映する
+  - OI-031からfail確定後の`final_score = 0`の再判断を除外する
+  - Stage-B用4カラムはStage-AのみではNULL・非表示と明記する
+  - Stage-Aではtemplate commentを生成・保存しない方針へ統一する
+  - Stage-Aではpronunciation / fluencyを生成・表示しない方針へ統一する
+  - `overall_score`をStage-Aへ使用しない方針へ統一する
+- 実装してはいけないこと:
+  - 実装コードを修正しない
+  - migrationを作成しない
+  - 未確定のOIを解消済みにしない
+  - Azure OpenAI等のStage-B実装を仕様へ先行追加しない
+- 完了条件:
+  - 正本文書間の責務、用語、OI状態が一致している
+- テスト観点:
+  - OI-029〜OI-031の承認内容と全参照文書を相互照合する
+  - Stage-A／Stage-B、fail時`final_score`の記述に矛盾がない
+- CodeX投入時の注意:
+  - 文書補正だけを行い、実装タスクへ進まない
+- 担当:
+  - CodeXが編集する
+  - ChatGPTがレビューする
+  - ユーザーが承認する
+- Blocker区分: Blocker
 
 ---
 
@@ -483,6 +730,8 @@
 ---
 
 # 2. DB・モデル・Seeder
+
+> T002-01〜T002-05は当時の範囲で完了した履歴である。T002-05の旧UI表記を含む2026-07-31確定仕様との差分はT002-06 / T002-07 / T004-04で対応する。
 
 ### T002-01: 17テーブル / 5カテゴリのマイグレーション作成
 
@@ -921,6 +1170,84 @@
   - OI-022は確定済みとして扱う
   - このタスクはDBカラム追加ではなく、値域・CHECK制約・Seeder・UIラベル・バリデーションの反映である
   - T002-05は実装・静的確認まで完了。実DB確認は環境整備後に行う
+
+### T002-06: 音声仕様migration・backfill設計
+
+- [ ] 状態: 未着手
+- 種別: DB設計
+- 目的:
+  - 既存行を壊さずPR #53 / PR #54の最終スキーマへ移行する順序と担当タスクを確定する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `OPEN_ISSUES.md` OI-009, OI-022, OI-023, OI-029, OI-030, OI-031
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - read-only DB inventory手順
+  - migration計画
+  - backfill計画
+  - 最終制約と旧カラム削除の担当タスク割当
+- 依存タスク:
+  - T000-08
+- 実装内容:
+  - `questions` / `submissions` / `evaluations` / `user_learning_settings`の現行DB・Model・既存行をread-onlyで確認する
+  - nullable追加、新規writer導入、backfill、検証、NOT NULL化、CHECK追加、型変更、旧カラム削除の順序を設計する
+  - 補完可能行と補完不能行を区別し、補完不能行の扱いをユーザー判断事項として分離する
+  - 各migration操作をT002-07、T004-04、T006-03、T008-05、T011-03へ割り当てる
+- 実装してはいけないこと:
+  - 実データ未確認で一括NOT NULL化しない
+  - 実データ未確認で旧カラムをdropしない
+  - 推測値でbackfillしない
+  - migrationやModelを本タスクで変更しない
+- 完了条件:
+  - 各migration操作の順序と実施タスクが未割当0件で確定している
+  - 補完不能行の扱いがユーザー承認済み、または明示的なBlockerとして記録されている
+- テスト観点:
+  - fresh DBと既存DB upgradeの双方の経路が設計されている
+  - writer導入前後で既存コードを破壊しない順序になっている
+- CodeX投入時の注意:
+  - DBと実装は読み取り確認だけとし、設計承認前にmigrationを作成しない
+- 担当:
+  - CodeXが調査・設計する
+  - ユーザーが承認する
+- Blocker区分: Pre-merge
+
+### T002-07: 先行互換DB差分・Model基盤実装
+
+- [ ] 状態: 未着手
+- 種別: DB
+- 目的:
+  - T002-06で承認された移行計画のうち、既存コードを直ちに破壊しない先行差分を実装する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - T002-06の承認済みmigration・backfill計画
+- 変更対象:
+  - `database/migrations/`
+  - `app/Models/`
+  - DB schema inspection用テスト
+- 依存タスク:
+  - T002-06
+- 実装内容:
+  - 承認済みの新規カラムを先行追加する
+  - 必要な型変更の準備を行う
+  - Modelの互換的な`fillable` / `casts` / relationsを補正する
+  - 後続writer実装まで必要なnullable・互換状態を維持する
+  - 各最終制約を適用する後続タスクをmigrationコメントまたはタスク証跡で明示する
+- 実装してはいけないこと:
+  - 後続writer導入前に無条件でNOT NULL化しない
+  - 後続コード修正前に旧設定カラムを削除しない
+  - `question_topics` / `selected_topic_id`を追加しない
+  - Stage-B用の新規構造を追加しない
+- 完了条件:
+  - 既存機能を壊さずT004-04、T006-03、T007-06、T008-05、T011-03を開始できる
+- テスト観点:
+  - PostgreSQLで先行migrationが成功する
+  - 既存自動テストが成功する
+  - schema inspectionで計画どおりの互換状態を確認できる
+- CodeX投入時の注意:
+  - T002-06で先行実装対象と承認された操作だけを行う
+- 担当:
+  - CodeX
+- Blocker区分: Pre-merge
 
 ---
 
@@ -1453,6 +1780,8 @@
 
 # 4. 問題管理・問題選択
 
+> T004-01〜T004-03は当時の範囲で完了した履歴である。旧UI表記を含む2026-07-31確定仕様との差分はT004-04で対応する。
+
 ### T004-01: 問題取得API / Controller作成
 
 - [x] 状態: 完了（2026-06-08 確認済み）
@@ -1938,9 +2267,56 @@
   - #5. ホーム・録音UI では、#6 音声提出バックエンド、#7 Python FastAPI音声評価サービスを同じチャットに含めない
   - #6 / #7 は後続の別チャットで扱う
 
+### T004-04: 二テーマ選択・設問3カラム・初期profile実装
+
+- [ ] 状態: 未着手
+- 種別: DB・API・UI・Seeder
+- 目的:
+  - OI-022およびquestion側のOI-009確定内容を既存実装へ反映する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-009, OI-022
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+- 変更対象:
+  - questions関連migration・Model・Seeder
+  - questions関連API Resource・validation・Controller
+  - 問題選択・録音前画面
+  - questions関連自動テスト
+- 依存タスク:
+  - T002-07
+- 実装内容:
+  - `prompt_text` / `prompt_text_1` / `prompt_text_2`を形式別規則に従って保存する
+  - `single_prompt` / `two_choice`の形式別NULL・空文字規則を実装する
+  - 正文説明を「単一設問」/「二テーマ選択」、UI表示を「単体問題」/「2択」とする
+  - `two_choice`では2つのテーマから話したい1件を選択する
+  - `recommended_duration_seconds`を問題ごとの初期評価プロファイルとして扱う
+  - 10秒チャレンジへ10、それ以外へ原則60をSeederで明示保存する
+  - API・validation・画面・questionsの最終CHECKとNOT NULL移行を補正する
+- 実装してはいけないこと:
+  - `question_topics`を追加しない
+  - `selected_topic_id`、テーマ専用ID・テーブルを追加しない
+  - 正解番号、正解・不正解、テーマ別得点を追加しない
+  - タグから評価プロファイルを動的推測しない
+  - `default_evaluation_profile_seconds`へ改名しない
+- 完了条件:
+  - `single_prompt` / `two_choice`双方が形式規則どおり保存・取得・表示される
+  - 18テーブル／5カテゴリ構成を維持している
+- テスト観点:
+  - 各形式の有効・無効なprompt組み合わせ
+  - UIラベルとテーマ選択
+  - 評価プロファイル5値とSeeder明示値
+  - PostgreSQL CHECK制約
+- CodeX投入時の注意:
+  - T002-05は当時の値域反映として完了済みであり、本タスクは2026-07-31仕様との差分だけを扱う
+- 担当:
+  - CodeX
+- Blocker区分: Pre-merge
+
 ---
 
 # 5. ホーム・録音UI
+
+> T005-01〜T005-03は当時の範囲で完了した履歴である。OI-023確定前の設定前提と新しい評価プロファイル・タイマー仕様との差分はT005-04 / T011-03で対応する。
 
 ### T005-01: 録音画面レイアウト実装
 
@@ -2192,6 +2568,50 @@
   - 次工程は #6 音声提出バックエンドの開始前確認
   - #6 では音声アップロードAPIに入る前に、T006-01の依存関係と既存DB/API構成を確認する
 
+### T005-04: 評価profile選択・timer・常時上限監視
+
+- [ ] 状態: 未着手
+- 種別: UI・録音
+- 目的:
+  - 録音前に評価プロファイルを選択し、timer表示方式と上限監視を適用する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-009, OI-023, OI-030
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+- 変更対象:
+  - 録音画面Vueコンポーネント・composable
+  - 録音制御・タイマー制御
+  - 関連フロントエンドテスト
+- 依存タスク:
+  - T000-06
+  - T004-04
+  - T011-03
+- 実装内容:
+  - 10 / 40 / 60 / 90 / 120秒から評価プロファイルを選択できるようにする
+  - `questions.recommended_duration_seconds`を録音前の初期選択値にする
+  - `count_down`では0まで残り時間を表示し、0到達後は経過時間表示へ切り替える
+  - `hidden`では録音中の数値タイマーを表示しない
+  - timer表示方式と独立して評価プロファイル別上限監視を常時有効にする
+  - OI-030で承認されたtechnical marginと自動停止・上限判定を実装する
+- 実装してはいけないこと:
+  - 全問題共通のspeech duration設定を追加しない
+  - `force_stop_enabled`を復活させない
+  - technical marginをUI上の追加回答時間へ加算しない
+  - 実測前のtechnical marginを使用しない
+- 完了条件:
+  - 5評価プロファイル、2 timer mode、常時上限監視、上限判定が仕様どおり成立する
+- テスト観点:
+  - 各プロファイルの選択と初期値
+  - `count_down`の0到達前後
+  - `hidden`での非表示と上限監視
+  - 自動停止とtechnical margin境界値
+- CodeX投入時の注意:
+  - 自動テスト後、実ブラウザ確認はユーザーと共同で行う
+- 担当:
+  - CodeX
+  - 実ブラウザ確認はユーザー＋CodeX
+- Blocker区分: Pre-merge
+
 ---
 
 # 6. 音声提出バックエンド
@@ -2360,6 +2780,52 @@
   - Python / Azure / WAV変換 / 評価結果保存 / ポーリング / 結果表示は後続タスクで扱う
   - T007 以降に進む前に、`.env` 未作成 warning により T006-02 追加 Feature test が実質未検証である点を確認する
   - 実DBまたは `.env` が整ったテスト環境で、database queue の `jobs` 実投入を再確認する
+
+### T006-03: submission snapshot保存
+
+- [ ] 状態: 未着手
+- 種別: API・DB
+- 目的:
+  - 提出時に実際に使用した設問文と最終選択された評価プロファイルをsubmissionへ固定保存する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-009, OI-022
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+- 変更対象:
+  - submissions関連migration・Model
+  - 音声提出Controller・Request・Service
+  - Queue dispatch
+  - submissions関連自動テスト
+- 依存タスク:
+  - T002-07
+  - T004-04
+  - T005-04
+- 実装内容:
+  - `prompt_snapshot`を保存する
+  - `evaluation_profile_seconds`を保存する
+  - `single_prompt`では`prompt_text`、`two_choice`では選択された`prompt_text_1`または`prompt_text_2`の1件だけを保存する
+  - 録音開始前に最終選択されていた評価プロファイルを明示保存する
+  - submission保存成功後にQueueへdispatchする
+  - submissionsの最終NOT NULL・CHECKを適用する
+  - T002-06で承認された既存行移行処理を実施する
+- 実装してはいけないこと:
+  - `selected_topic_id`を追加しない
+  - Queueで現在のquestionやprofileを再取得しない
+  - 推測値でbackfillしない
+  - `expected_duration`をDBカラムとして追加しない
+- 完了条件:
+  - question変更後も提出時の設問文と評価プロファイルをsubmissionだけから再現できる
+  - Queue dispatch前に両snapshotが永続化されている
+- テスト観点:
+  - `single_prompt` / `two_choice`のsnapshot保存
+  - 評価プロファイル5値と不正値
+  - 保存失敗時にQueueへdispatchしないこと
+  - question変更後の履歴再現
+- CodeX投入時の注意:
+  - backfillはT002-06で承認された方法だけを使用する
+- 担当:
+  - CodeX
+- Blocker区分: Pre-merge
 
 ---
 
@@ -2903,6 +3369,52 @@
   - 500 / 503 は Laravel 側の後続タスクで failed / retry / temporary failure 等へ分岐する前提
   - T008-01 で Laravel 側 Python評価クライアントを実装する際、この response 契約を参照する
 
+### T007-06: Python Stage-A事実値契約
+
+- [ ] 状態: 未着手
+- 種別: Python
+- 目的:
+  - OI-029確定規則により、Azureを再実行せず再採点できるStage-A事実値をLaravelへ返す
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-029
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - T000-05の承認済み文字数規則
+- 変更対象:
+  - `python/`のAzure Speech応答処理・DTO・response schema
+  - Python自動テスト・fixtures
+  - LaravelとのAPI契約
+- 依存タスク:
+  - T000-05
+  - T000-08
+  - T002-07
+- 実装内容:
+  - `transcript`を返す
+  - Azure認識発話セグメントの合計時間をrecognized durationとして返す
+  - `character_count`をOI-029確定規則で算出する
+  - `characters_per_minute`を小数第2位まで算出する
+  - `speed_assessment`をversion管理された評価設定で判定する
+  - 文字数計算version相当の契約とsegment処理を実装する
+  - Laravel側が事実値を型・精度込みで検証できるresponse contractにする
+- 実装してはいけないこと:
+  - OI-031の採点処理をPythonへ無断で移動しない
+  - `len(transcript)`を無条件で継続使用しない
+  - Stage-B値を生成しない
+  - PythonからLaravel DBへ直接アクセスしない
+- 完了条件:
+  - Azureを再実行せずLaravel側が再採点できるStage-A事実値が返る
+  - 文字数、認識時間、CPM、速度区分を同一responseから再現できる
+- テスト観点:
+  - OI-029の境界値・混在文字列
+  - 複数segmentと無音・未認識区間
+  - 小数第2位の精度
+  - Azure 422 / 5xx時に成功値を返さないこと
+- CodeX投入時の注意:
+  - Pythonは事実値を返し、採点統合はT008-05のLaravel責務として維持する
+- 担当:
+  - CodeX
+- Blocker区分: Pre-merge
+
 ---
 
 # 8. Laravel ⇔ Python連携
@@ -3067,6 +3579,58 @@
   - 削除失敗時も submission / evaluation 更新を壊さない方針
   - CleanupTempFilesJob / scheduler は未実装
   - Docker / 実Python / 実Azure 接続は未実施
+
+### T008-05: Laravel Stage-A採点・Queue連携
+
+- [ ] 状態: 未着手
+- 種別: Queue・Service・DB
+- 目的:
+  - submission保存値と確定済み採点仕様を用いてStage-Aを処理・保存する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-009, OI-029, OI-030, OI-031
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - T000-06 / T000-07の承認済み仕様
+- 変更対象:
+  - `app/Jobs/ProcessSpeechEvaluationJob.php`
+  - Stage-A採点Service・DTO・Python client
+  - evaluations関連migration・Model
+  - Queue・Service・DB自動テスト
+- 依存タスク:
+  - T000-06
+  - T000-07
+  - T002-07
+  - T006-03
+  - T007-06
+- 実装内容:
+  - Pythonへ渡す`expected_duration`を`submissions.evaluation_profile_seconds`から取得する
+  - OI-030確定式でAzure送信前上限判定を行う
+  - `character_score` / `time_score` / `final_score` / `evaluation_result` / `scoring_version`を算出する
+  - Stage-A必須10値をevaluationsへ保存する
+  - 認識成功・合格と認識成功・採点不合格ではevaluationを作成する
+  - STT認識不可（422）、Azure送信前上限超過、システム障害ではevaluationを作成しない
+  - evaluationsの最終型・NOT NULL・CHECKを適用する
+  - Queue再実行時のべき等性を保証する
+- 固定条件:
+  - 認識成功後に採点不合格と確定した場合は`evaluation_result = fail`、`final_score = 0`とし、submissionをcompletedにする
+- 実装してはいけないこと:
+  - 現在のquestionやuser settingから採点条件を再取得しない
+  - technical marginを`expected_duration`へ加算しない
+  - 422時、Azure送信前上限超過時、システム障害時にevaluationを作成しない
+  - Stage-B用4カラムへ値を保存しない
+- 完了条件:
+  - 成功、採点fail、422、Azure送信前上限超過、システム障害の全分岐が仕様どおり成立する
+  - Stage-A成功時のevaluationに必須10値が保存される
+- テスト観点:
+  - `expected_duration`の取得元
+  - 各作成／非作成分岐とsubmission status
+  - fail時`final_score = 0`
+  - NOT NULL・CHECK・小数精度・べき等性
+- CodeX投入時の注意:
+  - 採点規則はT000-07の承認済みversionを使用し、独自式を追加しない
+- 担当:
+  - CodeX
+- Blocker区分: Pre-merge
 
 ---
 
@@ -3399,9 +3963,53 @@
   - 上記未確認事項はT009未完了理由ではなく、後続タスクまたは別工程で扱う
   - T010以降のコメント生成本体、実Azure込みE2E、実音声評価品質確認はこの完了判定に含めない
 
+### T009-06: Stage-A結果・submission snapshot表示
+
+- [ ] 状態: 未着手
+- 種別: API・UI
+- 目的:
+  - 提出時条件とStage-A結果をstatus / result APIおよび結果画面へ表示する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+- 変更対象:
+  - submission status / result API Resource・Controller
+  - 結果画面Vueコンポーネント
+  - API・UI自動テスト
+- 依存タスク:
+  - T008-05
+  - T010-04
+- 実装内容:
+  - `prompt_snapshot` / `evaluation_profile_seconds`を表示データとして返す
+  - `transcript` / `character_count` / `duration_seconds` / `characters_per_minute`を表示する
+  - `speed_assessment` / `character_score` / `time_score` / `final_score`を表示する
+  - `evaluation_result` / `scoring_version` / pass・failを表示する
+  - question編集後もsubmissionとevaluationの保存値から履歴を再現する
+- 実装してはいけないこと:
+  - 現在のquestionを履歴表示のために再取得しない
+  - `overall_score`を`final_score`の代用にしない
+  - Stage-B用のNULL項目を表示しない
+  - Stage-Aで`comment`を表示しない
+- 完了条件:
+  - question編集後も提出時の設問、評価プロファイル、Stage-A結果を再現できる
+  - pass / failと`final_score`が保存値どおり表示される
+- テスト観点:
+  - status / result API contract
+  - question編集前後の履歴再現
+  - pass / fail表示
+  - Stage-B用4カラムがNULLの場合の非表示
+- CodeX投入時の注意:
+  - T009完了状態は当時の範囲の履歴として維持し、本タスクで2026-07-31仕様との差分だけを扱う
+- 担当:
+  - CodeX
+- Blocker区分: Pre-merge
+
 ---
 
 # 10. コメント生成
+
+> T010-01〜T010-03は当時の範囲で完了した履歴である。2026-07-31確定のStage-A／Stage-B責務との差分はT010-04で対応する。
 
 ### T010-01: CommentGeneratorInterface 作成
 
@@ -3623,9 +4231,60 @@
     - `CommentResult` source / metadata を保存する場合は、DBスキーマ追加を伴う別タスクで扱う
     - LLMコメント生成は未実装のまま
 
+### T010-04: Stage-B用カラム・旧Feature Flag・comment実装の新仕様反映
+
+- [ ] 状態: 未着手
+- 種別: Service・Feature Flag・UI
+- 目的:
+  - 既存のStage-A発音・流暢さ・comment処理を承認済みStage-A／Stage-B責務へ合わせる
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - T000-08で補正済みの正本文書
+- 変更対象:
+  - Stage-A評価Job・Service
+  - CommentGenerator関連実装
+  - Feature Flag設定・分岐
+  - status / result APIおよび結果画面
+  - 関連自動テスト
+- 依存タスク:
+  - T000-08
+  - T008-05
+- 固定仕様:
+  - `pronunciation_result` / `fluency_result` / `overall_score` / `comment`はStage-B用nullableカラムとする
+  - Stage-AのみではStage-B用4カラムをNULL・非表示とする
+  - Stage-B実装自体は今回行わない
+- 実装内容:
+  - Stage-Aでのtemplate comment生成・保存を停止する
+  - Stage-Aでpronunciation / fluencyを生成しない
+  - Stage-A結果API・画面からStage-B項目を非表示にする
+  - 旧Feature Flagの用途、設定、分岐、テストを整理する
+  - Stage-B値によって既存Stage-A値を混在・上書きしない
+- 実装してはいけないこと:
+  - B1 / B2 / B3の再選択を行わない
+  - Azure OpenAI等のStage-B実装を追加しない
+  - Stage-B専用テーブルを追加しない
+  - `final_score`を`overall_score`へ転用しない
+- 完了条件:
+  - Stage-A実行時にStage-B用4カラムがNULLであり、API・UIで非表示となる
+  - Stage-A成功時にtemplate comment、pronunciation、fluencyが生成されない
+- テスト観点:
+  - 関連Feature Flag OFF / ONの既存分岐整理
+  - Stage-A成功・fail時のStage-B用4カラムNULL
+  - API非返却またはUI非表示
+  - Stage-A値がStage-B用カラムへ保存されないこと
+- CodeX投入時の注意:
+  - T010-01〜T010-03は当時の実施履歴として維持し、本タスクで確定仕様との差分を明示的に変更する
+- 担当:
+  - CodeX
+- Blocker区分: Pre-merge
+
 ---
 
 # 11. 設定画面
+
+> T011-01 / T011-02は当時の5項目設定実装の履歴である。2026-07-31確定の2項目構成との差分はT011-03で対応する。
 
 ### T011-01: 設定画面UI実装
 
@@ -3775,6 +4434,57 @@
   - `npm.cmd run build`: 成功
   - `php artisan route:list`: 成功、`GET settings` / `PUT settings` 確認
   - full `php artisan test`: 未実行
+
+### T011-03: user_learning_settings 2項目化
+
+- [ ] 状態: 未着手
+- 種別: DB・API・UI
+- 目的:
+  - OI-023の確定済み2項目構成へ既存設定機能を移行する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-023
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+- 変更対象:
+  - user_learning_settings関連migration・Model
+  - Settings Controller・Request
+  - 設定画面Vueコンポーネント
+  - validation・自動テスト
+- 依存タスク:
+  - T002-07
+- 残す項目:
+  - `question_format_preference`
+  - `timer_display_mode`
+- 削除対象:
+  - `speech_duration_seconds`
+  - `force_stop_enabled`
+  - `transcript_display_enabled`
+  - `count_up`値
+- 実装内容:
+  - Model、Controller、Request、Vue、validationを2項目構成へ補正する
+  - T002-06で承認されたmigrationと既存値移行を実施する
+  - writer移行後に旧カラムを削除する
+  - users : user_learning_settings = 1 : 0..1の関係を維持する
+  - `timer_display_mode`を`count_down` / `hidden`の値域へ移行する
+- 実装してはいけないこと:
+  - 設定レコードを全ユーザーへ必須生成しない
+  - 旧3設定を復活させない
+  - `count_up`を有効値として維持しない
+  - 移行値を推測しない
+- 完了条件:
+  - 2項目だけがDB・API・UIで保存・再読込される
+  - 旧3項目と`count_up`が有効なDB・API・UI仕様から除去される
+  - 設定レコードがないユーザーを0..1関係のまま扱える
+- テスト観点:
+  - 2項目の値域、保存、再読込
+  - 設定レコードなし／あり
+  - 同一ユーザーへの複数レコード禁止
+  - 既存値移行と旧入力拒否
+- CodeX投入時の注意:
+  - T011-01 / T011-02は当時の5項目実装履歴として維持し、本タスクで2026-07-31仕様との差分だけを扱う
+- 担当:
+  - CodeX
+- Blocker区分: Pre-merge
 
 ---
 
@@ -4967,6 +5677,144 @@
   - VPS上で稼働中のbranch / commit SHAを必ず報告する
   - 測定結果はOI-008の判断材料として扱い、Redis移行やインフラ変更をこのタスク内で確定しない
 
+### T013-08: 自動テスト・既存DB移行リハーサル
+
+- [ ] 状態: 未着手
+- 種別: テスト
+- 目的:
+  - 新音声仕様のfresh DB、既存DB upgrade、Laravel／Python／UI連携を自動確認する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - T002-06の承認済み移行計画
+- 変更対象:
+  - Laravel Feature / Unit tests
+  - Vue unit / contract tests
+  - Python tests
+  - PostgreSQL migration検証・fixtures
+- 依存タスク:
+  - T004-04
+  - T005-04
+  - T006-03
+  - T007-06
+  - T008-05
+  - T009-06
+  - T010-04
+  - T011-03
+- 実装内容:
+  - PostgreSQL fresh migrationを検証する
+  - 既存DB相当のupgradeとbackfillをリハーサルする
+  - 最終CHECK・NOT NULL・型変更を検証する
+  - API、UI contract、Queue、Python連携を検証する
+  - 422、Azure送信前上限超過、pass、failを検証する
+  - Stage-B用4カラムのNULLとUI非表示を検証する
+  - fixturesを新仕様へ更新する
+- 実装してはいけないこと:
+  - SQLiteだけの成功でPostgreSQL移行成功と断定しない
+  - 補完不能データを推測で修正しない
+  - 実Azure・実ブラウザE2Eの成功を自動テストで代替しない
+- 完了条件:
+  - fresh DB、既存DB upgrade、Laravel、Vue contract、Pythonの全自動テストが成功する
+- テスト観点:
+  - 5評価プロファイルと2 timer mode
+  - 2問題形式とsnapshot
+  - Stage-A必須10値
+  - 作成／非作成分岐とStage-B NULL・非表示
+- CodeX投入時の注意:
+  - 既存DB相当データは匿名fixtureを使用し、実データをcommitしない
+- 担当:
+  - CodeX
+- Blocker区分: Pre-E2E
+
+### T013-09: 新音声仕様の実Azure・実ブラウザ総合E2E
+
+- [ ] 状態: 未着手
+- 種別: E2E
+- 目的:
+  - 新音声仕様を実ブラウザ、実Azure、実DBで総合確認する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-009, OI-022, OI-023, OI-029, OI-030, OI-031
+  - `DB_SCHEMA.md`
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - 実ブラウザ・実Azure・実DBのE2E手順と証跡
+  - 必要なE2E結果記録
+- 依存タスク:
+  - T013-08
+- 実装内容:
+  - `single_prompt` / `two_choice`を確認する
+  - 5評価プロファイルと2 timer modeを確認する
+  - prompt snapshotとevaluation profile snapshotを確認する
+  - pass、failと`final_score = 0`を確認する
+  - 422とAzure送信前上限超過を確認する
+  - Stage-B用4カラムのNULLとUI非表示を確認する
+  - question編集後の履歴再現を確認する
+  - 正常・異常経路のログ、DB、UI証跡を記録する
+- 実装してはいけないこと:
+  - ユーザー許可なしにAzure費用を発生させない
+  - Secrets、実音声、個人情報をcommitしない
+  - 既存queued Jobを無断で再処理しない
+  - E2E中に仕様を独断変更しない
+- 完了条件:
+  - 正常・異常経路をログ、DB、UI証跡付きで確認し、ユーザーが結果を承認する
+- テスト観点:
+  - 形式・profile・timerの組み合わせ
+  - 成功・fail・422・上限超過
+  - snapshot履歴再現
+  - Stage-B NULL・非表示
+- CodeX投入時の注意:
+  - 実Azure実行と実ブラウザ操作はユーザーの許可・共同確認の下で行う
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Pre-MVP
+
+### T013-10: OI・TASKS・整合台帳の完了反映
+
+- [ ] 状態: 未着手
+- 種別: 文書
+- 目的:
+  - 実装、テスト、E2Eの事実をOI・タスク・整合台帳へ反映する
+- 参照仕様書:
+  - `OPEN_ISSUES.md`
+  - `TASKS.md`
+  - `CONSISTENCY_CHECK.md`
+  - `README.md`
+  - 関連正本文書
+- 変更対象:
+  - `docs/OPEN_ISSUES.md`
+  - `docs/TASKS.md`
+  - `docs/CONSISTENCY_CHECK.md`
+  - `README.md`
+  - 関連正本文書
+- 依存タスク:
+  - T013-09
+- 実装内容:
+  - OI-029〜OI-031の状態を承認・実装・E2E結果に基づいて更新する
+  - commit、PR、test、E2E証跡を記録する
+  - 未確認事項を明記する
+  - 実装済み／未実装を区別する
+  - MVP判定の前提をT017-01へ引き渡す
+- 実装してはいけないこと:
+  - 証跡なしでOIを解消済みにしない
+  - 未実装事項を実装済みと記載しない
+  - 本タスクで追加実装や仕様変更を行わない
+- 完了条件:
+  - 台帳、正本文書、実装・テスト・E2E証跡が一致している
+- テスト観点:
+  - OI状態と証跡の対応
+  - T000-05〜T013-09の完了条件充足
+  - 実装済み／未実装／未確認の区別
+- CodeX投入時の注意:
+  - 文書更新は実証済みの事実だけを反映する
+- 担当:
+  - CodeXが編集する
+  - ChatGPTがレビューする
+  - ユーザーが承認する
+- Blocker区分: Pre-MVP
+
 ---
 
 # 14. 課金・Stripe・法務ページ
@@ -5558,9 +6406,13 @@
   - T013-04
   - T013-05
   - T013-07
+  - T013-10
   - T014-08
   - T015-04
   - T016-04
+- 依存関係補足:
+  - T013-10は、T000-05〜T013-09までの新音声仕様差分対応を包含する最終台帳更新である
+  - T017-01はT013-10完了前にMVP全体完了判定へ進まない
 - 実装内容:
   - 認証E2E確認
   - 課金なし音声提出E2E確認
