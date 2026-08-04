@@ -254,7 +254,7 @@
 
 ### T000-05: OI-029 実Azure文字数規則確定
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-04 PR #57 merge済み）
 - 種別: 仕様・実Azure検証
 - 目的:
   - Azure AI Speechのja-JP出力から`character_count`を再現可能に算出する規則を確定する
@@ -277,6 +277,23 @@
   - segment結合規則を決定する
   - `character_count`算出規則と文字数計算versionを決定する
   - 境界値・混在文字列テストを定義する
+- 確認結果:
+  - PR #57 `docs: record OI-029 Azure character count decision` を `develop` へmerge済み
+  - PR head commit: `4bb73fc5021445578ef0219962c07445f5de1328`
+  - merge commit: `606e62fab20b86169b1ec0e513655374c8a76ebb`
+  - PR #57の変更はsanitization済み証跡5ファイルのみで、729 additions / 0 deletions
+  - 実Azure呼び出しは累計9回、retry 0回
+  - sanitized JSONLは9 run、重複0件
+  - 文字列比較CSVは468データ行、再計算不一致0件
+  - 境界値ケースB01〜B10はすべて再計算結果と一致
+  - 表示用transcriptは各final segmentの`SpeechRecognitionResult.text`をASCII半角空白1文字で結合する
+  - 採点元は各final segmentの`result.json["NBest"][0]["Lexical"]`とする
+  - `character_count`はNFC正規化後、Unicode whitespace・`P*`・`C*`を除外し、`L*`・`M*`・`N*`・`S*`を含め、segmentをseparatorなしで結合したUnicode code point数とする
+  - character count versionは`ja-jp-character-count-v1`
+  - Lexical取得不能時は表示文字列へfallbackせず、Stage-A response contract failureとして扱う
+  - Secrets、endpoint実値、exact ID、絶対パス、raw JSON、実音声はtracked成果物に含まれていない
+  - production実装、DB変更、正本文書横断更新、`OPEN_ISSUES.md`更新は未実施で、後続タスクの対象として維持する
+  - T000-06以降には未着手
 - 実装してはいけないこと:
   - Pythonの現行`len(transcript)`を根拠なく仕様化しない
   - Secrets、実音声、個人情報をcommitしない
