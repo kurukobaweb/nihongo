@@ -1,0 +1,12 @@
+case_id,input,normalization,processed,expected_code_point_count,reason
+B01,東京 です。,NFC,東京です,4,Unicode whitespaceとP*の句点を除外
+B02,ガ,NFC,ガ,1,NFCでカとU+3099を合成
+B03,パ,NFC,パ,1,NFCでハとU+309Aを合成
+B04,ＡＢＣ１２３,NFC,ＡＢＣ１２３,6,NFCは全角英数字を互換変換しない
+B05,a プラス b,NFC,aプラスb,5,ASCII空白を除外しLetterを保持
+B06,二千二十六年,NFC,二千二十六年,6,Number語形を圧縮せずLetterとして保持
+B07,100%,NFC,100,3,%はPunctuationのため除外
+B08,A+B=C,NFC,A+B=C,5,+と=はSymbolのため保持
+B09,"東京
+大阪",NFC,東京大阪,4,LFはUnicode whitespaceのため除外
+B10,東京です。 大阪です。,NFC,東京です大阪です,8,句点とASCII空白を除外
