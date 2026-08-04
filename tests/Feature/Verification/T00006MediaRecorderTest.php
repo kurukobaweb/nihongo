@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Verification;
 
+use App\Http\Controllers\Verification\T00006MediaRecorderController;
 use App\Models\User;
 use App\Services\Verification\T00006AudioAnalyzer;
 use Illuminate\Database\Schema\Blueprint;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
 use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class T00006MediaRecorderTest extends TestCase
@@ -233,6 +235,67 @@ class T00006MediaRecorderTest extends TestCase
         $this->assertStringNotContainsString(str_replace('\\', '/', $this->measurementPath), str_replace('\\', '/', $rawJsonl));
         $this->assertStringNotContainsString('ffmpeg -', $rawJsonl);
         $this->assertStringNotContainsString('ffprobe -', $rawJsonl);
+    }
+
+    public function test_jsonl_append_failure_rolls_back_partial_line_and_only_the_new_webm_then_allows_retry(): void
+    {
+        $this->mockAnalyzer(times: 3);
+        $analyzer = $this->app->make(T00006AudioAnalyzer::class);
+        $controller = new class($analyzer) extends T00006MediaRecorderController
+        {
+            private bool $failNextAppend = false;
+
+            public function failNextAppend(): void
+            {
+                $this->failNextAppend = true;
+            }
+
+            protected function appendJsonlRecord($handle, array $record): void
+            {
+                if (! $this->failNextAppend) {
+                    parent::appendJsonlRecord($handle, $record);
+
+                    return;
+                }
+
+                $this->failNextAppend = false;
+                fseek($handle, 0, SEEK_END);
+                fwrite($handle, '{"partial_trial":');
+                fflush($handle);
+
+                throw new RuntimeException('simulated_jsonl_failure');
+            }
+        };
+        $this->app->instance(T00006MediaRecorderController::class, $controller);
+
+        $user = $this->createUser();
+        $trialAMetadata = $this->validMetadata(attempt: 1);
+        $trialBMetadata = $this->validMetadata(attempt: 2);
+        $trialAId = 'env-a-p060-r01-a01';
+        $trialBId = 'env-a-p060-r01-a02';
+
+        $this->postTrial($user, $trialAMetadata, $this->fakeWebm())->assertCreated();
+        $jsonlAfterTrialA = file_get_contents($this->jsonlPath());
+        $trialAAudio = file_get_contents($this->audioPath($trialAId));
+
+        $controller->failNextAppend();
+
+        $this->postTrial($user, $trialBMetadata, $this->fakeWebm())
+            ->assertStatus(500)
+            ->assertJsonPath('invalid_reason', 'storage_failed');
+
+        $this->assertSame($jsonlAfterTrialA, file_get_contents($this->jsonlPath()));
+        $this->assertSame($trialAAudio, file_get_contents($this->audioPath($trialAId)));
+        $this->assertFileDoesNotExist($this->audioPath($trialBId));
+        $this->assertCount(1, $this->jsonlRecords());
+        $this->assertSame($trialAId, $this->jsonlRecords()[0]['trial_id']);
+
+        $this->postTrial($user, $trialBMetadata, $this->fakeWebm())
+            ->assertCreated()
+            ->assertJsonPath('trial_id', $trialBId);
+
+        $this->assertFileExists($this->audioPath($trialBId));
+        $this->assertSame([$trialAId, $trialBId], array_column($this->jsonlRecords(), 'trial_id'));
     }
 
     private function mockAnalyzer(?array $result = null, int $times = 1): void

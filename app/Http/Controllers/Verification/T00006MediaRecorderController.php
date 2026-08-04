@@ -72,6 +72,9 @@ class T00006MediaRecorderController extends Controller
             ], 500);
         }
 
+        $jsonlSizeBeforeAppend = null;
+        $mayDeleteRequestAudio = false;
+
         try {
             if ($this->jsonlContainsTrial($handle, $trialId) || is_file($paths['audio_absolute'])) {
                 return response()->json([
@@ -80,6 +83,9 @@ class T00006MediaRecorderController extends Controller
                     'invalid_reason' => 'duplicate_trial_id',
                 ], 409);
             }
+
+            $jsonlSizeBeforeAppend = $this->jsonlSize($handle);
+            $mayDeleteRequestAudio = true;
 
             $record = $this->buildRecord(
                 $metadata,
@@ -103,6 +109,18 @@ class T00006MediaRecorderController extends Controller
                 'audio_relative_path' => $record['audio_relative_path'],
             ], 201);
         } catch (Throwable) {
+            try {
+                $this->rollbackJsonl($handle, $jsonlSizeBeforeAppend);
+            } catch (Throwable) {
+                // The response remains the same sanitized storage failure.
+            }
+
+            try {
+                $this->deleteRequestAudio($mayDeleteRequestAudio, $paths['audio_absolute']);
+            } catch (Throwable) {
+                // The response remains the same sanitized storage failure.
+            }
+
             return response()->json([
                 'message' => 'The measurement record could not be stored.',
                 'invalid_reason' => 'storage_failed',
@@ -491,9 +509,52 @@ class T00006MediaRecorderController extends Controller
 
     /**
      * @param  resource  $handle
+     */
+    private function jsonlSize($handle): int
+    {
+        $statistics = fstat($handle);
+        $size = $statistics['size'] ?? null;
+
+        if (! is_int($size) || $size < 0) {
+            throw new RuntimeException('storage_failed');
+        }
+
+        return $size;
+    }
+
+    /**
+     * @param  resource  $handle
+     */
+    private function rollbackJsonl($handle, ?int $size): void
+    {
+        if ($size === null) {
+            return;
+        }
+
+        $truncated = @ftruncate($handle, $size);
+        $flushed = @fflush($handle);
+
+        if (! $truncated || ! $flushed) {
+            throw new RuntimeException('storage_failed');
+        }
+    }
+
+    private function deleteRequestAudio(bool $mayDelete, string $audioPath): void
+    {
+        if (! $mayDelete || ! is_file($audioPath)) {
+            return;
+        }
+
+        if (! @unlink($audioPath)) {
+            throw new RuntimeException('storage_failed');
+        }
+    }
+
+    /**
+     * @param  resource  $handle
      * @param  array<string, mixed>  $record
      */
-    private function appendJsonlRecord($handle, array $record): void
+    protected function appendJsonlRecord($handle, array $record): void
     {
         try {
             $line = json_encode(
