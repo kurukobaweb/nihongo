@@ -1,6 +1,10 @@
 <script setup>
 import axios from 'axios';
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import {
+    calculateRecordingUiTime,
+    formatRecordingTime,
+} from '../../verification/t00006RecordingUi.js';
 
 const props = defineProps({
     profiles: {
@@ -19,11 +23,14 @@ const status = ref('idle');
 const mimeType = ref('');
 const errorMessage = ref('');
 const serverResult = ref(null);
+const elapsedDisplaySeconds = ref(0);
+const remainingDisplaySeconds = ref(10);
 
 let recorder = null;
 let stream = null;
 let chunks = [];
 let stopTimerId = null;
+let recordingUiTimerId = null;
 let recordingOrigin = null;
 let activeMetadata = null;
 let trialSubmitted = false;
@@ -33,14 +40,26 @@ const statusLabels = {
     idle: 'Ready',
     requesting_microphone: 'Requesting microphone permission',
     recording: 'Recording',
-    uploading: 'Saving and analyzing',
-    saved_valid: 'Saved as valid trial',
-    saved_invalid: 'Saved as invalid trial',
-    error: 'Error',
+    finishing: 'Recording finished / Saving and analyzing',
+    uploading: 'Recording finished / Saving and analyzing',
+    saved_valid: 'Measurement completed — valid',
+    saved_invalid: 'Measurement completed — invalid',
+    error: 'Measurement failed',
 };
 
 const statusLabel = computed(() => statusLabels[status.value] ?? status.value);
-const isBusy = computed(() => ['requesting_microphone', 'recording', 'uploading'].includes(status.value));
+const isBusy = computed(() => (
+    ['requesting_microphone', 'recording', 'finishing', 'uploading'].includes(status.value)
+));
+const plannedRecordingTime = computed(() => formatRecordingTime(form.profileSeconds));
+const elapsedRecordingTime = computed(() => formatRecordingTime(elapsedDisplaySeconds.value));
+const remainingRecordingTime = computed(() => formatRecordingTime(remainingDisplaySeconds.value));
+const measuredDuration = computed(() => {
+    const duration = Number(serverResult.value?.webm_duration_seconds);
+
+    return Number.isFinite(duration) ? `${duration.toFixed(2)}秒` : '取得できませんでした';
+});
+const invalidReason = computed(() => serverResult.value?.invalid_reason ?? 'unknown');
 const inputIsValid = computed(() => (
     /^[a-z0-9-]+$/.test(form.environmentId)
     && form.environmentId.length <= 32
@@ -54,6 +73,32 @@ const inputIsValid = computed(() => (
 const relativeNow = () => (
     recordingOrigin === null ? null : performance.now() - recordingOrigin
 );
+
+const updateRecordingUiTime = (elapsedMs = relativeNow()) => {
+    const display = calculateRecordingUiTime(elapsedMs ?? 0, form.profileSeconds);
+
+    elapsedDisplaySeconds.value = display.elapsedDisplaySeconds;
+    remainingDisplaySeconds.value = display.remainingDisplaySeconds;
+};
+
+const clearRecordingUiTimer = () => {
+    if (recordingUiTimerId !== null) {
+        window.clearInterval(recordingUiTimerId);
+        recordingUiTimerId = null;
+    }
+};
+
+const startRecordingUiTimer = () => {
+    clearRecordingUiTimer();
+    updateRecordingUiTime();
+    recordingUiTimerId = window.setInterval(updateRecordingUiTime, 200);
+};
+
+const markRecordingFinished = () => {
+    clearRecordingUiTimer();
+    updateRecordingUiTime(Number(form.profileSeconds) * 1000);
+    status.value = 'finishing';
+};
 
 const resolveMimeType = (MediaRecorderApi) => {
     const preferredMimeTypes = [
@@ -89,6 +134,7 @@ const removeVisibilityListener = () => {
 
 const cleanupCapture = () => {
     clearStopTimer();
+    clearRecordingUiTimer();
     removeVisibilityListener();
     stopTracks();
 };
@@ -173,6 +219,7 @@ const requestAutomaticStop = () => {
 
     try {
         recorder.stop();
+        markRecordingFinished();
     } catch (error) {
         activeMetadata.client_invalid_reason = 'media_recorder_error';
         activeMetadata.recorder_error = error?.name ?? 'MediaRecorderStopError';
@@ -195,6 +242,7 @@ const startTrial = async () => {
     mimeType.value = '';
     chunks = [];
     recordingOrigin = null;
+    updateRecordingUiTime(0);
     trialSubmitted = false;
     activeMetadata = freshMetadata();
 
@@ -235,6 +283,7 @@ const startTrial = async () => {
                 requestAutomaticStop,
                 activeMetadata.profile_seconds * 1000,
             );
+            startRecordingUiTimer();
         }, { once: true });
 
         recorder.addEventListener('dataavailable', (event) => {
@@ -255,6 +304,8 @@ const startTrial = async () => {
             }
 
             clearStopTimer();
+            clearRecordingUiTimer();
+            status.value = 'finishing';
             activeMetadata.client_invalid_reason = 'media_recorder_error';
             activeMetadata.recorder_error = event.error?.name ?? 'MediaRecorderError';
 
@@ -281,6 +332,12 @@ const startTrial = async () => {
             }
 
             clearStopTimer();
+            clearRecordingUiTimer();
+
+            if (status.value === 'recording') {
+                status.value = 'finishing';
+            }
+
             activeMetadata.stop_event_ms = relativeNow();
             activeMetadata.actual_mime_type = recorder.mimeType || activeMetadata.actual_mime_type;
 
@@ -328,6 +385,18 @@ onBeforeUnmount(() => {
             <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
                 Run one trial at a time. Recording stops automatically when the selected profile duration is reached.
             </p>
+
+            <section class="mt-6 rounded border border-amber-700 bg-amber-950/50 p-5">
+                <h2 class="text-lg font-semibold text-amber-100">録音前の確認</h2>
+                <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-amber-50">
+                    <li>Startを押す前に、指定時間分の発話内容を準備してください。</li>
+                    <li>マイク許可済みの場合、Startを押すと直ちに録音が始まります。</li>
+                    <li>録音中は画面やタブを切り替えないでください。</li>
+                    <li>「録音終了」が表示されるまで発話してください。</li>
+                    <li>Startは1回だけ押してください。</li>
+                    <li>無効結果でも独断で再録音しないでください。</li>
+                </ol>
+            </section>
 
             <div class="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
                 <section class="rounded border border-slate-800 bg-slate-900 p-5">
@@ -381,6 +450,15 @@ onBeforeUnmount(() => {
                         </label>
                     </div>
 
+                    <div
+                        v-if="status === 'idle'"
+                        class="mt-6 rounded border border-emerald-800 bg-emerald-950/50 p-4 text-sm leading-6 text-emerald-50"
+                    >
+                        <p class="font-semibold">予定録音時間: {{ plannedRecordingTime }}</p>
+                        <p class="mt-2">Startを押す前に、発話の準備を完了してください。</p>
+                        <p>マイク許可済みの場合、Startを押すと直ちに録音が始まります。</p>
+                    </div>
+
                     <button
                         type="button"
                         :disabled="isBusy || ! inputIsValid"
@@ -395,7 +473,10 @@ onBeforeUnmount(() => {
                     </p>
                 </section>
 
-                <section class="rounded border border-slate-800 bg-slate-900 p-5">
+                <section
+                    class="rounded border border-slate-800 bg-slate-900 p-5"
+                    aria-live="polite"
+                >
                     <dl class="space-y-4 text-sm">
                         <div>
                             <dt class="text-slate-400">Current status</dt>
@@ -406,6 +487,68 @@ onBeforeUnmount(() => {
                             <dd class="mt-1 break-all font-mono text-xs text-white">{{ mimeType || '-' }}</dd>
                         </div>
                     </dl>
+
+                    <div
+                        v-if="status === 'requesting_microphone'"
+                        class="mt-5 rounded border border-amber-700 bg-amber-950 p-4 text-sm text-amber-50"
+                        role="status"
+                    >
+                        <p class="font-semibold">マイク権限を確認しています</p>
+                        <p class="mt-2">許可すると直ちに録音が始まります</p>
+                    </div>
+
+                    <div
+                        v-if="status === 'recording'"
+                        class="mt-5 rounded border border-red-700 bg-red-950 p-4 text-red-50"
+                        role="status"
+                    >
+                        <p class="text-lg font-semibold">
+                            <span class="animate-pulse text-red-400" aria-hidden="true">●</span>
+                            録音中
+                        </p>
+                        <p class="mt-3 font-mono text-sm">
+                            経過時間: {{ elapsedRecordingTime }} / {{ plannedRecordingTime }}
+                        </p>
+                        <p class="mt-1 font-mono text-sm">残り時間: {{ remainingRecordingTime }}</p>
+                    </div>
+
+                    <div
+                        v-if="status === 'finishing' || status === 'uploading'"
+                        class="mt-5 rounded border border-sky-700 bg-sky-950 p-4 text-sm text-sky-50"
+                        role="status"
+                    >
+                        <p class="text-lg font-semibold">録音終了</p>
+                        <p class="mt-2">音声を保存・解析しています</p>
+                    </div>
+
+                    <div
+                        v-if="status === 'saved_valid'"
+                        class="mt-5 rounded border border-emerald-700 bg-emerald-950 p-4 text-sm text-emerald-50"
+                        role="status"
+                    >
+                        <p class="text-lg font-semibold">計測完了</p>
+                        <p class="mt-2">結果: 有効</p>
+                        <p class="mt-1">実音声時間: {{ measuredDuration }}</p>
+                    </div>
+
+                    <div
+                        v-if="status === 'saved_invalid'"
+                        class="mt-5 rounded border border-amber-700 bg-amber-950 p-4 text-sm text-amber-50"
+                        role="status"
+                    >
+                        <p class="text-lg font-semibold">計測完了</p>
+                        <p class="mt-2">結果: 無効</p>
+                        <p class="mt-1 break-all">理由: {{ invalidReason }}</p>
+                    </div>
+
+                    <div
+                        v-if="status === 'error'"
+                        class="mt-5 rounded border border-red-900 bg-red-950 p-4 text-sm text-red-100"
+                        role="status"
+                    >
+                        <p class="text-lg font-semibold">計測失敗</p>
+                        <p class="mt-2">録音結果を保存できませんでした。</p>
+                    </div>
 
                     <div
                         v-if="errorMessage"

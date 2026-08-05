@@ -3,7 +3,8 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "test:t000-06-ui": "node --test tests/JavaScript/T00006RecordingUi.test.js"
     },
     "devDependencies": {
         "@inertiajs/vue3": "^3.3.0",

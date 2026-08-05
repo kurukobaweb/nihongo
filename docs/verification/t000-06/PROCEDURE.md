@@ -16,6 +16,55 @@
 - ホスト上で`ffmpeg`と`ffprobe`が実行でき、LaravelからSymfony Processを利用できることが前提である。
 - 25試行の自動連続実行機能はない。利用者が1回ずつ開始する。
 
+## 実ブラウザ計測の正式なユーザー操作手順
+
+### 各trial前の必須事前告知
+
+CodeXはStart操作前に、ユーザーへ次をすべて明示する。
+
+- 今回選択する評価profileの秒数
+- Startを押すと録音処理へ入ること
+- マイク許可済みの場合はStart直後に録音が始まること
+- 指定時間中、実際に発話すること
+- 画面に「録音終了」と表示されるまで発話すること
+- 録音中はtabまたはwindowを切り替えないこと
+- 自動停止後もserver resultが表示されるまで待つこと
+- invalid結果でも独断で再試行しないこと
+
+画面の「録音前の確認」と予定録音時間をユーザーが確認できる状態にし、CodeXはStart前で操作を停止する。ユーザーが使用マイクと発話内容を準備し、CodeXチャットへ「録音準備完了」と返信するまで、Start操作やマイク権限要求へ進まない。
+
+### 承認境界
+
+各trialの手順は次の順序に固定する。
+
+```text
+1. CodeXがtrial条件と録音時間を提示
+2. CodeXがStart前で停止
+3. ユーザーがマイクと発話内容を準備
+4. ユーザーが「録音準備完了」と返信
+5. ユーザー自身がStartを1回押す
+6. Start直後から指定時間発話
+7. 「録音終了」表示で発話を終了
+8. server result表示まで待機
+9. ユーザーが「計測完了」と返信
+10. CodeXがraw成果物と計測値を確認
+11. 次trialへ進む前にユーザー承認
+```
+
+録音中は画面の経過時間と残り時間を確認しながら発話を続ける。「録音終了」「音声を保存・解析しています」と表示されたら発話を終了し、画面操作を行わず完了表示とserver resultを待つ。valid／invalid／failedのいずれの場合も、次trialへ進むには新たなユーザー承認が必要である。
+
+### 操作上の禁止事項
+
+- ユーザーの準備完了前にStartを押さない。
+- CodeXはユーザーに無断でStartを押さない。
+- 手動停止操作を行わない。
+- Startを二重に押さない。
+- 録音中にtabまたはwindowを切り替えない。
+- 無断で再録音しない。
+- attempt番号を無断で変更しない。
+- invalid trialを無断で再試行しない。
+- 複数trialを連続実行しない。
+
 ## 録音条件とclock
 
 production録音処理と同じく、`navigator.mediaDevices.getUserMedia({ audio: true })`を使用する。MIME typeは次の順に`MediaRecorder.isTypeSupported()`で選択し、対応候補がなければbrowser defaultを使用する。
@@ -27,6 +76,8 @@ production録音処理と同じく、`navigator.mediaDevices.getUserMedia({ audi
 event listenerは`recorder.start()`より前に登録し、`recorder.start()`にはtimesliceを渡さない。`start` eventを録音開始基準とし、その瞬間の`performance.now()`をoriginとして`recording_started_ms = 0`を記録する。OS時刻、1秒表示タイマー、DB時刻は停止誤差計算に使わない。
 
 `start` event後に選択profileの`setTimeout`を開始する。timeout callbackでは、入った直後に`stop_requested_ms`を記録し、`recorder.stop()`の直前に`recorder_stop_called_ms`を記録してから停止する。同じoriginから`last_dataavailable_ms`、`stop_event_ms`、Blob構築直後の`blob_completed_ms`を記録する。
+
+画面の録音カウンターも`start` eventで開始し、同じ`recordingOrigin`から`performance.now()`で得た経過時間だけを表示する。表示更新は200ms間隔で、経過秒はprofile秒を上限、残り秒は0を下限とする。このカウンターはユーザー向け表示専用であり、自動停止用`setTimeout`、raw timestamp、duration解析、停止誤差計算には使用しない。自動停止要求後は表示更新を解除し、録音中表示を「録音終了」「音声を保存・解析しています」へ切り替える。
 
 録音開始時と終了時の`document.visibilityState`、録音中の`visibilitychange`回数も記録する。開始・終了が`visible`でない場合、または録音中にvisibilityが変化した場合、そのtrialはinvalidとなる。
 
