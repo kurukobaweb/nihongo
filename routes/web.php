@@ -70,6 +70,8 @@ if (app()->environment(['local', 'testing'])) {
     Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/verification/t000-06/media-recorder', [T00006MediaRecorderController::class, 'show'])
             ->name('verification.t000-06.media-recorder.show');
+        Route::post('/verification/t000-06/media-recorder/trials/preflight', [T00006MediaRecorderController::class, 'preflight'])
+            ->name('verification.t000-06.media-recorder.preflight');
         Route::post('/verification/t000-06/media-recorder/trials', [T00006MediaRecorderController::class, 'store'])
             ->name('verification.t000-06.media-recorder.store');
     });

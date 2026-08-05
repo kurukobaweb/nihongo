@@ -2,9 +2,93 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    buildTrialId,
+    buildTrialQuery,
     calculateRecordingUiTime,
     formatRecordingTime,
+    lockTrialIdentity,
+    normalizeTrialIdentity,
 } from '../../resources/js/verification/t00006RecordingUi.js';
+
+test('builds the run 2 trial ID with stable zero padding', () => {
+    assert.equal(buildTrialId({
+        environment_id: 'env-a',
+        profile_seconds: 10,
+        run_number: 2,
+        attempt_number: 1,
+    }), 'env-a-p010-r02-a01');
+});
+
+test('builds profile 120 run 5 attempt 3 with matching PHP format', () => {
+    assert.equal(buildTrialId({
+        environmentId: 'env-a',
+        profileSeconds: 120,
+        runNumber: 5,
+        attemptNumber: 3,
+    }), 'env-a-p120-r05-a03');
+});
+
+test('normalizes numeric strings to finite integers', () => {
+    assert.deepEqual(normalizeTrialIdentity({
+        environment_id: 123,
+        profile_seconds: '40',
+        run_number: '2',
+        attempt_number: '9',
+    }), {
+        environment_id: '123',
+        profile_seconds: 40,
+        run_number: 2,
+        attempt_number: 9,
+    });
+});
+
+test('builds a URL encoded query with stable key order', () => {
+    assert.equal(buildTrialQuery({
+        environment_id: 'env-a',
+        profile_seconds: 10,
+        run_number: 2,
+        attempt_number: 1,
+    }), 'environment_id=env-a&profile_seconds=10&run_number=2&attempt_number=1');
+});
+
+test('rejects invalid environment, profile, run, and attempt values', () => {
+    const identity = {
+        environment_id: 'env-a',
+        profile_seconds: 10,
+        run_number: 2,
+        attempt_number: 1,
+    };
+
+    assert.throws(() => normalizeTrialIdentity({ ...identity, profile_seconds: 30 }), RangeError);
+    assert.throws(() => normalizeTrialIdentity({ ...identity, run_number: 0 }), RangeError);
+    assert.throws(() => normalizeTrialIdentity({ ...identity, run_number: 6 }), RangeError);
+    assert.throws(() => normalizeTrialIdentity({ ...identity, attempt_number: 0 }), RangeError);
+    assert.throws(() => normalizeTrialIdentity({ ...identity, attempt_number: 100 }), RangeError);
+    assert.throws(() => normalizeTrialIdentity({ ...identity, environment_id: 'ENV_A' }), TypeError);
+    assert.throws(() => normalizeTrialIdentity({ ...identity, environment_id: 'env a' }), TypeError);
+});
+
+test('locked snapshot does not change when the editable form changes', () => {
+    const form = {
+        environmentId: 'env-a',
+        profileSeconds: 10,
+        runNumber: 2,
+        attemptNumber: 1,
+    };
+    const locked = lockTrialIdentity(form);
+
+    form.runNumber = 1;
+    form.attemptNumber = 9;
+
+    assert.deepEqual(locked, {
+        environment_id: 'env-a',
+        profile_seconds: 10,
+        run_number: 2,
+        attempt_number: 1,
+        trial_id: 'env-a-p010-r02-a01',
+    });
+    assert.equal(Object.isFrozen(locked), true);
+});
 
 test('shows zero elapsed and the full remaining time at recording start', () => {
     assert.deepEqual(calculateRecordingUiTime(0, 10), {

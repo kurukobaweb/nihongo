@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Verification;
 
 use App\Http\Controllers\Controller;
 use App\Services\Verification\T00006AudioAnalyzer;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -19,6 +20,20 @@ use Throwable;
 class T00006MediaRecorderController extends Controller
 {
     private const PROFILES = [10, 40, 60, 90, 120];
+
+    private const TRIAL_IDENTITY_KEYS = [
+        'environment_id',
+        'profile_seconds',
+        'run_number',
+        'attempt_number',
+    ];
+
+    private const DEFAULT_TRIAL = [
+        'environment_id' => 'env-a',
+        'profile_seconds' => 10,
+        'run_number' => 1,
+        'attempt_number' => 1,
+    ];
 
     private const SCHEMA_VERSION = 't000-06-raw-v1';
 
@@ -37,11 +52,69 @@ class T00006MediaRecorderController extends Controller
 
     public function __construct(private readonly T00006AudioAnalyzer $analyzer) {}
 
-    public function show(): Response
+    public function show(Request $request): Response
     {
+        $initialTrial = $request->hasAny(self::TRIAL_IDENTITY_KEYS)
+            ? $this->validatedTrialIdentity($request->query())
+            : self::DEFAULT_TRIAL;
+
         return Inertia::render('Verification/T00006MediaRecorder', [
             'profiles' => self::PROFILES,
+            'initialTrial' => $initialTrial,
+            'initialTrialId' => $this->trialId($initialTrial),
         ]);
+    }
+
+    public function preflight(Request $request): JsonResponse
+    {
+        $identity = $this->validatedTrialIdentity($request->all());
+        $trialId = $this->trialId($identity);
+
+        try {
+            $paths = $this->trialPaths($trialId);
+
+            if (is_file($paths['audio_absolute'])) {
+                return $this->duplicatePreflightResponse($trialId);
+            }
+
+            if (! is_file($paths['jsonl_absolute'])) {
+                return response()->json([
+                    'trial_id' => $trialId,
+                    'available' => true,
+                ]);
+            }
+
+            $handle = @fopen($paths['jsonl_absolute'], 'rb');
+
+            if ($handle === false || ! flock($handle, LOCK_SH)) {
+                if (is_resource($handle)) {
+                    fclose($handle);
+                }
+
+                throw new RuntimeException('storage_failed');
+            }
+
+            try {
+                $duplicate = $this->jsonlContainsTrial($handle, $trialId);
+            } finally {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+            }
+
+            if ($duplicate) {
+                return $this->duplicatePreflightResponse($trialId);
+            }
+
+            return response()->json([
+                'trial_id' => $trialId,
+                'available' => true,
+            ]);
+        } catch (Throwable) {
+            return response()->json([
+                'message' => 'The trial availability could not be checked.',
+                'invalid_reason' => 'storage_failed',
+            ], 500);
+        }
     }
 
     public function store(Request $request): JsonResponse
@@ -146,11 +219,7 @@ class T00006MediaRecorderController extends Controller
             abort(422, 'The metadata field must contain a JSON object.');
         }
 
-        $rules = [
-            'environment_id' => ['required', 'string', 'max:32', 'regex:/^[a-z0-9-]+$/'],
-            'profile_seconds' => ['required', 'integer', Rule::in(self::PROFILES)],
-            'run_number' => ['required', 'integer', 'between:1,5'],
-            'attempt_number' => ['required', 'integer', 'between:1,99'],
+        $rules = array_merge(self::trialIdentityRules(), [
             'browser_user_agent' => ['nullable', 'string', 'max:1024'],
             'browser_platform' => ['nullable', 'string', 'max:255'],
             'browser_language' => ['nullable', 'string', 'max:64'],
@@ -168,7 +237,7 @@ class T00006MediaRecorderController extends Controller
             'visibility_change_count' => ['nullable', 'integer', 'min:0'],
             'recorder_error' => ['nullable', 'string', 'max:255'],
             'client_invalid_reason' => ['nullable', 'string', Rule::in(self::CLIENT_FAILURE_REASONS)],
-        ];
+        ]);
 
         $validated = Validator::make($decoded, $rules)->validate();
 
@@ -194,6 +263,44 @@ class T00006MediaRecorderController extends Controller
     }
 
     /**
+     * @param  array<string, mixed>  $input
+     * @return array{environment_id: string, profile_seconds: int, run_number: int, attempt_number: int}
+     */
+    private function validatedTrialIdentity(array $input): array
+    {
+        $validator = Validator::make($input, self::trialIdentityRules());
+
+        if ($validator->fails()) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'The trial identity is invalid.',
+                'errors' => $validator->errors(),
+            ], 422));
+        }
+
+        $validated = $validator->validated();
+
+        return [
+            'environment_id' => (string) $validated['environment_id'],
+            'profile_seconds' => (int) $validated['profile_seconds'],
+            'run_number' => (int) $validated['run_number'],
+            'attempt_number' => (int) $validated['attempt_number'],
+        ];
+    }
+
+    /**
+     * @return array<string, list<mixed>>
+     */
+    private static function trialIdentityRules(): array
+    {
+        return [
+            'environment_id' => ['required', 'string', 'max:32', 'regex:/^[a-z0-9-]+$/'],
+            'profile_seconds' => ['required', 'integer', Rule::in(self::PROFILES)],
+            'run_number' => ['required', 'integer', 'between:1,5'],
+            'attempt_number' => ['required', 'integer', 'between:1,99'],
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>  $metadata
      */
     private function trialId(array $metadata): string
@@ -215,7 +322,7 @@ class T00006MediaRecorderController extends Controller
      *     wav_absolute: string
      * }
      */
-    private function preparePaths(string $trialId): array
+    private function trialPaths(string $trialId): array
     {
         $basePath = rtrim((string) config('t000-06.base_path'), '\\/');
 
@@ -227,16 +334,31 @@ class T00006MediaRecorderController extends Controller
         $rawDirectory = $basePath.DIRECTORY_SEPARATOR.'raw';
         $temporaryDirectory = $basePath.DIRECTORY_SEPARATOR.'temporary';
 
-        File::ensureDirectoryExists($rawAudioDirectory);
-        File::ensureDirectoryExists($rawDirectory);
-        File::ensureDirectoryExists($temporaryDirectory);
-
         return [
             'audio_absolute' => $rawAudioDirectory.DIRECTORY_SEPARATOR.$trialId.'.webm',
             'audio_relative' => 'raw-audio/'.$trialId.'.webm',
             'jsonl_absolute' => $rawDirectory.DIRECTORY_SEPARATOR.'measurements.jsonl',
             'wav_absolute' => $temporaryDirectory.DIRECTORY_SEPARATOR.$trialId.'.wav',
         ];
+    }
+
+    /**
+     * @return array{
+     *     audio_absolute: string,
+     *     audio_relative: string,
+     *     jsonl_absolute: string,
+     *     wav_absolute: string
+     * }
+     */
+    private function preparePaths(string $trialId): array
+    {
+        $paths = $this->trialPaths($trialId);
+
+        File::ensureDirectoryExists(dirname($paths['audio_absolute']));
+        File::ensureDirectoryExists(dirname($paths['jsonl_absolute']));
+        File::ensureDirectoryExists(dirname($paths['wav_absolute']));
+
+        return $paths;
     }
 
     /**
@@ -259,12 +381,30 @@ class T00006MediaRecorderController extends Controller
                 throw new RuntimeException('storage_failed', previous: $exception);
             }
 
-            if (($record['trial_id'] ?? null) === $trialId) {
+            if (! is_array($record) || ! is_string($record['trial_id'] ?? null)) {
+                throw new RuntimeException('storage_failed');
+            }
+
+            if ($record['trial_id'] === $trialId) {
                 return true;
             }
         }
 
+        if (! feof($handle)) {
+            throw new RuntimeException('storage_failed');
+        }
+
         return false;
+    }
+
+    private function duplicatePreflightResponse(string $trialId): JsonResponse
+    {
+        return response()->json([
+            'message' => 'The trial ID already exists.',
+            'trial_id' => $trialId,
+            'available' => false,
+            'invalid_reason' => 'duplicate_trial_id',
+        ], 409);
     }
 
     /**

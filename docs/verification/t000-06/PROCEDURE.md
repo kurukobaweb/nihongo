@@ -10,8 +10,9 @@
 
 - routeは`local`または`testing`環境でだけ登録される。production環境ではroute自体が存在しない。
 - GET URL: `/verification/t000-06/media-recorder`
+- preflight POST URL: `/verification/t000-06/media-recorder/trials/preflight`
 - POST URL: `/verification/t000-06/media-recorder/trials`
-- GET/POSTともに`auth`と`verified` middlewareが必要である。
+- GET、preflight POST、保存POSTのすべてに`auth`と`verified` middlewareが必要である。
 - 一般ユーザー向けnavigationからはリンクしない。
 - ホスト上で`ffmpeg`と`ffprobe`が実行でき、LaravelからSymfony Processを利用できることが前提である。
 - 25試行の自動連続実行機能はない。利用者が1回ずつ開始する。
@@ -33,6 +34,28 @@ CodeXはStart操作前に、ユーザーへ次をすべて明示する。
 
 画面の「録音前の確認」と予定録音時間をユーザーが確認できる状態にし、CodeXはStart前で操作を停止する。ユーザーが使用マイクと発話内容を準備し、CodeXチャットへ「録音準備完了」と返信するまで、Start操作やマイク権限要求へ進まない。
 
+### trial条件URLとStart前確認
+
+正式trialは、次の4項目をqueryに含むURLで開く。
+
+```text
+/verification/t000-06/media-recorder?environment_id=env-a&profile_seconds=10&run_number=2&attempt_number=1
+```
+
+4項目の一部だけを指定したqueryや不正値はHTTP 422となる。queryなしの場合だけ従来のdefault（`env-a`、10秒、run 1、attempt 1）を使う。ページをreloadした場合、入力値とtrial ID previewはqueryから復元するが、固定状態は復元しない。Startは無効のままであり、再度preflightと条件固定が必要である。
+
+Start前は次の順で確認する。
+
+1. URL queryと画面入力値が正式trialの条件と一致することを確認する。
+2. 画面の「入力中のtrial ID」を読み、run番号とattempt番号を含む全体を確認する。
+3. 「trial条件を確認・固定」を押す。
+4. preflight成功後の「今回固定したtrial ID」をユーザーが読み上げて確認する。
+5. CodeXも固定trial IDを報告し、同一であることを確認する。
+6. ユーザーの「録音準備完了」を待つ。
+7. ユーザー自身がtrial ID付きStartを1回だけ押す。
+
+条件固定時のpreflightはJSONLとWebMの重複を読み取り専用で確認する。Start時にも固定snapshotでpreflightを再実行し、成功するまで`getUserMedia()`を呼ばない。duplicateやstorage errorの場合、マイク取得・録音・保存へ進まず、run番号やattempt番号を自動変更しない。
+
 ### 承認境界
 
 各trialの手順は次の順序に固定する。
@@ -42,7 +65,7 @@ CodeXはStart操作前に、ユーザーへ次をすべて明示する。
 2. CodeXがStart前で停止
 3. ユーザーがマイクと発話内容を準備
 4. ユーザーが「録音準備完了」と返信
-5. ユーザー自身がStartを1回押す
+5. ユーザー自身が固定trial ID付きStartを1回押す
 6. Start直後から指定時間発話
 7. 「録音終了」表示で発話を終了
 8. server result表示まで待機
@@ -52,6 +75,8 @@ CodeXはStart操作前に、ユーザーへ次をすべて明示する。
 ```
 
 録音中は画面の経過時間と残り時間を確認しながら発話を続ける。「録音終了」「音声を保存・解析しています」と表示されたら発話を終了し、画面操作を行わず完了表示とserver resultを待つ。valid／invalid／failedのいずれの場合も、次trialへ進むには新たなユーザー承認が必要である。
+
+Start時preflightが成功してマイク取得へ進んだ時点で、その画面の録音開始権は消費される。permission拒否、MediaRecorder error、invalid、valid、保存エラーのいずれでも、同じ画面ではStartを再度有効にしない。確認・承認後、正式なqueryを持つ新しい画面で次の操作を行う。
 
 ### 操作上の禁止事項
 
@@ -64,6 +89,7 @@ CodeXはStart操作前に、ユーザーへ次をすべて明示する。
 - attempt番号を無断で変更しない。
 - invalid trialを無断で再試行しない。
 - 複数trialを連続実行しない。
+- duplicate時にrun番号またはattempt番号を自動変更しない。
 
 ## 録音条件とclock
 
@@ -92,6 +118,10 @@ event listenerは`recorder.start()`より前に登録し、`recorder.start()`に
 例: `env-a-p060-r01-a01`
 
 同じtrial IDのJSONL recordまたはWebMが既に存在する場合はHTTP 409 `duplicate_trial_id`とし、既存record・音声を上書きしない。
+
+画面は入力値から生成したtrial ID previewをStart前から常時表示する。「trial条件を確認・固定」のpreflight成功後は、4項目とtrial IDを変更不能なsnapshotとして保持し、録音metadata、自動停止profile、UIカウンターはこのsnapshotだけを参照する。editable formを録音metadataの生成元にしない。URLは固定snapshotのqueryへfull reloadなしで正規化する。
+
+preflight後も、保存POSTにおける重複確認を最終的な正本防御として維持する。preflightと保存の間には競合の余地があるため、保存時にHTTP 409となる可能性は残る。その場合も再録音せず、ユーザー承認へ戻る。JSONLの不正、読取不能、shared lock失敗はavailableと楽観判断せず、sanitizedなHTTP 500 `storage_failed`として停止する。preflightはdirectory、JSONL、WebM、WAVを作成せず、Analyzer、ffmpeg、ffprobe、DBを呼び出さない。
 
 ## raw保存先
 

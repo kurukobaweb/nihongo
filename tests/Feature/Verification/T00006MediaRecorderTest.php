@@ -83,7 +83,155 @@ class T00006MediaRecorderTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Verification/T00006MediaRecorder')
-                ->where('profiles', [10, 40, 60, 90, 120]));
+                ->where('profiles', [10, 40, 60, 90, 120])
+                ->where('initialTrial', [
+                    'environment_id' => 'env-a',
+                    'profile_seconds' => 10,
+                    'run_number' => 1,
+                    'attempt_number' => 1,
+                ])
+                ->where('initialTrialId', 'env-a-p010-r01-a01'));
+    }
+
+    public function test_valid_query_restores_the_run_2_trial_identity(): void
+    {
+        $this->actingAs($this->createUser())
+            ->get('/verification/t000-06/media-recorder?environment_id=env-a&profile_seconds=10&run_number=2&attempt_number=1')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('initialTrial', [
+                    'environment_id' => 'env-a',
+                    'profile_seconds' => 10,
+                    'run_number' => 2,
+                    'attempt_number' => 1,
+                ])
+                ->where('initialTrialId', 'env-a-p010-r02-a01'));
+    }
+
+    public function test_partial_or_invalid_query_is_rejected_with_http_422(): void
+    {
+        $user = $this->createUser();
+        $queries = [
+            'environment_id=env-a',
+            'environment_id=ENV_A&profile_seconds=10&run_number=2&attempt_number=1',
+            'environment_id=env-a&profile_seconds=30&run_number=2&attempt_number=1',
+            'environment_id=env-a&profile_seconds=10&run_number=0&attempt_number=1',
+            'environment_id=env-a&profile_seconds=10&run_number=6&attempt_number=1',
+            'environment_id=env-a&profile_seconds=10&run_number=2&attempt_number=0',
+            'environment_id=env-a&profile_seconds=10&run_number=2&attempt_number=100',
+        ];
+
+        foreach ($queries as $query) {
+            $this->actingAs($user)
+                ->getJson('/verification/t000-06/media-recorder?'.$query)
+                ->assertUnprocessable()
+                ->assertJsonPath('message', 'The trial identity is invalid.');
+        }
+    }
+
+    public function test_preflight_route_requires_verified_auth_and_keeps_local_testing_guard(): void
+    {
+        $route = Route::getRoutes()->getByName('verification.t000-06.media-recorder.preflight');
+
+        $this->assertNotNull($route);
+        $this->assertSame('verification/t000-06/media-recorder/trials/preflight', $route->uri());
+        $this->assertContains('POST', $route->methods());
+        $this->assertContains('auth', $route->gatherMiddleware());
+        $this->assertContains('verified', $route->gatherMiddleware());
+        $this->assertStringContainsString(
+            "if (app()->environment(['local', 'testing']))",
+            file_get_contents(base_path('routes/web.php')),
+        );
+
+        $this->post(route('verification.t000-06.media-recorder.preflight'), $this->preflightIdentity())
+            ->assertRedirect('/login');
+
+        $this->actingAs($this->createUser(verified: false))
+            ->post(route('verification.t000-06.media-recorder.preflight'), $this->preflightIdentity())
+            ->assertRedirect('/verify-email');
+    }
+
+    public function test_preflight_reports_available_without_creating_artifacts_or_calling_analyzer(): void
+    {
+        $this->mockAnalyzerNotCalled();
+
+        $this->postPreflight($this->createUser(), $this->preflightIdentity())
+            ->assertOk()
+            ->assertExactJson([
+                'trial_id' => 'env-a-p010-r02-a01',
+                'available' => true,
+            ]);
+
+        $this->assertDirectoryDoesNotExist($this->measurementPath);
+    }
+
+    public function test_preflight_rejects_matching_jsonl_record_without_modification(): void
+    {
+        $this->mockAnalyzerNotCalled();
+        File::ensureDirectoryExists(dirname($this->jsonlPath()));
+        $jsonl = "{\"trial_id\":\"env-a-p010-r02-a01\"}\n";
+        file_put_contents($this->jsonlPath(), $jsonl);
+
+        $this->postPreflight($this->createUser(), $this->preflightIdentity())
+            ->assertStatus(409)
+            ->assertJson([
+                'trial_id' => 'env-a-p010-r02-a01',
+                'available' => false,
+                'invalid_reason' => 'duplicate_trial_id',
+            ]);
+
+        $this->assertSame($jsonl, file_get_contents($this->jsonlPath()));
+        $this->assertFileDoesNotExist($this->audioPath('env-a-p010-r02-a01'));
+    }
+
+    public function test_preflight_rejects_matching_webm_without_modification(): void
+    {
+        $this->mockAnalyzerNotCalled();
+        $audioPath = $this->audioPath('env-a-p010-r02-a01');
+        File::ensureDirectoryExists(dirname($audioPath));
+        file_put_contents($audioPath, 'existing-webm');
+
+        $this->postPreflight($this->createUser(), $this->preflightIdentity())
+            ->assertStatus(409)
+            ->assertJson([
+                'trial_id' => 'env-a-p010-r02-a01',
+                'available' => false,
+                'invalid_reason' => 'duplicate_trial_id',
+            ]);
+
+        $this->assertSame('existing-webm', file_get_contents($audioPath));
+        $this->assertFileDoesNotExist($this->jsonlPath());
+    }
+
+    public function test_preflight_fails_closed_for_malformed_jsonl_without_modification(): void
+    {
+        $this->mockAnalyzerNotCalled();
+        File::ensureDirectoryExists(dirname($this->jsonlPath()));
+        $user = $this->createUser();
+
+        foreach (["{malformed-json}\n", "123\n"] as $jsonl) {
+            file_put_contents($this->jsonlPath(), $jsonl);
+
+            $this->postPreflight($user, $this->preflightIdentity())
+                ->assertStatus(500)
+                ->assertJsonPath('invalid_reason', 'storage_failed')
+                ->assertJsonMissingPath('exception');
+
+            $this->assertSame($jsonl, file_get_contents($this->jsonlPath()));
+        }
+    }
+
+    public function test_preflight_validation_failure_creates_no_artifacts(): void
+    {
+        $this->mockAnalyzerNotCalled();
+        $identity = $this->preflightIdentity();
+        $identity['run_number'] = 6;
+
+        $this->postPreflight($this->createUser(), $identity)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'The trial identity is invalid.');
+
+        $this->assertDirectoryDoesNotExist($this->measurementPath);
     }
 
     public function test_each_allowed_profile_can_be_stored(): void
@@ -313,6 +461,13 @@ class T00006MediaRecorderTest extends TestCase
         });
     }
 
+    private function mockAnalyzerNotCalled(): void
+    {
+        $this->mock(T00006AudioAnalyzer::class, function (MockInterface $mock) {
+            $mock->shouldNotReceive('analyze');
+        });
+    }
+
     private function createUser(bool $verified = true): User
     {
         $user = User::query()->create([
@@ -383,6 +538,31 @@ class T00006MediaRecorderTest extends TestCase
             route('verification.t000-06.media-recorder.store'),
             $payload,
             ['Accept' => 'application/json'],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function preflightIdentity(array $overrides = []): array
+    {
+        return array_merge([
+            'environment_id' => 'env-a',
+            'profile_seconds' => 10,
+            'run_number' => 2,
+            'attempt_number' => 1,
+        ], $overrides);
+    }
+
+    /**
+     * @param  array<string, mixed>  $identity
+     */
+    private function postPreflight(User $user, array $identity): TestResponse
+    {
+        return $this->actingAs($user)->postJson(
+            route('verification.t000-06.media-recorder.preflight'),
+            $identity,
         );
     }
 
