@@ -4,6 +4,8 @@
 
 このhelperは、T000-06「OI-030 MediaRecorder停止誤差確定」のために、10 / 40 / 60 / 90 / 120秒の各評価プロファイルを実ブラウザで1試行ずつ計測するlocal/testing限定ツールである。production録音UIとは分離し、Azure、submission、DBは使用しない。
 
+T000-06の正式25 trialは、Windows＋CodeX内蔵ブラウザ＋`env-a`を基準環境として実施した。この基準環境内の全profileについて、technical margin `0.07秒`が2026-08-05にユーザー承認済みである。
+
 今回はhelperの実装と自動テストまでを対象とする。実ブラウザ録音、25有効試行、technical marginの具体値確定、OI-030解消、本番判定の実装は行わない。
 
 上記はhelper実装時点の範囲を示す履歴である。その後の実ブラウザ計測とtechnical margin決定は2026-08-05に完了した。最終決定とtracked計測証跡は次を正とする。
@@ -187,8 +189,30 @@ valid trialは、MediaRecorder errorなし、全必須timestampあり・順序�
 
 ## 後続作業との境界
 
-helper実装時点ではtechnical marginは未確定だった。当初方針どおり、全profileの有効試行における最大`total_overrun_seconds`と測定方式間の最大差を判断材料とし、根拠値を下回らないよう0.01秒単位で切り上げた。その後の正式25 trialにより、2026-08-05にtechnical marginを0.07秒としてユーザー承認した。
+helper実装時点ではtechnical marginは未確定だった。当初方針どおり、全profileの有効試行における最大`total_overrun_seconds`と測定方式間の最大差を判断材料とし、根拠値を下回らないよう0.01秒単位で切り上げた。その後の正式25 trialにより、2026-08-05に基準環境のtechnical marginを0.07秒としてユーザー承認した。
 
-承認済みの本番pre-Azure判定式は`D <= P + 0.07`であり、Dは一時保存された元WebMのffprobe duration、Pはsubmissionへ固定保存される`evaluation_profile_seconds`である。`D > P + 0.07`は上限超過としてAzure送信前に拒否し、境界一致は上限内とする。判定時にdurationを0.01秒へ丸めない。
+基準環境で承認済みの将来のpre-Azure判定式は`D <= P + 0.07`であり、Dは一時保存された元WebMのffprobe duration、Pはsubmissionへ固定保存される`evaluation_profile_seconds`である。`D > P + 0.07`は上限超過としてAzure送信前に拒否し、境界一致は上限内とする。判定時にdurationを0.01秒へ丸めない。
 
-0.07秒は録音処理上のtechnical marginであり、追加回答時間、UIカウンター、自動停止時刻、Azure処理時間、QueueまたはHTTP timeoutへ加算しない。この判定、submission/DB保存、Azure送信制御、本番録音UI反映は後続実装対象である。決定根拠と境界例は[OI-030決定](./OI-030_DECISION.md)を参照する。
+0.07秒は録音処理上のtechnical marginであり、追加回答時間、UIカウンター、自動停止時刻、Azure処理時間、QueueまたはHTTP timeoutへ加算しない。決定根拠と境界例は[OI-030決定](./OI-030_DECISION.md)を参照する。
+
+追加環境検証は責務と実行時間を分けて実施する。環境別の詳細な責務と完了条件は `docs/TASKS.md` を正とし、この手順書は共通操作、計算、valid判定、証跡、raw管理の規則を保持する。
+
+- T000-06-01: 検証環境、対象matrix、接続条件を確認し、録音は行わない。
+- T000-06-02: Windows実PC＋通常のChrome stableを計測する。
+- T000-06-03: Android物理端末＋Chromeを計測する。
+- T000-06-04: iPhone物理端末＋Safariを計測する。
+- T000-06-05: 全対象環境を横断集計し、production共通technical marginをユーザー承認により確定する。
+
+production共通値は、環境別計測結果を基準環境と同じ計算規則でT000-06-05が集計した後にユーザーが再承認する。この再承認前に、`0.07秒`を全MVP対象環境の共通値として実装しない。
+
+追加環境の計測は次の境界で行う。
+
+- 基準環境の既存25 trial、sanitized CSV、local JSONL、raw WebM削除記録を変更せず、基準環境の25 trialを再実施しない。
+- 追加環境ごとに10 / 40 / 60 / 90 / 120秒を各1件screeningし、最大の根拠値を記録したprofileを追加4件実施する、標準9 valid trialから開始する。
+- 基準値`0.07秒`超過、基準環境最大値の明確な超過、大きなtrial間変動、MIME typeまたはcodec差、profileごとのvalid不安定、Blob生成・自動停止の環境固有挙動、duration取得方法変更の必要、共通marginで吸収できない可能性、またはユーザー判断がある環境だけ、各profile 5件の合計25 valid trialへ拡張する。
+- 追加環境の実機検証は端末エミュレーションではなく物理端末で行う。
+- スマートフォンは、`auth + verified`と必要なアクセス制御を備え、production DB、production Azure Speech resource、Stripeを使用しない安全な非本番HTTPS環境から計測する。
+- スマートフォンから到達可能な安全なHTTPS環境がない場合は録音を開始せず、環境整備を別作業として報告する。公開URLやトンネル方式を推測で決めない。
+- helperが未対応のMIME typeまたはcodecを返した場合は録音条件と結果を記録して停止し、同じtrial作業中に無断でhelperを修正または再試行しない。
+
+この判定、submission / DB保存、Azure送信制御、本番録音UI反映は、T000-06-05完了とproduction共通値の再承認後の実装対象である。

@@ -62,8 +62,10 @@
 - Stripe Webhook受信 / 処理ログはT014-05 / T014-06側で扱い、T012-04には含めない
 - 管理画面はT016-01 / T016-02をadmin入口確認とし、T016-03はOI-028確定後に限定する
 - 依存タスク欄に複数IDがある場合、原則としてすべて完了してから着手する
-- PR #53 / PR #54後続作業は、T000-04 → T000-05 / T000-06 → T000-07 → T000-08 → T002-06 → T002-07 → T004-04 / T011-03 / T007-06 → T005-04 → T006-03 → T008-05 → T010-04 → T009-06 → T013-08 → T013-09 → T013-10 → T017-01 の順で進める
+- PR #53 / PR #54後続作業は、T000-04 → T000-05 / T000-06 → T000-06-01 → T000-06-02 / T000-06-03 / T000-06-04 → T000-06-05 → T000-07 → T000-08 → T002-06 → T002-07 → T004-04 / T011-03 / T007-06 → T005-04 → T006-03 → T008-05 → T010-04 → T009-06 → T013-08 → T013-09 → T013-10 → T017-01 の順で進める
 - T000-05とT000-06、およびT004-04とT011-03とT007-06は、依存条件を満たし変更ファイルが競合しない場合に限り並行可能とする
+- T000-06-01〜T000-06-05は、T000-06の追加環境検証を分割した実行タスクであり、各タスクに通常の1〜3時間ルール、1ステップ進行、ユーザー承認境界を適用する
+- T000-06-02〜T000-06-04は、T000-06-01完了後、各物理端末と安全なテストURLを利用でき、environment IDと保存先が競合せず、同じtrackedファイルを同時編集せず、各trialのユーザー承認境界を維持できる場合だけ並行可能とする
 - 並行可能なタスクでも同一ファイルを変更する場合は同時実装せず、競合しない順序へ分ける
 
 ### PR #53／PR #54後続の未処理13作業群割当
@@ -73,7 +75,7 @@
 | 1. TASKS.mdへのPR #53・PR #54影響反映 | T000-04 | 現在前提、依存関係、実施順序、新規タスクを登録する |
 | 2. 正本文書・既存実装の矛盾判定 | T000-08 / T010-04 | 正本文書を横断補正し、既存Stage-A実装との差分を解消する |
 | 3. OI-029実Azure計測・仕様確定 | T000-05 | 実Azure証跡と文字数算出規則を確定する |
-| 4. OI-030実ブラウザ計測・仕様確定 | T000-06 | MediaRecorder誤差とtechnical marginを確定する |
+| 4. OI-030実ブラウザ計測・仕様確定 | T000-06 / T000-06-01〜T000-06-05 | T000-06でWindows＋CodeX内蔵ブラウザの基準計測と0.07秒の基準値を確定し、T000-06-01〜T000-06-04で検証環境準備とMVP対象ブラウザ・物理端末の環境別計測を行い、T000-06-05で全対象環境を横断集計してproduction共通technical marginを最終確定する |
 | 5. OI-031採点仕様確定 | T000-07 | 採点表、統合式、合否、versionを確定する |
 | 6. 現行実装差分監査 | T002-06 / T004-04 / T005-04 / T006-03 / T007-06 / T008-05 / T009-06 / T010-04 / T011-03 | DB全体inventory後、各実装タスク開始時に担当領域を監査する |
 | 7. migration・既存データ移行設計 | T002-06 | migrationとbackfillの順序・担当を確定する |
@@ -357,8 +359,14 @@
     - `docs/verification/t000-06/OI-030_DECISION.md`
     - `docs/verification/t000-06/media-recorder-measurements.sanitized.csv`
   - sanitized CSVにより正式25件の最大値・平均値を再計算可能
+  - T000-06はWindows＋CodeX内蔵ブラウザの基準環境計測として完了
+  - `0.07秒`は基準環境の10 / 40 / 60 / 90 / 120秒profileに対する承認値
+  - 全MVP対象環境へ共通適用するproduction technical marginはT000-06-05で最終確認する
+  - 追加環境で新たな最大値が確認された場合は、T000-06-05でT000-06と同じ計算規則によりtechnical marginを再計算する
+  - T000-06-05完了前に`0.07秒`をproduction共通値として実装しない
+  - T000-06の正式25 trial、sanitized CSV、local JSONL、raw WebM削除記録はT000-06-01〜T000-06-05でも変更しない
   - production実装、DB変更、Azure送信前判定実装は未実施
-  - OI-030の台帳移動と正本文書横断反映はT000-08で行う
+  - OI-030の台帳移動と正本文書横断反映は、T000-06-05の結果を踏まえてT000-08で行う
   - T000-07以降には未着手
 - 実装してはいけないこと:
   - technical marginを追加回答時間として扱わない
@@ -374,6 +382,256 @@
 - 担当:
   - ユーザー＋CodeX
 - Blocker区分: Blocker
+
+### T000-06-01: 実機検証環境・対象matrix確定
+
+- [ ] 状態: 未着手（2026-08-06 登録）
+- 種別: 環境確認・仕様
+- 目的:
+  - MVPで検証するブラウザ、OS、物理端末matrixを確定する
+  - スマートフォンから到達できる安全な非本番HTTPS環境を確認する
+  - environment ID、branch、commit SHA、保存先、認証条件を確定する
+  - 各端末の録音開始前提を整える
+  - 環境別計測へ進めるか判断材料を提示する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-030
+  - `docs/verification/t000-06/OI-030_DECISION.md`
+  - `docs/verification/t000-06/PROCEDURE.md`
+  - `DESIGN.md`
+  - `ARCHITECTURE.md`
+- 依存タスク:
+  - T000-06
+- 必須検証matrix:
+  - Windows実PC＋通常のChrome stable
+  - Android物理端末＋Chrome
+  - iPhone物理端末＋Safari
+- MVPサポート対象へ含めるとユーザーが判断した場合だけ追加する環境:
+  - Windows Edge
+  - Windows Firefox
+  - macOS Safari
+  - iPad Safari
+- 確認内容:
+  - 非本番HTTPS URL
+  - `auth + verified`
+  - IP制限または同等のアクセス制御
+  - 対象branchとcommit SHA
+  - production DBへ接続しないこと
+  - production Azure Speech resourceへ接続しないこと
+  - Stripeへ接続しないこと
+  - raw保存先
+  - environment ID採番規則
+  - スマートフォンからの到達性
+  - マイクを利用できるsecure context
+  - Secrets、IPアドレス、接続実値をtracked文書へ残さない方針
+  - 安全な接続方法が存在しない場合は環境別録音へ進まず、環境整備を別作業として報告する
+- 実施しないこと:
+  - 録音
+  - trial生成
+  - raw音声保存
+  - ffmpegまたはffprobeの実行
+  - technical margin計算
+  - 端末ごとのvalid判定
+  - helperのコード変更
+  - tunnel方式または公開方式の独断決定
+- 完了条件:
+  - 必須3環境の物理端末が特定されている
+  - 安全な非本番HTTPS接続方法が確認されている
+  - 対象branchとcommit SHAが確定している
+  - environment IDが重複しない
+  - 各環境別検証へ進める条件がユーザー承認済みである
+  - 録音はまだ実施していない
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Blocker
+
+### T000-06-02: Windows通常Chrome MediaRecorder検証
+
+- [ ] 状態: 未着手
+- 種別: 実ブラウザ・実機検証
+- 目的:
+  - Windows実PC上の通常Chrome stableでMediaRecorder録音を確認する
+  - CodeX内蔵ブラウザとの差を確認する
+  - MIME type、codec、停止誤差、Blob生成、duration、visibilityを記録する
+  - Windows通常Chromeの根拠値を算出する
+- 参照仕様書:
+  - `docs/verification/t000-06/OI-030_DECISION.md`
+  - `docs/verification/t000-06/PROCEDURE.md`
+  - `docs/verification/t000-06/media-recorder-measurements.sanitized.csv`
+- 依存タスク:
+  - T000-06-01
+- 標準trial:
+  - Phase 1の録音能力確認とPhase 2のprofile screeningを重複させず、10 / 40 / 60 / 90 / 120秒を各1件実施する
+  - 最初の10秒trialがvalidの場合は録音能力確認を兼ねる
+  - 5 profile screening後、最大根拠値となったprofileを追加4件実施する
+  - 5 profile screening＋最大根拠値profile追加4件の合計9 valid trialとする
+- 25 valid trialへの拡張条件:
+  - `0.07秒`を超える根拠値がある
+  - 基準環境の最大値を明確に上回る
+  - MIME typeまたはcodecが基準環境と異なる
+  - trial間のばらつきが大きい
+  - profileごとにvalid / invalidが不安定
+  - 自動停止、Blob生成、duration取得に環境固有の挙動がある
+  - 共通marginで吸収できない可能性がある
+  - ユーザーが拡張を必要と判断した
+  - 該当時だけ各profile 5件、合計25 valid trialへ拡張する
+- 成果物:
+  - 環境情報
+  - trial inventory
+  - sanitized数値証跡
+  - 環境別最大値
+  - 25件拡張要否
+  - raw音声削除前のユーザー承認待ち状態
+- 完了条件:
+  - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
+  - Windows通常Chromeの最大根拠値を再計算できる
+  - raw成果物とsanitized証跡が区別されている
+  - ユーザーが環境別結果を承認している
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Blocker
+
+### T000-06-03: Android Chrome物理端末MediaRecorder検証
+
+- [ ] 状態: 未着手
+- 種別: 実ブラウザ・物理端末検証
+- 目的:
+  - Android物理端末＋ChromeでMediaRecorder録音を確認する
+  - MIME type、codec、停止誤差、Blob生成、duration、foreground、visibilityを確認する
+  - Android固有挙動の有無を確認する
+- 参照仕様書:
+  - `docs/verification/t000-06/OI-030_DECISION.md`
+  - `docs/verification/t000-06/PROCEDURE.md`
+- 依存タスク:
+  - T000-06-01
+- trial数:
+  - T000-06-02と同じ方式で、標準9 valid trialとする
+  - T000-06-02の拡張条件に該当する場合だけ25 valid trialへ拡張する
+- Android固有確認:
+  - 画面自動ロックを無効化する
+  - 録音中にアプリを切り替えない
+  - 画面回転の有無
+  - 通知・着信割込みの有無
+  - foreground維持
+  - visibility change 0
+  - マイク権限状態
+  - 実MIME typeとcodec
+  - Blob保存完了まで画面を閉じない
+  - 画面ロック、バックグラウンド移行、通知・着信割込みは正常系margin計測へ混入させない
+  - 割込み等が発生したtrialはinvalidとして記録し、ユーザー承認なしに再試行しない
+- 成果物:
+  - 環境情報、trial inventory、sanitized数値証跡、環境別最大値、25件拡張要否
+  - raw音声削除前のユーザー承認待ち状態
+- 完了条件:
+  - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
+  - Android Chromeの環境別最大値を再計算できる
+  - 端末固有挙動が記録されている
+  - ユーザーが環境別結果を承認している
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Blocker
+
+### T000-06-04: iPhone Safari物理端末MediaRecorder検証
+
+- [ ] 状態: 未着手
+- 種別: 実ブラウザ・物理端末検証
+- 目的:
+  - iPhone物理端末＋SafariでMediaRecorder録音を確認する
+  - MIME type、codec、停止誤差、Blob生成、duration、foreground、visibilityを確認する
+  - iOSおよびSafari固有挙動の有無を確認する
+- 参照仕様書:
+  - `docs/verification/t000-06/OI-030_DECISION.md`
+  - `docs/verification/t000-06/PROCEDURE.md`
+- 依存タスク:
+  - T000-06-01
+- trial数:
+  - T000-06-02と同じ方式で、標準9 valid trialとする
+  - T000-06-02の拡張条件に該当する場合だけ25 valid trialへ拡張する
+- iPhone固有確認:
+  - 画面自動ロックを無効化する
+  - Safariをforegroundで維持する
+  - タブを切り替えない
+  - 画面回転の有無
+  - 通知・着信割込みの有無
+  - visibility change 0
+  - マイク権限状態
+  - 実MIME typeとcodec
+  - Blob保存完了まで画面を閉じない
+  - 端末エミュレーションやデスクトップSafariのレスポンシブモードで代替しない
+  - 割込み等が発生したtrialは正常系margin計測へ混入させず、ユーザー承認なしに再試行しない
+- 成果物:
+  - 環境情報、trial inventory、sanitized数値証跡、環境別最大値、25件拡張要否
+  - raw音声削除前のユーザー承認待ち状態
+- 完了条件:
+  - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
+  - iPhone Safariの環境別最大値を再計算できる
+  - iOSおよびSafari固有挙動が記録されている
+  - ユーザーが環境別結果を承認している
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Blocker
+
+### T000-06-05: 全環境集計・production共通technical margin確定
+
+- [ ] 状態: 未着手
+- 種別: 仕様・集計
+- 目的:
+  - T000-06基準環境、Windows通常Chrome、Android Chrome物理端末、iPhone Safari物理端末、およびユーザー承認により追加された環境の正式trialを横断集計する
+  - 全MVP対象環境へ共通適用するproduction technical marginを決定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-030
+  - `docs/verification/t000-06/OI-030_DECISION.md`
+  - `docs/verification/t000-06/PROCEDURE.md`
+  - `docs/verification/t000-06/media-recorder-measurements.sanitized.csv`
+- 依存タスク:
+  - T000-06-02
+  - T000-06-03
+  - T000-06-04
+  - ユーザー承認により追加された環境別検証タスクがある場合は、その完了も依存条件へ含める
+- 計算規則:
+
+  ```text
+  overrun_basis
+  = max(0, 全対象環境の最大total_overrun_seconds)
+
+  method_difference_basis
+  = 全対象環境の最大duration_method_difference_seconds
+
+  combined_basis
+  = max(overrun_basis, method_difference_basis)
+
+  production common technical margin
+  = combined_basisを下回らないよう0.01秒単位で切り上げ
+  ```
+
+- 判断分岐:
+  - 全対象環境の根拠値が`0.07秒`以内の場合、`0.07秒`をproduction共通値として維持する承認候補とする
+  - `0.07秒`を超える根拠値がある場合、同じ規則で新しい共通値を算出してユーザー判断へ戻す
+  - 環境差が大きく共通値が不適切な場合、環境別margin、処理分岐、またはMVP非対応環境の判断材料を提示する
+  - CodeXは最終値、環境別対応、非対応環境を独断で確定しない
+- raw成果物:
+  1. 環境別計測を完了する
+  2. 集計値を確認する
+  3. sanitized証跡を確認する
+  4. ユーザー承認を得る
+  5. raw音声削除を別ステップで実施する
+  - ユーザー承認前にraw音声を削除しない
+  - 基準環境の既存raw音声は削除済みであり、復元しない
+- 完了条件:
+  - 全必須環境の正式trialを横断集計できる
+  - 全環境の最大値と該当trialを特定できる
+  - `0.07秒`維持または変更がユーザー承認済みである
+  - production共通値または環境別対応方針が承認済みである
+  - 非対応環境がある場合は理由とMVP上の扱いが承認済みである
+  - raw成果物の削除状況が確認済みである
+  - sanitized証跡がtracked文書として維持されている
+  - T000-07へ渡すtime判定前提が確定している
+- 担当:
+  - ユーザーが最終判断する
+  - ChatGPTが判断材料を整理する
+  - CodeXが集計・検証を補助する
+- Blocker区分: Blocker
+
+T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限判定実装より前に完了する。
 
 ### T000-07: OI-031 Stage-A採点仕様確定
 
@@ -391,6 +649,9 @@
   - T000-04
   - T000-05
   - T000-06
+  - T000-06-05
+- 着手条件:
+  - T000-06-05完了前は着手しない
 - 実装内容:
   - `character_score`算出表を確定する
   - `time_score`算出表を確定する
@@ -446,9 +707,11 @@
 - 依存タスク:
   - T000-05
   - T000-06
+  - T000-06-05
   - T000-07
 - 実装内容:
   - OI-029〜OI-031の承認結果を正本文書へ横断反映する
+  - OI-030の正本文書横断反映は、T000-06-05で対象環境を含むproduction共通marginがユーザー承認された後に行う
   - OI-031からfail確定後の`final_score = 0`の再判断を除外する
   - Stage-B用4カラムはStage-AのみではNULL・非表示と明記する
   - Stage-Aではtemplate commentを生成・保存しない方針へ統一する
@@ -5847,6 +6110,12 @@
 - 依存タスク:
   - T013-08
 - 実装内容:
+  - T000-06-01で確定した対応環境matrixと検証環境を使用する
+  - T000-06-02〜T000-06-04の環境別停止誤差証跡と、T000-06-05で承認されたproduction共通technical marginを前提とする
+  - primary環境では正常、fail、422、Azure送信前上限超過を総合確認する
+  - Windows通常Chrome、Android Chrome、iPhone Safariでは最低限、録音、提出、Queue、Azure、DB保存、completed結果表示を確認する
+  - T000-06-02〜T000-06-04で実施した停止誤差の9件または25件計測を繰り返さない
+  - production実装後の総合E2Eとして実施し、technical margin自体の決定はT000-06-05で完了させる
   - `single_prompt` / `two_choice`を確認する
   - 5評価プロファイルと2 timer modeを確認する
   - prompt snapshotとevaluation profile snapshotを確認する
@@ -5860,6 +6129,7 @@
   - Secrets、実音声、個人情報をcommitしない
   - 既存queued Jobを無断で再処理しない
   - E2E中に仕様を独断変更しない
+  - 端末固有の異常が見つかった場合も、T013-09内で仕様またはtechnical marginを独断変更しない
 - 完了条件:
   - 正常・異常経路をログ、DB、UI証跡付きで確認し、ユーザーが結果を承認する
 - テスト観点:

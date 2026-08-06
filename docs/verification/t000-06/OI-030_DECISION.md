@@ -2,12 +2,13 @@
 
 ## 1. 決定の適用範囲
 
-この文書は、T000-06で実施した実ブラウザ計測に基づき、10 / 40 / 60 / 90 / 120秒の全評価profileへ共通適用するMediaRecorderのtechnical marginを記録する。
+この文書は、T000-06で実施したWindows＋CodeX内蔵ブラウザの基準環境計測に基づき、同じ基準環境内の10 / 40 / 60 / 90 / 120秒profileへ共通適用するMediaRecorderのtechnical marginを記録する。
 
 - 判定対象はMediaRecorderが生成した元WebMをffprobeで取得した `format.duration` である。
-- technical marginはAzure送信前のduration上限判定に使用する。
-- productionコード、DB変更、Azure送信制御の実装は後続タスクで行う。
-- OI-030の `OPEN_ISSUES.md` 上の台帳移動と正本文書への横断反映はT000-08で行う。
+- `0.07秒`は基準環境についてユーザー承認済みの値である。
+- 全MVP対象環境に適用するproduction共通値は、T000-06-01で検証環境と対象matrixを確定し、T000-06-02〜T000-06-04でWindows通常Chrome、Android物理端末、iPhone物理端末を検証した後、T000-06-05で横断集計して最終承認する。
+- technical marginはAzure送信前のduration上限判定に使用するが、productionコード、DB変更、Azure送信制御の実装はT000-06-05完了後の後続タスクで行う。
+- OI-030の `OPEN_ISSUES.md` 上の台帳移動と正本文書への横断反映は、T000-06-05の結果を踏まえてT000-08で行う。
 - OI-029の文字数算出仕様およびOI-031の採点仕様は変更しない。
 
 ## 2. 確定値
@@ -48,6 +49,28 @@ D > P + 0.07
 - 合計: 正式25 trial
 
 ブラウザ識別情報はJSONLに保存されたuser agentから確認した。新しい録音、外部アクセス、追加のブラウザ計測による補完は行っていない。
+
+### 計測環境の限界
+
+- 物理Android端末は未検証である。
+- 物理iPhone端末は未検証である。
+- Windows通常ChromeおよびWindows Edgeは未検証である。
+- macOS SafariおよびiPad Safariは未検証である。
+- 端末エミュレーションやレスポンシブ表示を物理端末検証の代替とする確認は行っていない。
+- これらは未確認事項であり、失敗または非対応を意味しない。
+
+## 追加対象環境検証との関係
+
+- T000-06の正式25 trialと数値判断は、Windows＋CodeX内蔵ブラウザの基準環境について確定している。
+- `0.07秒`は基準環境の承認値である。
+- T000-06-01は検証環境、対象matrix、接続条件を確定し、録音は行わない。
+- T000-06-02〜T000-06-04はWindows通常Chrome、Android Chrome物理端末、iPhone Safari物理端末の環境別計測を担当する。
+- production共通値の全環境集計と最終承認はT000-06-05で行う。
+- T000-06-02〜T000-06-04と承認済み追加環境の根拠値が`0.07秒`以内であれば、T000-06-05で`0.07秒`をproduction共通値として維持する候補とする。
+- `0.07秒`を超える根拠値が確認された場合は、本書と同じ計算規則でtechnical marginを再計算してユーザー判断へ戻す。
+- MIME typeまたはcodecの差により共通判定が困難な場合は、環境別marginまたは非対応環境の判断材料として提示する。
+- T000-06の既存trial、計測値、sanitized CSV、raw WebM削除記録は無効化または変更しない。
+- OI-030の台帳移動は、T000-06-05と後続の正本文書反映の事実を踏まえて行う。
 
 ## 4. 正式trialと除外trial
 
@@ -202,6 +225,7 @@ D = 60.070001秒
 
 ## 9. Azure送信前判定との関係
 
+- 次の判定式は基準環境で承認済みであり、production共通値としての実装はT000-06-05後の再承認を待つ。
 - duration判定はAzure送信前に行う。
 - `D > P + 0.07` の音声はAzureへ送信しない。
 - `D`は元WebMのffprobe durationである。
@@ -256,11 +280,14 @@ temporary WAV:
 
 ## 12. 後続申し送り
 
+- T000-06-01で検証環境、対象matrix、接続条件を確定する。
+- T000-06-02でWindows通常Chrome、T000-06-03でAndroid Chrome物理端末、T000-06-04でiPhone Safari物理端末のMediaRecorder互換性と停止誤差を検証する。
+- production上限判定の実装前に、T000-06-05で全対象環境を横断集計し、production共通technical marginをユーザーが再承認する。
 - productionの上限判定を実装する。
 - submission snapshotの `evaluation_profile_seconds` を使用する。
 - ffprobe duration取得失敗時の扱いは、後続実装で既存エラー契約と整合させる。
 - 境界一致、境界直前、境界直後の自動テストを追加する。
 - 上限超過時にAzureへ送信されないことを確認する。
-- OI-030の `OPEN_ISSUES.md` 上の台帳移動と正本文書への横断反映はT000-08で行う。
-- T000-07は本決定値を時間判定の前提として参照できる。
+- OI-030の `OPEN_ISSUES.md` 上の台帳移動と正本文書への横断反映は、T000-06-05の結果を踏まえてT000-08で行う。
+- T000-07はT000-06-05完了後、再承認されたproduction共通値を時間判定の前提として参照する。
 - T000-06の証跡だけでproduction実装完了とは扱わない。
