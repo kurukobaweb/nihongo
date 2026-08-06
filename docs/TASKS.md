@@ -314,7 +314,7 @@
 
 ### T000-06: OI-030 MediaRecorder停止誤差確定
 
-- [x] 状態: 完了（2026-08-05 ユーザー承認済み）
+- [x] 状態: 完了（2026-08-06 PR #60 merge済み）
 - 種別: 仕様・実ブラウザ検証
 - 目的:
   - technical marginとAzure送信前の上限超過判定を実測に基づいて確定する
@@ -336,6 +336,16 @@
   - technical margin、上限超過判定式、Azure送信前拒否条件を決定する
   - 実ブラウザE2E証跡を残す
 - 確認結果:
+  - PR #60 `feat: complete T000-06 MediaRecorder margin verification` を `develop` へmerge済み
+  - PR head commit: `2df71082970470871421fbf013385ac1d78922ab`
+  - merge commit: `5aa4331521507dcdebf389465379bfb491b4e21e`
+  - PR #60はmerge commit方式で統合し、task branch上の7 commitsを維持
+  - PR #60の変更は14 files、3760 additions / 4 deletions
+  - PR作成前Feature test: 20 tests passed、161 assertions
+  - PR作成前Unit test: 7 tests passed、18 assertions
+  - PR作成前JavaScript test: 13 passed、0 failed
+  - PR作成前build: 成功、612 modules transformed
+  - GitHub Actions workflow runおよびstatus checkはPR確認時点で0件であり、上記ローカルテスト結果をmerge判断材料として使用
   - helper実装・自動テスト済み
   - 最終確認時branch: `codex/t000-06-media-recorder-helper`
   - 計測時基準HEAD: `e3f3504fa667dbf50c95f20665068c4f96257377`
@@ -373,6 +383,7 @@
   - 基準環境の既存 `media-recorder-measurements.sanitized.csv` を追加環境結果で上書きしない
   - production実装、DB変更、Azure送信前判定実装は未実施
   - OI-030の台帳移動と正本文書横断反映は、T000-06-05の結果を踏まえてT000-08で行う
+  - T000-06-01〜T000-06-05は未着手
   - T000-07以降には未着手
 - 実装してはいけないこと:
   - technical marginを追加回答時間として扱わない
