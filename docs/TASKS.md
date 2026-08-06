@@ -365,6 +365,12 @@
   - 追加環境で新たな最大値が確認された場合は、T000-06-05でT000-06と同じ計算規則によりtechnical marginを再計算する
   - T000-06-05完了前に`0.07秒`をproduction共通値として実装しない
   - T000-06の正式25 trial、sanitized CSV、local JSONL、raw WebM削除記録はT000-06-01〜T000-06-05でも変更しない
+  - `storage/app/local/t000-06`は基準環境証跡の保護対象とし、追加環境検証の保存先には使用しない
+  - 基準環境の `raw/measurements.jsonl` へ追加環境trialを追記しない
+  - 基準環境JSONLの26 record、`31,820 bytes`、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`を不変条件とする
+  - T000-06-02〜T000-06-04の追加trialは、基準環境から隔離されたruntimeまたはbase pathへ保存する
+  - environment IDの変更だけでは保存領域分離にならない
+  - 基準環境の既存 `media-recorder-measurements.sanitized.csv` を追加環境結果で上書きしない
   - production実装、DB変更、Azure送信前判定実装は未実施
   - OI-030の台帳移動と正本文書横断反映は、T000-06-05の結果を踏まえてT000-08で行う
   - T000-07以降には未着手
@@ -391,6 +397,9 @@
   - MVPで検証するブラウザ、OS、物理端末matrixを確定する
   - スマートフォンから到達できる安全な非本番HTTPS環境を確認する
   - environment ID、branch、commit SHA、保存先、認証条件を確定する
+  - 追加環境用runtimeまたはbase pathを基準環境から隔離する方式を確定する
+  - 追加環境ごとの証跡命名規則をユーザー承認により確定する
+  - T013-09で使用するprimary環境の判断材料を提示し、ユーザー承認により確定する
   - 各端末の録音開始前提を整える
   - 環境別計測へ進めるか判断材料を提示する
 - 参照仕様書:
@@ -424,6 +433,50 @@
   - マイクを利用できるsecure context
   - Secrets、IPアドレス、接続実値をtracked文書へ残さない方針
   - 安全な接続方法が存在しない場合は環境別録音へ進まず、環境整備を別作業として報告する
+- 保存領域隔離方式の確認:
+  - 候補として、別cloneまたは別作業ディレクトリ、別server runtime、別container volume、既存設定で指定できる別base pathを比較できる
+  - CodeXは隔離方式を独断で決定しない
+  - 追加環境trialが基準環境JSONLへ追記されないこと
+  - 追加環境raw WebMが基準環境 `raw-audio/` へ保存されないこと
+  - 追加環境temporary WAVが基準環境 `temporary/` へ作成されないこと
+  - 追加環境ごとに保存領域またはruntimeを識別できること
+  - environment IDと保存領域の対応を記録できること
+  - 複数環境を並行実行してもJSONL、raw WebM、temporary WAVの保存先が競合しないこと
+  - 基準環境保存領域を追加録音の開始前と完了後に読み取り専用で検証できること
+- 基準環境証跡の事前・事後確認:
+  - JSONL record: `26`
+  - JSONL size: `31,820 bytes`
+  - JSONL SHA-256: `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`
+  - raw WebM: `0件`
+  - temporary WAV: `0件`
+  - T000-06-02〜T000-06-04の開始前と完了後に不変であることを確認し、不一致時は次へ進まない
+- 環境別証跡命名規則:
+  - environment ID
+  - local base pathまたはruntime識別子
+  - JSONL、raw WebM、temporary WAVの所在
+  - sanitized CSV名と環境別結果文書名
+  - 全環境集計文書との参照関係
+  - tracked証跡の命名テンプレート候補:
+    - `docs/verification/t000-06/media-recorder-measurements.{environment_id}.sanitized.csv`
+    - `docs/verification/t000-06/ENVIRONMENT_{environment_id}_RESULT.md`
+  - 実際のenvironment IDとファイル名はユーザー承認後に確定する
+  - 既存の `media-recorder-measurements.sanitized.csv` を上書きしない
+  - 複数環境を1つの未区分CSVへ混在させない
+  - raw音声、絶対パス、IPアドレス、実URL、Secretsをtracked証跡へ含めない
+- primary環境の確定:
+  - 候補はWindows通常Chrome、Android Chrome、iPhone Safari、またはユーザーが追加承認した他環境とする
+  - MVPで最も標準的に使用する想定環境かを判断材料とする
+  - 録音、提出、Queue、Azure、DB、結果表示の総合確認を安定して実施できるかを判断材料とする
+  - ログ、DB、ブラウザ、端末状態を同時に確認しやすいかを判断材料とする
+  - 422、fail、Azure送信前上限超過を安全に再現できるかを判断材料とする
+  - 物理端末固有の制約を判断材料とする
+  - primary環境はCodeXが独断で決めず、ユーザーが承認する
+- 現行helperで隔離できない場合:
+  - T000-06-02〜T000-06-04の録音を開始しない
+  - T000-06-01内でconfigまたはapplication codeを変更しない
+  - base path分離実装が必要であることを報告する
+  - 新しい実装タスクの追加案だけを提示する
+  - タスクIDと実装内容はユーザー承認前に確定しない
 - 実施しないこと:
   - 録音
   - trial生成
@@ -433,11 +486,16 @@
   - 端末ごとのvalid判定
   - helperのコード変更
   - tunnel方式または公開方式の独断決定
+  - environment IDまたはprimary環境のCodeXによる独断確定
 - 完了条件:
   - 必須3環境の物理端末が特定されている
   - 安全な非本番HTTPS接続方法が確認されている
   - 対象branchとcommit SHAが確定している
   - environment IDが重複しない
+  - 追加環境trialが基準環境保存領域へ書き込まれない隔離方式がユーザー承認済みである
+  - environment IDと隔離保存領域の対応、環境別証跡命名規則がユーザー承認済みである
+  - 基準環境JSONLのrecord数、size、SHA-256、raw WebM件数、temporary WAV件数が期待値と一致する
+  - T013-09で使用するprimary環境がユーザー承認済みである
   - 各環境別検証へ進める条件がユーザー承認済みである
   - 録音はまだ実施していない
 - 担当:
@@ -459,6 +517,16 @@
   - `docs/verification/t000-06/media-recorder-measurements.sanitized.csv`
 - 依存タスク:
   - T000-06-01
+- 着手条件:
+  - T000-06-01が完了している
+  - 隔離されたruntimeまたはbase pathが確定している
+  - environment IDと環境別証跡命名規則が確定している
+  - 基準環境JSONLが26 record、`31,820 bytes`、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`である
+  - 基準環境raw WebMとtemporary WAVがともに0件である
+  - 追加trialが `storage/app/local/t000-06` へ書き込まれないことを確認済みである
+  - 対象branchとcommit SHAが確定している
+  - ユーザーが録音開始を承認している
+  - いずれかが未確認の場合は録音を開始しない
 - 標準trial:
   - Phase 1の録音能力確認とPhase 2のprofile screeningを重複させず、10 / 40 / 60 / 90 / 120秒を各1件実施する
   - 最初の10秒trialがvalidの場合は録音能力確認を兼ねる
@@ -485,6 +553,10 @@
   - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
   - Windows通常Chromeの最大根拠値を再計算できる
   - raw成果物とsanitized証跡が区別されている
+  - 基準環境JSONLが26 record、`31,820 bytes`、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`のままである
+  - 基準環境raw WebMとtemporary WAVがともに0件のままである
+  - 追加環境証跡が専用JSONL、sanitized CSV、環境別結果文書へ分離されている
+  - 基準環境の既存 `media-recorder-measurements.sanitized.csv` を変更していない
   - ユーザーが環境別結果を承認している
 - 担当:
   - ユーザー＋CodeX
@@ -503,6 +575,16 @@
   - `docs/verification/t000-06/PROCEDURE.md`
 - 依存タスク:
   - T000-06-01
+- 着手条件:
+  - T000-06-01が完了している
+  - 隔離されたruntimeまたはbase pathが確定している
+  - environment IDと環境別証跡命名規則が確定している
+  - 基準環境JSONLが26 record、`31,820 bytes`、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`である
+  - 基準環境raw WebMとtemporary WAVがともに0件である
+  - 追加trialが `storage/app/local/t000-06` へ書き込まれないことを確認済みである
+  - 対象branchとcommit SHAが確定している
+  - ユーザーが録音開始を承認している
+  - いずれかが未確認の場合は録音を開始しない
 - trial数:
   - T000-06-02と同じ方式で、標準9 valid trialとする
   - T000-06-02の拡張条件に該当する場合だけ25 valid trialへ拡張する
@@ -525,6 +607,10 @@
   - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
   - Android Chromeの環境別最大値を再計算できる
   - 端末固有挙動が記録されている
+  - 基準環境JSONLが26 record、`31,820 bytes`、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`のままである
+  - 基準環境raw WebMとtemporary WAVがともに0件のままである
+  - 追加環境証跡が専用JSONL、sanitized CSV、環境別結果文書へ分離されている
+  - 基準環境の既存 `media-recorder-measurements.sanitized.csv` を変更していない
   - ユーザーが環境別結果を承認している
 - 担当:
   - ユーザー＋CodeX
@@ -543,6 +629,16 @@
   - `docs/verification/t000-06/PROCEDURE.md`
 - 依存タスク:
   - T000-06-01
+- 着手条件:
+  - T000-06-01が完了している
+  - 隔離されたruntimeまたはbase pathが確定している
+  - environment IDと環境別証跡命名規則が確定している
+  - 基準環境JSONLが26 record、`31,820 bytes`、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`である
+  - 基準環境raw WebMとtemporary WAVがともに0件である
+  - 追加trialが `storage/app/local/t000-06` へ書き込まれないことを確認済みである
+  - 対象branchとcommit SHAが確定している
+  - ユーザーが録音開始を承認している
+  - いずれかが未確認の場合は録音を開始しない
 - trial数:
   - T000-06-02と同じ方式で、標準9 valid trialとする
   - T000-06-02の拡張条件に該当する場合だけ25 valid trialへ拡張する
@@ -565,6 +661,10 @@
   - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
   - iPhone Safariの環境別最大値を再計算できる
   - iOSおよびSafari固有挙動が記録されている
+  - 基準環境JSONLが26 record、`31,820 bytes`、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`のままである
+  - 基準環境raw WebMとtemporary WAVがともに0件のままである
+  - 追加環境証跡が専用JSONL、sanitized CSV、環境別結果文書へ分離されている
+  - 基準環境の既存 `media-recorder-measurements.sanitized.csv` を変更していない
   - ユーザーが環境別結果を承認している
 - 担当:
   - ユーザー＋CodeX
@@ -587,6 +687,15 @@
   - T000-06-03
   - T000-06-04
   - ユーザー承認により追加された環境別検証タスクがある場合は、その完了も依存条件へ含める
+- 集計条件:
+  - 基準環境と追加環境のJSONLが物理的またはruntime上で分離されていることを確認する
+  - 環境別sanitized CSVを明示的に読み分ける
+  - trial IDだけでなく、environment IDと証跡ファイルの対応を確認する
+  - 同一trialが複数の環境別証跡へ重複混入していないことを確認する
+  - 基準環境の正式25件を追加環境CSVへ複製しない
+  - 横断集計文書から各環境別JSONL、sanitized CSV、結果文書を参照可能にする
+  - 基準環境のJSONL、sanitized CSV、raw WebM削除記録を変更しない
+  - raw音声削除前に、環境別証跡と横断集計の整合を確認する
 - 計算規則:
 
   ```text
@@ -6111,9 +6220,11 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - T013-08
 - 実装内容:
   - T000-06-01で確定した対応環境matrixと検証環境を使用する
+  - primary環境はT000-06-01でユーザー承認された環境を使用し、T013-09内では再選定しない
+  - primary環境の変更が必要な場合は、CodeXが独断で変更せずユーザー判断へ戻す
   - T000-06-02〜T000-06-04の環境別停止誤差証跡と、T000-06-05で承認されたproduction共通technical marginを前提とする
   - primary環境では正常、fail、422、Azure送信前上限超過を総合確認する
-  - Windows通常Chrome、Android Chrome、iPhone Safariでは最低限、録音、提出、Queue、Azure、DB保存、completed結果表示を確認する
+  - primary以外の必須環境では最低限、録音、提出、Queue、Azure、DB保存、completed結果表示までの正常経路を確認する
   - T000-06-02〜T000-06-04で実施した停止誤差の9件または25件計測を繰り返さない
   - production実装後の総合E2Eとして実施し、technical margin自体の決定はT000-06-05で完了させる
   - `single_prompt` / `two_choice`を確認する

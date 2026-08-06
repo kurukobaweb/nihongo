@@ -70,6 +70,12 @@ D > P + 0.07
 - `0.07秒`を超える根拠値が確認された場合は、本書と同じ計算規則でtechnical marginを再計算してユーザー判断へ戻す。
 - MIME typeまたはcodecの差により共通判定が困難な場合は、環境別marginまたは非対応環境の判断材料として提示する。
 - T000-06の既存trial、計測値、sanitized CSV、raw WebM削除記録は無効化または変更しない。
+- 基準環境の `storage/app/local/t000-06/raw/measurements.jsonl` は追加環境の書込先として使用せず、26 record、31,820 bytes、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3` を不変条件とする。
+- environment IDの変更だけでは保存領域の分離にならない。追加環境のJSONL、raw WebM、temporary WAVは、基準環境から隔離されたruntimeまたはbase pathへ保存する。
+- 基準環境の `media-recorder-measurements.sanitized.csv` を追加環境結果で上書きせず、追加環境ごとにsanitized証跡を分離する。
+- T000-06-05は分離済みの環境別証跡を明示的に読み分けて横断集計する。
+- 現行runtimeで保存領域を安全に隔離できない場合は追加録音を開始しない。必要なbase path分離実装は別タスク候補としてユーザー判断へ戻し、本決定文書でコード変更を確定しない。
+- T013-09で使用するprimary環境はT000-06-01でユーザーが承認する。現時点では未確定であり、Windows通常Chrome、Android Chrome、iPhone Safariのいずれかへ推測補完しない。
 - OI-030の台帳移動は、T000-06-05と後続の正本文書反映の事実を踏まえて行う。
 
 ## 4. 正式trialと除外trial

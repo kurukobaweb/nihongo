@@ -147,6 +147,10 @@ storage/app/local/t000-06/
 - 2026-08-05、technical margin承認後にraw WebM 26件を削除済みである。helper自体は削除を行わない。
 - `measurements.jsonl`はlocal再集計証跡として維持する。tracked証跡は `media-recorder-measurements.sanitized.csv` を参照する。
 - JSONLはUTF-8、1行1trialで、排他lock下に追記する。user ID、氏名、メール、session/submission ID、transcript、発話内容、Secrets、絶対パス、ffmpeg/ffprobe command全文は保存しない。
+- `storage/app/local/t000-06` は基準環境証跡の保護対象であり、追加環境trialの保存先として使用しない。
+- 追加環境trialを基準環境の `raw/measurements.jsonl` へ追記せず、`raw-audio/` へWebMを保存せず、`temporary/` へWAVを作成しない。
+- environment IDだけを変更して同一JSONLへ保存しても保存領域の分離にはならない。追加環境には隔離されたruntimeまたはbase pathを使用する。
+- 基準環境の `media-recorder-measurements.sanitized.csv` を追加環境結果で上書きしない。
 
 ## duration解析と計算式
 
@@ -202,6 +206,29 @@ helper実装時点ではtechnical marginは未確定だった。当初方針ど�
 - T000-06-03: Android物理端末＋Chromeを計測する。
 - T000-06-04: iPhone物理端末＋Safariを計測する。
 - T000-06-05: 全対象環境を横断集計し、production共通technical marginをユーザー承認により確定する。
+
+T000-06-01では、録音開始前に追加環境の隔離方式、environment IDと保存領域の対応、環境別証跡命名規則をユーザー承認により確定する。追加環境専用runtimeまたはbase pathが存在しない、保存先が競合する、基準環境証跡の事前確認に失敗する、または対象branchとcommit SHAが記録されていない場合はStart前で停止する。現行helperで隔離できない場合も同様に停止し、同じ作業でconfigまたはapplication codeを無断変更しない。
+
+追加環境ごとにlocal JSONL、raw WebM、temporary WAV、sanitized CSV、環境別結果文書を分離する。tracked証跡の命名テンプレートは次とし、実際のenvironment IDとファイル名はT000-06-01のユーザー承認を正とする。
+
+```text
+media-recorder-measurements.{environment_id}.sanitized.csv
+ENVIRONMENT_{environment_id}_RESULT.md
+```
+
+T000-06-02〜T000-06-04の各開始前と終了後に、基準環境証跡を読み取り専用で確認する。
+
+```text
+JSONL record: 26
+JSONL size: 31,820 bytes
+JSONL SHA-256: 47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3
+raw WebM: 0
+temporary WAV: 0
+```
+
+不一致がある場合は、次trial、T000-06-05の横断集計、raw削除へ進まない。
+
+T013-09で使用するprimary環境はT000-06-01でユーザーが承認し、T013-09はその承認済み環境を使用する。本手順書内ではprimary環境を固定しない。
 
 production共通値は、環境別計測結果を基準環境と同じ計算規則でT000-06-05が集計した後にユーザーが再承認する。この再承認前に、`0.07秒`を全MVP対象環境の共通値として実装しない。
 
