@@ -312,7 +312,7 @@
 
 ### T000-06: OI-030 MediaRecorder停止誤差確定
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-05 ユーザー承認済み）
 - 種別: 仕様・実ブラウザ検証
 - 目的:
   - technical marginとAzure送信前の上限超過判定を実測に基づいて確定する
@@ -333,6 +333,33 @@
   - 最大誤差と平均誤差を算出する
   - technical margin、上限超過判定式、Azure送信前拒否条件を決定する
   - 実ブラウザE2E証跡を残す
+- 確認結果:
+  - helper実装・自動テスト済み
+  - 最終確認時branch: `codex/t000-06-media-recorder-helper`
+  - 計測時基準HEAD: `e3f3504fa667dbf50c95f20665068c4f96257377`
+  - 10 / 40 / 60 / 90 / 120秒を各5件、合計25件の正式trialとして計測
+  - 正式25件はすべてvalid、invalidは0件
+  - 正式対象外trial: `env-a-p010-r01-a01`
+  - 正式10秒run 1: `env-a-p010-r01-a02`
+  - MIME typeは全25件 `audio/webm;codecs=opus`
+  - visibility changeは全25件0、開始・終了とも `visible`
+  - 最大WebM超過: `0.0006560000000064292秒`（`env-a-p120-r01-a01`）
+  - 最大方式間差: `0.060114000000005774秒`（`env-a-p040-r04-a01`）
+  - technical margin: `0.07秒`
+  - 上限判定式: `D <= P + 0.07`
+  - 上限超過条件: `D > P + 0.07`
+  - 境界一致は上限内
+  - technical marginはユーザーへの追加回答時間、UIカウンター、自動停止時刻、Azure処理時間、QueueまたはHTTP timeoutへ加算しない
+  - 上限内、境界一致、上限超過の判定例を `docs/verification/t000-06/OI-030_DECISION.md` に記録
+  - raw WebM 26件はユーザー承認後に削除済み
+  - JSONL 26 recordはlocal再集計証跡として維持
+  - tracked証跡:
+    - `docs/verification/t000-06/OI-030_DECISION.md`
+    - `docs/verification/t000-06/media-recorder-measurements.sanitized.csv`
+  - sanitized CSVにより正式25件の最大値・平均値を再計算可能
+  - production実装、DB変更、Azure送信前判定実装は未実施
+  - OI-030の台帳移動と正本文書横断反映はT000-08で行う
+  - T000-07以降には未着手
 - 実装してはいけないこと:
   - technical marginを追加回答時間として扱わない
   - 実測前にtechnical marginの値を固定しない

@@ -6,6 +6,11 @@
 
 今回はhelperの実装と自動テストまでを対象とする。実ブラウザ録音、25有効試行、technical marginの具体値確定、OI-030解消、本番判定の実装は行わない。
 
+上記はhelper実装時点の範囲を示す履歴である。その後の実ブラウザ計測とtechnical margin決定は2026-08-05に完了した。最終決定とtracked計測証跡は次を正とする。
+
+- [OI-030決定](./OI-030_DECISION.md)
+- [正式25 trial sanitized計測値](./media-recorder-measurements.sanitized.csv)
+
 ## 利用条件
 
 - routeは`local`または`testing`環境でだけ登録される。production環境ではroute自体が存在しない。
@@ -134,10 +139,11 @@ storage/app/local/t000-06/
 └─ temporary/{trial_id}.wav
 ```
 
-- 元WebMはffprobe正本durationの再計算用に保持する。
+- 元WebMは計測・集計中、ffprobe正本durationの再計算用に保持する。
 - temporary WAVは解析成功・失敗にかかわらずAnalyzerの`finally`で削除する。
 - `storage/app/.gitignore`により`storage/app/local`はGit管理外である。raw音声、JSONL、temporary WAVをstage・commitしない。
-- raw音声はT000-06の最終承認後、完了記録前の別ステップで削除する。今回のhelperは削除しない。
+- 2026-08-05、technical margin承認後にraw WebM 26件を削除済みである。helper自体は削除を行わない。
+- `measurements.jsonl`はlocal再集計証跡として維持する。tracked証跡は `media-recorder-measurements.sanitized.csv` を参照する。
 - JSONLはUTF-8、1行1trialで、排他lock下に追記する。user ID、氏名、メール、session/submission ID、transcript、発話内容、Secrets、絶対パス、ffmpeg/ffprobe command全文は保存しない。
 
 ## duration解析と計算式
@@ -181,6 +187,8 @@ valid trialは、MediaRecorder errorなし、全必須timestampあり・順序�
 
 ## 後続作業との境界
 
-technical marginはまだ未確定である。実測後は全profileの有効試行における最大`total_overrun_seconds`と、測定方式間の最大差を判断材料とし、根拠値を下回らないよう0.01秒単位で切り上げるが、このhelperでは集計・確定しない。
+helper実装時点ではtechnical marginは未確定だった。当初方針どおり、全profileの有効試行における最大`total_overrun_seconds`と測定方式間の最大差を判断材料とし、根拠値を下回らないよう0.01秒単位で切り上げた。その後の正式25 trialにより、2026-08-05にtechnical marginを0.07秒としてユーザー承認した。
 
-将来の本番pre-Azure判定式は`D <= P + M`であり、Dは一時保存された元WebMのffprobe duration、Pはsubmissionへ固定保存される`evaluation_profile_seconds`、MはT000-06で確定する共通technical marginである。この判定、submission/DB保存、Azure送信制御、本番録音UI反映は後続実装対象である。
+承認済みの本番pre-Azure判定式は`D <= P + 0.07`であり、Dは一時保存された元WebMのffprobe duration、Pはsubmissionへ固定保存される`evaluation_profile_seconds`である。`D > P + 0.07`は上限超過としてAzure送信前に拒否し、境界一致は上限内とする。判定時にdurationを0.01秒へ丸めない。
+
+0.07秒は録音処理上のtechnical marginであり、追加回答時間、UIカウンター、自動停止時刻、Azure処理時間、QueueまたはHTTP timeoutへ加算しない。この判定、submission/DB保存、Azure送信制御、本番録音UI反映は後続実装対象である。決定根拠と境界例は[OI-030決定](./OI-030_DECISION.md)を参照する。
