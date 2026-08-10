@@ -50,7 +50,7 @@
 
 env-b計測値は次へ保存した。
 
-`C:\Projects\nihongo\docs\verification\t000-06\media-recorder-measurements.env-b.sanitized.csv`
+`docs/verification/t000-06/media-recorder-measurements.env-b.sanitized.csv`
 
 ## raw成果物
 
