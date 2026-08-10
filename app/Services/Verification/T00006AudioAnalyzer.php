@@ -61,6 +61,48 @@ class T00006AudioAnalyzer
         return $seconds;
     }
 
+    public static function parseWebmPacketDuration(string $json): float
+    {
+        try {
+            $payload = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('ffprobe_failed', previous: $exception);
+        }
+
+        $packets = $payload['packets'] ?? null;
+
+        if (! is_array($packets) || $packets === []) {
+            throw new RuntimeException('ffprobe_failed');
+        }
+
+        $maxEndSeconds = null;
+
+        foreach ($packets as $packet) {
+            $ptsTime = $packet['pts_time'] ?? null;
+            $durationTime = $packet['duration_time'] ?? null;
+
+            if (! is_numeric($ptsTime) || ! is_numeric($durationTime)) {
+                continue;
+            }
+
+            $packetEndSeconds = (float) $ptsTime + (float) $durationTime;
+
+            if (! is_finite($packetEndSeconds) || $packetEndSeconds <= 0) {
+                continue;
+            }
+
+            $maxEndSeconds = $maxEndSeconds === null
+                ? $packetEndSeconds
+                : max($maxEndSeconds, $packetEndSeconds);
+        }
+
+        if ($maxEndSeconds === null) {
+            throw new RuntimeException('ffprobe_failed');
+        }
+
+        return $maxEndSeconds;
+    }
+
     public static function parseWavDuration(string $json): float
     {
         try {
@@ -151,7 +193,29 @@ class T00006AudioAnalyzer
             $webmPath,
         ], 'ffprobe_failed');
 
-        return self::parseWebmDuration($output);
+        try {
+            return self::parseWebmDuration($output);
+        } catch (RuntimeException $exception) {
+            if ($exception->getMessage() !== 'ffprobe_failed') {
+                throw $exception;
+            }
+        }
+
+        $packetOutput = $this->runProcess([
+            (string) config('t000-06.ffprobe_binary', 'ffprobe'),
+            '-v',
+            'error',
+            '-select_streams',
+            'a:0',
+            '-show_packets',
+            '-show_entries',
+            'packet=pts_time,duration_time',
+            '-of',
+            'json',
+            $webmPath,
+        ], 'ffprobe_failed');
+
+        return self::parseWebmPacketDuration($packetOutput);
     }
 
     protected function convertToWav(string $webmPath, string $wavPath): void
