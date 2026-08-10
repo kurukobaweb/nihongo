@@ -617,7 +617,7 @@
 
 ### T000-06-03: Android Chrome物理端末MediaRecorder検証
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-10 ユーザー承認済み）
 - 種別: 実ブラウザ・物理端末検証
 - 目的:
   - Android物理端末＋ChromeでMediaRecorder録音を確認する
@@ -656,6 +656,27 @@
 - 成果物:
   - 環境情報、trial inventory、sanitized数値証跡、環境別最大値、25件拡張要否
   - raw音声削除前のユーザー承認待ち状態
+- 確認結果:
+  - `env-c`: Android物理端末 + Chrome stable + Android内蔵マイク
+  - runtime commit: `243f1a5eeac52086efef14b8a407e6cb67f5f774`
+  - Android内蔵マイクの標準9 valid trialを正式結果として採用
+  - 10 / 40 / 60 / 90秒を各1件、120秒を5件実施
+  - 全9件 `valid=true`
+  - 全9件 `visibility_change_count=0`、開始・終了とも`visible`
+  - MIME type: 全件 `audio/webm;codecs=opus`
+  - 最大 `duration_method_difference_seconds`: `0.060274000000007`
+  - 最大 `total_overrun_seconds`: `0.00003900000000101`
+  - Bluetoothイヤフォンのマイクを使用したtrial、内蔵マイク切り分け用attempt 2、誤操作の`env-a` trial、invalid trialは正式9件から除外
+  - Android内蔵マイクの正式9件では基準値`0.07秒`超過、foreground離脱、visibility変化、画面回転、通知・着信割込み、Blob保存失敗、MIME type / codec差を確認せず
+  - 25 valid trialへの拡張は不要とユーザー承認済み
+  - baseline JSONL: `26 records`
+  - baseline JSONL size: `31,820 bytes`
+  - baseline SHA-256: `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`
+  - baseline raw WebM: `0件`
+  - baseline temporary WAV: `0件`
+  - `docs/verification/t000-06/media-recorder-measurements.env-c.sanitized.csv` を作成
+  - `docs/verification/t000-06/ENVIRONMENT_env-c_RESULT.md` を作成
+  - env-cのlocal JSONLとraw WebMはT000-06-05の横断集計・証跡確認まで保持し、現時点では削除しない
 - 完了条件:
   - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
   - Android Chromeの環境別最大値を再計算できる
