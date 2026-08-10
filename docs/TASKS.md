@@ -538,7 +538,7 @@
 
 ### T000-06-02: Windows通常Chrome MediaRecorder検証
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-10 ユーザー承認済み）
 - 種別: 実ブラウザ・実機検証
 - 目的:
   - Windows実PC上の通常Chrome stableでMediaRecorder録音を確認する
@@ -583,6 +583,25 @@
   - 環境別最大値
   - 25件拡張要否
   - raw音声削除前のユーザー承認待ち状態
+- 確認結果:
+  - `env-b`: Windows実PC + Chrome stable
+  - runtime commit: `243f1a5eeac52086efef14b8a407e6cb67f5f774`
+  - 標準9 valid trialを実施
+  - 10 / 40 / 60 / 120秒を各1件、90秒を5件実施
+  - 全9件 `valid=true`
+  - 全9件 `visibility_change_count=0`
+  - MIME type: 全件 `audio/webm;codecs=opus`
+  - 最大 `duration_method_difference_seconds`: `0.060016`
+  - 最大 `total_overrun_seconds`: `0.0001049999999978`
+  - 25 valid trialへの拡張は不要とユーザー承認済み
+  - baseline JSONL: `26 records`
+  - baseline JSONL size: `31,820 bytes`
+  - baseline SHA-256: `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`
+  - baseline raw WebM: `0件`
+  - baseline temporary WAV: `0件`
+  - `docs/verification/t000-06/media-recorder-measurements.env-b.sanitized.csv` を作成
+  - `docs/verification/t000-06/ENVIRONMENT_env-b_RESULT.md` を作成
+  - env-b raw WebMはT000-06-05の横断集計・証跡確認まで保持し、現時点では削除しない
 - 完了条件:
   - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
   - Windows通常Chromeの最大根拠値を再計算できる
