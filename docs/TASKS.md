@@ -402,7 +402,7 @@
 
 ### T000-06-01: 実機検証環境・対象matrix確定
 
-- [ ] 状態: 未着手（2026-08-06 登録）
+- [x] 状態: 完了（2026-08-10 ユーザー承認済み）
 - 種別: 環境確認・仕様
 - 目的:
   - MVPで検証するブラウザ、OS、物理端末matrixを確定する
@@ -488,6 +488,29 @@
   - base path分離実装が必要であることを報告する
   - 新しい実装タスクの追加案だけを提示する
   - タスクIDと実装内容はユーザー承認前に確定しない
+- 確認結果:
+  - 必須3環境を確定
+    - `env-b`: Windows実PC + Chrome stable
+    - `env-c`: Android物理端末 + Chrome
+    - `env-d`: iPhone物理端末 + Safari
+  - primary環境: `env-b`
+  - 非本番HTTPS到達を確認
+  - `auth + verified` を確認
+  - 検証helperは `auth + verified` でアクセス制御
+  - 対象branch: `develop`
+  - 対象commit: `243f1a5eeac52086efef14b8a407e6cb67f5f774`
+  - production DBは使用していない
+  - production Azure Speech / Stripeの接続情報を使用しない構成を確認
+  - `env-b` / `env-c` / `env-d` はruntimeおよびstorageを分離
+  - 環境別証跡命名規則をユーザー承認済み
+  - baseline JSONL: `26 records`
+  - baseline JSONL size: `31,820 bytes`
+  - baseline SHA-256: `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3`
+  - baseline raw WebM: `0件`
+  - baseline temporary WAV: `0件`
+  - `env-b` / `env-c` / `env-d` のT000-06ファイル: 各`0件`
+  - T000-06-01では録音・trial生成を実施していない
+  - 実URL、IPアドレス、Secrets、絶対パスは記載していない
 - 実施しないこと:
   - 録音
   - trial生成
