@@ -1,7 +1,8 @@
 # 整合性確認メモ
 
-> **最終更新: 2026-05-14**
-> **対象: MVP実装前レビュー反映後の文書間整合性確認**
+> **最終更新: 2026-08-12**
+> **対象: T000-08 OI-029〜OI-031・Stage-A／Stage-B責務反映後の文書間整合性確認**
+> **確認範囲: T000-08ではOI-029〜OI-031およびStage-A／Stage-B責務に関する差分整合を再確認した。T000-08対象外の既存整合確認記録は全面再評価せず、一般的な文書整理・仕様正本切り分けは後続タスクの責務とする。**
 
 ---
 
@@ -9,12 +10,13 @@
 
 | 文書 | 状態 | 備考 |
 |---|---|---|
-| `README.md` | 既存方針維持 | プロジェクト全体像・フェーズ定義の入口文書 |
-| `OPEN_ISSUES.md` | 更新済み | MVP実装前レビュー指摘を反映済み。OI-027〜OI-028 追加 |
-| `DB_SCHEMA.md` | 更新済み | MVP実装前レビュー指摘を反映済み。`questions.question_format` 反映済み |
-| `ARCHITECTURE.md` | 更新済み | MVP実装前レビュー指摘を反映済み。2026-05-14版 |
-| `DESIGN.md` | 更新済み | MVP実装前レビュー指摘を反映済み。2026-05-14版 |
-| `OPERATIONS.md` | 更新済み | MVP実装前レビュー指摘を反映済み。2026-05-14版 |
+| `README.md` | T000-08更新 | 入口文書へStage-A採点正本と現行状態を反映 |
+| `OPEN_ISSUES.md` | T000-08更新 | OI-029〜OI-031を解消済みへ移動 |
+| `DB_SCHEMA.md` | T000-08更新 | 採点入力・OI状態・未確定DB構造の境界を反映 |
+| `ARCHITECTURE.md` | T000-08更新 | Python／Laravel責務、OI-030送信前判定、Stage-A／B境界を反映 |
+| `DESIGN.md` | T000-08更新 | 録音制御、結果分類、Stage-A結果表示を反映 |
+| `OPERATIONS.md` | T000-08更新 | historical rescoreとStage-A／B運用境界を反映 |
+| `STAGE_A_SCORING.md` | 採点正本 | Stage-A採点表・境界・version・再採点semantics |
 | `CONSISTENCY_CHECK.md` | 今回更新対象 | 各仕様書の最新版に合わせて整合確認結果を更新 |
 
 ---
@@ -27,15 +29,13 @@
 - §3「現在の詳細設計スコープ」の文書一覧は、現在の文書構成と大きな矛盾はない
 - §5「ドキュメント構成」の各文書の役割記述は、各正本の責務分離と整合している
 - §5 DESIGN.md の説明は「MVP UI/UX 設計の正本」として、DESIGN.md の位置づけと整合している
-- §6「文書の読み順」は、README → ARCHITECTURE → DB_SCHEMA → OPEN_ISSUES → OPERATIONS → DESIGN の順であり、入口文書として有効
+- §6「文書の読み順」は、README → ARCHITECTURE → STAGE_A_SCORING → DB_SCHEMA → OPEN_ISSUES → OPERATIONS → DESIGN → TASKS の順であり、入口文書として有効
 - §7「未確定事項の扱い」の「OPEN_ISSUES.md に集約」方針は、現行の未確定事項管理方針と整合している
 - §8「運用方針」の「ARCHITECTURE.md はハブ文書として維持する」表現は、ARCHITECTURE.md の本文書位置づけと整合している
 
 ### 要確認・申し送り
 
-- README.md §9「現在の状態」には、旧状態表現が残る可能性がある
-- ただし、README.md は今回の修正対象外である
-- 最新の各仕様書更新状態を README.md に反映するかどうかは、後続工程で検討する
+- T000-08対象範囲ではなし。README.mdは詳細進捗を複製せず、`TASKS.md`へ委譲する入口文書として維持する
 
 ---
 
@@ -121,7 +121,7 @@
 - OPERATIONS.md §4.5 の Feature Flag 反映は、ARCHITECTURE.md §6 を設計正本として扱っている
 - Feature Flag 反映手順は、`.env` 更新 + Laravel 設定キャッシュのクリアまたは再生成を前提としており、ARCHITECTURE.md §6.3 の管理方式と整合している
 - Queue Worker / アプリケーションプロセスが新しい設定を参照することを確認する運用手順は、Feature Flag の設計意図と整合している
-- Feature Flag OFF 時に発音・流暢さセクション自体を非表示にする方針は、ARCHITECTURE.md §6 と DESIGN.md §7-4 とも矛盾していない
+- 現行Stage-AではFeature Flagにかかわらず発音・流暢さ・comment・`overall_score`を生成・表示せず、Stage-B用4カラムをNULLとする方針がARCHITECTURE.md、DB_SCHEMA.md、DESIGN.mdで一致している
 - OPERATIONS.md §5 のバックアップ対象は ARCHITECTURE.md §14.4 と一致している
 - 音声一時ファイルはバックアップ対象外として、ARCHITECTURE.md §11 / §14.4 と OPERATIONS.md §5 で整合している
 - OPERATIONS.md §1.2 の処理経路（提出→評価→保存→削除、Stripe Webhook、退会フロー）は ARCHITECTURE.md §5 の非同期ジョブ設計と整合している
@@ -188,7 +188,7 @@
 - DESIGN.md §7-4 の `useFeatureFlag` composable 参照（ARCHITECTURE.md §7.3）が正確である
 - DESIGN.md §7-2 の状態管理参照（ARCHITECTURE.md §7.2 `useRecordingStore`, `useSubmissionPollingStore`）が正確である
 - DESIGN.md §7-6 の admin ロール参照（ARCHITECTURE.md §10.2）が正確である
-- Feature Flag OFF 時は、発音・流暢さセクション自体を非表示にし、空欄・NULL・未評価を表示しない方針で整合している
+- 現行Stage-AではFeature Flagにかかわらず発音・流暢さ・comment・`overall_score`を表示せず、空欄・NULL・未評価も表示しない方針で整合している
 - `questions.question_format` は、ARCHITECTURE.md §13 と DESIGN.md §7-3 で問題形式を表す分類軸として整合している
 - `questions.question_format` の値域は OI-022 管理に留められており、両文書で具体値を確定していない
 - `difficulty` と `question_format` は独立した分類軸として両文書で整合している
@@ -227,8 +227,8 @@
 - `difficulty` と `question_format` は独立した分類軸である
 - `has_model_answer` は模範解答有無であり、問題形式ではない
 - `question_type` は使用しない方針で一致している
-- DESIGN.md §7-4 の evaluations 6項目が DB_SCHEMA.md §4-2-6 のカラム構成と一致している
-- Feature Flag OFF 時の `pronunciation_result` / `fluency_result` nullable 扱いと、UI 非表示方針が整合している
+- DESIGN.md §7-4 のStage-A結果表示が、DB_SCHEMA.md §4-2-6の`final_score` / `evaluation_result` / transcript / Stage-A補助情報と一致している
+- `pronunciation_result` / `fluency_result` / `overall_score` / `comment`はStage-B用nullableカラムであり、Stage-AのみではNULL・非表示とする方針が整合している
 - DESIGN.md §7-1 の consents 記録が DB_SCHEMA.md §4-5-1 と一致している
 - 設定項目の保存先は OI-023 で `user_learning_settings` テーブル方式に確定済みであり、DB_SCHEMA.md では T011-02 実装前提のテーブル仕様として整合している
 - DESIGN.md でも `user_learning_settings` テーブル方式に確定済み、かつ `users` JSONB方式は不採用として扱っている
@@ -281,9 +281,8 @@
 
 ### 確認済み
 
-- Feature Flag OFF時の表示制御は、DESIGN.md §7-4 と OPERATIONS.md §4.5 で整合している
-- Feature Flag OFF時は、発音・流暢さセクション自体を非表示にし、空欄・NULL・未評価をユーザーに表示しない方針で一致している
-- OPERATIONS.md の Feature Flag 反映後確認では、結果画面の発音・流暢さセクションの表示/非表示を確認対象としており、DESIGN.md のUI方針と整合している
+- Stage-AでStage-B用4項目を生成・表示せず、空欄・NULL・未評価をユーザーに表示しない方針は、DESIGN.md §7-4 と OPERATIONS.md §4.5 で整合している
+- OPERATIONS.mdのFeature Flag運用は将来のStage-B有効化判断へ限定され、現行Stage-AでStage-B項目を表示しないDESIGN.mdのUI方針と整合している
 - STT認識不可時（422）は、DESIGN.md では再録音 / 再提出 UX の対象として扱われている
 - STT認識不可時（422）は、OPERATIONS.md では通常障害ではなく、原則としてユーザー再提出 UX の対象として扱われている
 - 422急増時は、OPERATIONS.md で録音品質・ブラウザ録音・音声形式変換・Azure STT 応答傾向の品質調査対象として扱われており、DESIGN.md の OI-006 管理と矛盾しない
@@ -296,7 +295,7 @@
 
 | 関心事 | DESIGN.md | OPERATIONS.md |
 |---|---|---|
-| Feature Flag OFF時のUI | §7-4 で非表示方針を定義 | §4.5 / §6.4 で反映後確認 |
+| Stage-A／Stage-B表示境界 | §7-4 でStage-A時のStage-B項目非表示を定義 | §4.5で運用確認境界を定義 |
 | STT認識不可時（422） | §5.2 / §7-2 で再録音・再提出UXを定義 | §1 / §2 / §3 / §7 で障害扱いとの区別・品質調査 |
 | Stripe Webhook | §7-7 で詳細化せず OI-027 参照 | §1 / §3 / §7 / §8 で点検・監視対象、OI-027 参照 |
 | 管理画面 | §7-6 で候補範囲、OI-028 参照 | §1 / §4 / §8 で点検対象、OI-028 参照 |
@@ -328,5 +327,16 @@
 - 一時音声ファイルはバックアップ対象外として扱われている
 - Secrets / 監視対象の更新は OPERATIONS.md に反映済みであり、ARCHITECTURE.md と矛盾していない
 - 422急増時の品質調査扱いは、DESIGN.md のUX設計、OPEN_ISSUES.md OI-006、OPERATIONS.md の運用整理と矛盾していない
+- OI-029 / OI-030 / OI-031は解消済みであり、OPEN_ISSUES.mdの解消済み台帳、各Decision Record、関連正本文書の状態が一致している
+- `STAGE_A_SCORING.md`をStage-A採点仕様の正本とし、Decision Recordは判断履歴として参照する責務が各文書で一致している
+- PythonはAzure STTとStage-A認識事実値の取得、Laravelは正本に従う採点とevaluation保存を担当し、Pythonが`final_score`を決定しない
+- `time_score`は録音制御上の経過時間`T`とstop reasonに基づき、Azure認識segment duration合計、元WebM duration`D`、UI丸め秒数、profile値を入力として代用しない
+- OI-030のproduction共通technical marginは`0.07秒`であり、Azure送信前に `D <= P + 0.07` / `D > P + 0.07` を判定する。UI timer、auto stop、time_score、Queue／HTTP timeoutへ加算しない
+- `pronunciation_result` / `fluency_result` / `overall_score` / `comment`はStage-B用nullableカラムであり、Stage-AのみではNULL、非生成、非表示とする。Stage-Aは`final_score`を使用し、template comment、pronunciation、fluencyを生成しない
+- UIはSTOPを録音中いつでも受け付け、最低採点時間未満ならsubmissionを作成せず破棄／再録音、最低時間以上なら提出確認、profile上限ならauto stopとする
+- 合格、採点不合格、採点対象外、422 `speech_unrecognized`、system errorを別状態として扱う。採点不合格ではevaluationを作成し、submissionを`completed`とする
+- historical bulk rescoreの実行triggerはOPERATIONS.mdの運用責務とし、再採点semanticsは`STAGE_A_SCORING.md`を参照する。実行者、時期、方式、具体triggerは後続運用設計へ残す
+- `character_count_version`、time_score用`T`、stop reason／profile limit到達相当の最終DBカラム名・型・精度・保存場所・migrationはT002-06 / T002-07の後続責務として未確定を維持している
+
 本メモは文書間整合性の確認結果であり、実装タスク定義および CodeX 実装指示は別文書で管理する。
 ---

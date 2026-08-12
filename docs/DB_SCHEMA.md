@@ -628,7 +628,7 @@ ORDER BY display_order ASC, id ASC;
 - 問題を開いた時点の初期選択値として使用し、ユーザーは録音開始前に変更できる
 - 提出後の録音上限、採点、結果表示には現在の問題設定を再利用せず、`submissions.evaluation_profile_seconds` を使用する
 - 音声評価サービスへ渡す実行時パラメータ `expected_duration` は `submissions.evaluation_profile_seconds` から取得する
-- technical margin は `recommended_duration_seconds`、`evaluation_profile_seconds`、`expected_duration` に加算しない。具体値は OI-030 で管理する
+- OI-030で確定したproduction共通technical marginは `0.07秒` であり、`recommended_duration_seconds`、`evaluation_profile_seconds`、`expected_duration` に加算しない。Azure送信前判定の詳細は `docs/verification/t000-06/OI-030_DECISION.md` を参照する
 - 問題分類は `category_id`、`question_format`、`question_tag` で表現する
 - 公開範囲は会員登録済みユーザーのみ
 
@@ -740,7 +740,8 @@ WHERE id = $1
 - `evaluation_profile_seconds` は提出処理で必ず明示保存し、録音上限、採点、結果表示の基準とする
 - Queue処理時に現在のquestionやuser settingから評価プロファイルを再取得しない
 - `expected_duration` はDBカラムではなく、`submissions.evaluation_profile_seconds` を Laravel から Python へ渡す実行時パラメータとする
-- technical margin は `evaluation_profile_seconds` または `expected_duration` へ加算しない。具体値は OI-030 で管理する
+- OI-030で確定したproduction共通technical marginは `0.07秒` であり、`evaluation_profile_seconds` または `expected_duration` へ加算しない
+- 元WebMのffprobe durationを`D`、固定保存済み`evaluation_profile_seconds`を`P`とし、Azure送信前に `D <= P + 0.07` を上限内、`D > P + 0.07` を上限超過として扱う。上限超過時はAzureへ送信せず、Stage-A採点およびevaluation作成を行わない
 - 既存データの `prompt_snapshot` / `evaluation_profile_seconds` バックフィル方法は本書では確定しない
 - `completed` / `failed` 確定時に音声ファイル実体を物理削除する
 - 即時削除に失敗した場合の回復手段は CleanupTempFilesJob とする
@@ -781,7 +782,7 @@ Azure AI Speech の認識が成功し、Stage-A評価結果が成立した提出
 | `characters_per_minute` | numeric(8,2) | No | なし | `character_count / duration_seconds × 60` の算出値 |
 | `speed_assessment` | varchar(20) | No | なし | `slow` / `appropriate` / `fast` |
 | `character_score` | numeric(5,2) | No | なし | 文字数帯による基本スコア |
-| `time_score` | numeric(5,2) | No | なし | 認識時間帯によるスコア |
+| `time_score` | numeric(5,2) | No | なし | 録音制御上の経過時間`T`とstop reasonに基づくStage-A component score |
 | `final_score` | numeric(5,2) | No | なし | Stage-Aで表示するスコア |
 | `evaluation_result` | varchar(20) | No | なし | `pass` / `fail` |
 | `scoring_version` | varchar(50) | No | なし | 適用した採点方式の識別子 |
@@ -833,16 +834,16 @@ WHERE submission_id = $1;
 **備考**  
 - Stage-Aは Azure AI Speech による音声認識・定量評価であり、Stage-Bは Azure OpenAI 等による内容・構成等の追加評価である
 - Stage-BはStage-Aを置き換えず、Stage-Aへ追加する拡張段階とする。Stage-B導入後も `final_score` と関連するStage-A評価を表示する
-- `duration_seconds` はAzure AI Speechが認識した各発話セグメントの認識時間合計であり、音声ファイル全体の実時間である `submissions.audio_duration_seconds`、選択評価プロファイルである `submissions.evaluation_profile_seconds` とは別概念である
+- `duration_seconds` はAzure AI Speechが認識した各発話セグメントの認識時間合計であり、音声ファイル側のduration系事実である `submissions.audio_duration_seconds`、選択評価プロファイルである `submissions.evaluation_profile_seconds`、time_scoreに使用する録音制御上の経過時間`T`とは別概念である。`duration_seconds`をtime_score入力に使用しない
 - `character_count` はAzureを再実行せずに再採点するための事実値として保存する
-- 文字数の正規化・算出規則は OI-029 で管理し、空白・句読点・数字・英字・記号・segment間空白の扱い、正規化方式、文字数計算versionの具体値を本書で先行確定しない
+- OI-029の文字数算出規則は確定済みである。表示用transcriptと採点用`NBest[0].Lexical`を分離し、`ja-jp-character-count-v1`に従って`character_count`を算出する。詳細は `docs/verification/t000-05/OI-029_DECISION.md` を参照する
 - `characters_per_minute` は `character_count / duration_seconds × 60` で算出し、小数第2位まで保存する。分母にはAzure認識区間の合計時間を使い、無音・未認識区間を含めない
 - `speed_assessment` は保存した小数の `characters_per_minute` を基準に判定する。UI表示時の丸めは本書で確定しない
 - OI-015 は MVP 初期値として解消済みであり、初期閾値は `slow`: `characters_per_minute < 180`、`appropriate`: `180 <= characters_per_minute <= 320`、`fast`: `characters_per_minute > 320`
 - 速度区分は参考分類であり、`final_score` または `evaluation_result` へ直接反映しない
 - 速度判定閾値は DB CHECK へ固定せず、アプリケーション側のversion管理された評価設定で管理する。具体的な設定ファイル名は固定しない
 - 実Azure / 実音声評価データ確認後に調整可能とする
-- `character_score` と `time_score` の最終統合方式、および `scoring_version` の具体値は OI-031 で管理する
+- Stage-A採点は `docs/STAGE_A_SCORING.md` を正本とする。初期versionは `stage-a-scoring-v1` であり、`final_score = min(character_score, time_score)`、pass thresholdは60とする。profile別採点表、境界、stop reason、再採点semanticsは正本を参照する
 - `pronunciation_result` / `fluency_result` / `overall_score` / `comment` は将来のStage-B用nullableカラムとして維持し、Stage-Aのみでは生成・表示せず NULL とする
 - Stage-B導入後はStage-A結果に追加して使用・表示し、`final_score` を `overall_score` へ転用しない
 - `azure_request_id` / `raw_azure_response` はStage-AのAzure AI Speech情報に限定し、将来のAzure OpenAI等のStage-B情報を混在・上書きしない
@@ -853,6 +854,7 @@ WHERE submission_id = $1;
 - 500KB 超過時の保持方針は OI-107 で管理する
 - 非機能要件: `transcript` は 10,000 文字を想定上限とする
 - Stage-A必須カラムの既存データ移行方法は本書では確定しない
+- 再採点に必要な`character_count_version`、time_score用`T`、stop reason／profile limit到達相当の事実は永続化が必要である。ただし最終カラム名、型、精度、保存場所、migration内容は本書では確定せず、T002-06 / T002-07で決定する
 
 ---
 
@@ -1582,14 +1584,14 @@ MVP 規模は年間 `submissions` が概ね 100,000 件未満を想定する。
 | A-05 問題形式・設問文 | OI-022で解消済み | §4-2-3、§4-2-5へ反映 | 本書では未確認 | ARCHITECTURE.md等は後続確認・補正対象 |
 | A-06 学習設定 | OI-023で解消済み | §2.2、§4-1-2へ2項目構成を反映 | 本書では未確認 | ARCHITECTURE.md / DESIGN.md等は後続確認・補正対象 |
 | A-07 評価プロファイル | OI-009で解消済み | questions初期値とsubmission最終選択値へ反映 | 本書では未確認 | ARCHITECTURE.md / DESIGN.md等は後続確認・補正対象 |
-| A-08 Stage-A評価 | OI-029〜OI-031の未確定範囲を除き方針承認済み | §4-2-6へ反映 | 本書では未確認 | ARCHITECTURE.md等は後続確認・補正対象 |
+| A-08 Stage-A評価 | OI-029〜OI-031で確定済み | §4-2-5、§4-2-6へ責務に必要な範囲を反映 | 本書では未確認 | T000-08でARCHITECTURE.md等を横断補正 |
 
 ### 11.4 反映順序推奨
 
 - OPEN_ISSUESで確定した仕様と、本書へ反映したDB設計を基準に、実装コードと他の正本文書を個別に確認する
-- ARCHITECTURE.md本体は今回変更せず、問題形式、評価プロファイル、submissionスナップショット、Stage-A / Stage-B責務の後続補正対象とする
+- ARCHITECTURE.mdのStage-A処理フローとStage-A / Stage-B責務はT000-08で横断補正し、実装コードへの反映は後続タスクで確認する
 - 実装コードへの反映済み・未実装は本書から推測せず、別タスクでmigration、Model、validation、Seeder、評価処理、テストを確認する
-- OI-029〜OI-031に依存する具体値・最終アルゴリズムは、各項目の解消後に本書と関連文書へ反映する
+- OI-029〜OI-031の確定結果は各正本を参照し、本書にはDB永続化責務に必要な範囲だけを反映する
 
 ---
 
@@ -1618,9 +1620,9 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 | OI-026 | 学習管理画面は MVP 対象外 | 集計テーブル追加なし。将来実装時に再検討 | 管理中 |
 | OI-027 | MVPで処理対象とする Stripe Webhook イベントの最小範囲 | `subscriptions` 同期方針に影響。イベント範囲は OI-027 参照 | 管理中 |
 | OI-028 | MVP 管理画面で実装する最小範囲 | `users.role` の admin 方針は維持。追加権限テーブルは現時点で追加しない | 管理中 |
-| OI-029 | Azure文字数算出・正規化方式 | `character_count` を再採点用事実値として保存する。文字数の正規化・算出規則と文字数計算versionの具体値は確定しない | 管理中 |
-| OI-030 | technical margin | 実測・具体値・上限判定への適用は確定しない。評価プロファイルまたは `expected_duration` へ追加回答時間として加算しない | 管理中 |
-| OI-031 | Stage-A採点統合方式 | `character_score` / `time_score` / `final_score` / `evaluation_result` / `scoring_version` の保存要件を反映。最終統合方式とversionの具体値は確定しない | 管理中 |
+| OI-029 | Azure文字数算出・正規化方式 | `ja-jp-character-count-v1`で算出した`character_count`を再採点用事実値として保存する。最終`character_count_version`カラム構造はT002-06 / T002-07で決定する | 解消済み |
+| OI-030 | technical margin | production共通値`0.07秒`とAzure送信前の `D <= P + 0.07` / `D > P + 0.07` 判定を反映。marginはprofileや`expected_duration`へ加算しない | 解消済み |
+| OI-031 | Stage-A採点統合方式 | `stage-a-scoring-v1`の採点値・result・version保存要件を反映。time_score用`T`とstop reasonの最終保存構造はT002-06 / T002-07で決定する | 解消済み |
 
 ### 12.1 解消済み項目
 
@@ -1641,6 +1643,6 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 - `evaluations` にStage-Aの再採点用事実値と採点値を追加し、成立時の必須値として整理
 - Stage-BはStage-Aを置換せず追加する方針とし、既存nullable評価カラムを将来のStage-B用として維持
 - OI-009 / OI-022 / OI-023 の解消済み仕様を本書へ反映
-- OI-029 / OI-030 / OI-031 の参照を追加し、未確定の具体値・採点統合式・version値は先行確定しない
+- OI-029 / OI-030 / OI-031 の確定結果と正本参照を反映し、未確定の最終DB保存構造・migrationはT002-06 / T002-07へ維持
 - 18テーブル / 5カテゴリ構成、`question_type` 不採用、`has_model_answer` 採用、音声ファイル非永続保存を維持
 - 本節はDB設計文書の補正サマリーであり、migration、Model、Seeder、評価処理、テスト等の実装更新を意味しない

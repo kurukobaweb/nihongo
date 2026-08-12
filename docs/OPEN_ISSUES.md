@@ -1,7 +1,7 @@
 # OPEN_ISSUES.md
 
 > **目的: 未確定事項の唯一の管理台帳**
-> **最終更新: 2026-07-31（承認済み音声評価プロファイル・問題形式・学習設定の反映）**
+> **最終更新: 2026-08-12（OI-029〜OI-031確定結果の反映）**
 
 ---
 
@@ -111,14 +111,6 @@ CodeX での MVP 実装に入る前に、以下の観点で本台帳を確認す
 | OI-027 | 課金 | MVPで処理対象とする Stripe Webhook イベントの最小範囲。候補は `customer.subscription.created` / `customer.subscription.updated` / `customer.subscription.deleted` / `invoice.payment_failed`。署名検証、Queue処理、契約状態同期への影響を含めて確定する | Stripe Webhook, Queue, subscriptions, 契約状態同期 | 実装前 | 高 |
 | OI-028 | 管理画面 | MVP 管理画面で実装する最小範囲の確定。候補はユーザー閲覧、問題管理の最小CRUD、提出/評価閲覧、Stripe契約状態閲覧。初期実装で多機能化しないためのスコープ確認項目として管理する | DESIGN.md 管理画面, admin ロール, フロントエンド実装 | 実装前 | 高 |
 
-### 音声評価仕様（承認済み仕様変更由来）
-
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-029 | 音声・採点 | Azure Speech `ja-JP` のどの文字列表現を文字数計算元に使用するか、表示用transcriptと採点用文字列を同一にするか、空白と句読点を文字数へ含めるか、数字・英字・記号をどのように数えるか、continuous recognitionのsegment間に付与される空白をどう扱うかを確定する。あわせて、正規化方式と文字数計算versionをどこで管理するかを定める。実Azure出力を確認した上で確定し、推測では決定しない | Python Azure STT, Laravel評価処理, Stage-A採点, evaluations保存, 結果表示, テスト | Stage-A採点実装前 | 高 |
-| OI-030 | 音声・録音 | MediaRecorderへ停止要求を出した時刻と生成された音声ファイルの実時間との差を、10 / 40 / 60 / 90 / 120秒の各評価プロファイルで実ブラウザ計測する。ブラウザや実行環境による停止誤差を確認し、プロファイル別上限判定へ適用するtechnical marginの値を確定する。technical marginは追加回答時間ではない。上限超過時にAzureへ送信しない事前判定との関係も確定する | MediaRecorder, 自動停止, 音声実時間計測, Azure送信前判定, 録音E2E | プロファイル別自動停止・上限判定の最終確定前 | 高 |
-| OI-031 | 音声・採点 | 文字数による基本スコアと時間帯評価をどのように統合するか、時間帯を減点・上限・置換のどの方式で適用するか、採点不合格となる時間帯をどう扱うかを確定する。初期段階で文字数のみを使う暫定採点を許容する条件、時間補正を有効化する条件、scoring versionによる採点方式の識別方法も定める。再採点時にAzure STTを再実行しない。最終アルゴリズムは推測で確定しない | Stage-A採点, Laravel評価処理, evaluations保存, 結果表示, 境界値テスト, 実Azure E2E | 最終Stage-A採点仕様の実装前 | 高 |
-
 ---
 
 ## 解消済み
@@ -133,8 +125,13 @@ CodeX での MVP 実装に入る前に、以下の観点で本台帳を確認す
 | OI-017 | 解消済み（2026-06-08 確定、実装前に確定済み） | MVPでは remember me は採用しない。セッション有効期限は 120分 とする。`SESSION_EXPIRE_ON_CLOSE` は `false` とし、ブラウザ終了時の強制ログアウトは行わない。`users.remember_token` は Laravel 標準カラムとして維持するが、MVP UIでは remember me チェックボックスを表示しない。 | T003-05 ではこの方針に従って、`config/session.php` / ログイン画面を確認・必要最小限で反映する |
 | OI-022 | 解消済み（2026-07-31 確定） | 問題形式の内部値は `single_prompt` / `two_choice` を維持する。`single_prompt` は1つの設問について1件のスピーチを提出する形式、`two_choice` は2つのテーマから話したい方を1つ選び、選んだテーマについて1件のスピーチを提出する形式とする。`two_choice` は正解・不正解を選択する問題ではなく、正解番号、正解・不正解、テーマごとの得点を持たず、テーマ別の評価結果も管理しない。提出・評価は常に1提出・1評価とする。表記は、DB・API・コードの内部値を `two_choice`、正本文書上の内部仕様説明を「二テーマ選択」、ユーザー向けメニュー表示を「2択」、問題画面の案内を「2つのテーマから、話したい方を選んでください。」とする。設問文は `questions.prompt_text` / `questions.prompt_text_1` / `questions.prompt_text_2` に保存する。`single_prompt` は `questions.prompt_text` を使用し、`questions.prompt_text_1` / `questions.prompt_text_2` は使用しない。`two_choice` は `questions.prompt_text_1` / `questions.prompt_text_2` を使用し、二テーマ選択専用テーブルは追加しない。提出時には実際に使用された設問文だけを `submissions.prompt_snapshot` へ保存する。`selected_topic_id`、テーマ専用ID、テーマ専用テーブル、テーマ別結果管理は追加しない。DB、API、UI、migration、テストは後続補正が必要であり、現時点で実装補正済みとは扱わない | `OPEN_ISSUES.md` で方針確定。後続の正本文書および実装補正タスクへ反映予定 |
 | OI-023 | 解消済み（2026-07-31 確定） | 学習設定の保存先は `user_learning_settings` テーブル方式を維持し、保存項目は「出題方式」「タイマー表示方式」の2項目とする。`users` JSONB方式は採用しない。旧設定のうち「スピーチ時間」は設定画面から廃止し、問題ごとの初期評価プロファイルを録音画面で選択する。「強制終了ON/OFF」はユーザー設定を廃止し、評価プロファイル別の録音上限監視を常に有効とする。「文字起こし表示ON/OFF」はユーザー設定を廃止し、文字起こしを常時表示する。T011-02の過去の完了履歴は維持する。今回は確定仕様の台帳上の配置補正であり、設定UI、API、Model、validation、DB、migration、テストは後続補正が必要で、現時点で実装補正済みとは扱わない | `OPEN_ISSUES.md` で方針確定。後続の正本文書および実装補正タスクへ反映予定 |
+| OI-029 | 解消済み（ユーザー承認済み） | 表示用transcriptと採点用文字列を分離し、採点元を各final segmentの `NBest[0].Lexical` とする。NFC正規化後にwhitespace / `P*` / `C*`を除外する `ja-jp-character-count-v1` を採用し、Lexical取得不能時はDisplay等へfallbackせずStage-A response contract failureとする | 判断履歴は `docs/verification/t000-05/OI-029_DECISION.md`。production実装、最終DB保存構造、migration、API error contractは後続タスクの責務 |
+| OI-030 | 解消済み（ユーザー承認済み） | MVP対象 `env-a` / `env-b` / `env-c` / `env-d` のproduction共通technical marginを `0.07秒` とする。元WebMのdurationを`D`、submissionへ固定保存したprofileを`P`とし、Azure送信前に `D <= P + 0.07` を上限内、`D > P + 0.07` を上限超過と判定する。marginは回答時間、UI timer、auto stop、time_score、timeout等へ加算しない | 判断履歴・計測詳細は `docs/verification/t000-06/OI-030_DECISION.md`。production実装、最終DB保存構造、API error contractは後続タスクの責務 |
+| OI-031 | 解消済み（2026-08-12 承認済み） | Stage-A採点仕様を確定した。`final_score = min(character_score, time_score)`、pass thresholdは60、初期scoring versionは `stage-a-scoring-v1` とし、character-only暫定採点を禁止する。再採点ではAzure STTを再実行せず、historical submissionの保存済み事実を使用する | 現行仕様の正本は `docs/STAGE_A_SCORING.md`、判断履歴は `docs/verification/t000-07/OI-031_DECISION.md`。最終DB保存構造、migration、実装、bulk rescoreの具体運用は後続タスクの責務 |
 
 ### OI-011: コメントテンプレートの具体的文面
+
+> 履歴注記: 以下はT010-02当時に確定したtemplate commentの履歴である。現行Stage-A productionではtemplate commentを生成・保存・表示しない。Stage-Bの具体実装方式は後続タスクで決定する。
 
 - 状態: 解消済み
 - 確定日: 2026-06-25
@@ -191,6 +188,8 @@ CodeX での MVP 実装に入る前に、以下の観点で本台帳を確認す
     3. たくさん話せている点は良いです。長い発話では、急ぎすぎず、要点ごとに区切ることを意識しましょう。
 
 ### OI-015: 速度判定の閾値
+
+> 現行注記: `slow` / `appropriate` / `fast` の補助分類自体は維持するが、Stage-Aの`final_score`へ反映せず、現行Stage-Aでtemplate comment生成へ使用しない。
 
 - 状態: 解消済み
 - 確定日: 2026-06-25
