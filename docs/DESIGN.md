@@ -39,6 +39,7 @@ DB 設計の詳細は `DB_SCHEMA.md`、システム設計・状態管理・Featu
 | DB 設計（テーブル・カラム・制約） | `DB_SCHEMA.md` |
 | 未確定事項 | `OPEN_ISSUES.md` |
 | 運用手順 | `OPERATIONS.md` |
+| Stage-A採点仕様 | `STAGE_A_SCORING.md` |
 | フロントエンド状態管理 | `ARCHITECTURE.md` §7 |
 | `questions.question_format` の値域 | `OPEN_ISSUES.md` OI-022 |
 | 設定項目の保存先 | `OPEN_ISSUES.md` OI-023 |
@@ -150,12 +151,13 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 | 模範解答有無 | `questions.has_model_answer` |
 | 提出 | `submissions` テーブル（UUID v4） |
 | 評価結果 | `evaluations` テーブル（submissions と 1:1） |
-| 総合スコア | `evaluations.overall_score` |
+| Stage-Aスコア | `evaluations.final_score` |
+| Stage-B総合スコア | `evaluations.overall_score`（Stage-AのみではNULL・非表示） |
 | 速度 | `evaluations.characters_per_minute` + `speed_assessment` |
-| 発音 | `evaluations.pronunciation_result`（Feature Flag OFF 時は UI 非表示） |
-| 流暢さ | `evaluations.fluency_result`（Feature Flag OFF 時は UI 非表示） |
+| Stage-B発音 | `evaluations.pronunciation_result`（Stage-AのみではNULL・非表示） |
+| Stage-B流暢さ | `evaluations.fluency_result`（Stage-AのみではNULL・非表示） |
 | transcript | `evaluations.transcript` |
-| コメント | `evaluations.comment`（テンプレート生成。具体文面は OI-011） |
+| コメント | `evaluations.comment`（将来のStage-B用。Stage-AのみではNULL・非表示） |
 
 補足:
 
@@ -219,17 +221,25 @@ graph LR
 stateDiagram-v2
     [*] --> 課題表示
     課題表示 --> 録音中: START
-    録音中 --> 提出確認: STOP
+    録音中 --> 録音破棄: 最低採点時間未満でSTOP
+    録音破棄 --> 課題表示: 再録音
+    録音中 --> 提出確認: 最低採点時間以上でSTOP
+    録音中 --> 提出確認: profile上限でauto stop
     提出確認 --> アップロード中: 提出
     提出確認 --> 課題表示: キャンセル
     アップロード中 --> 解析中: 202 Accepted
-    解析中 --> 結果表示: ポーリング完了
-    解析中 --> エラー表示: 評価失敗 / 422 音声認識不可
-    エラー表示 --> 課題表示: 再録音 / 再提出
+    解析中 --> 結果表示: 採点完了（pass / fail）
+    解析中 --> 採点対象外表示: 採点対象外（evaluationなし）
+    解析中 --> 認識不可表示: 422 speech_unrecognized
+    解析中 --> システムエラー表示: system error
 ```
 
 補足:
 
+* STOP操作自体は録音中いつでも可能とする。
+* 最低採点時間未満でSTOPした録音はsubmissionを作成せず、採点提出させずに破棄／再録音へ進める。最低採点時間は `STAGE_A_SCORING.md` を正とする。
+* 最低採点時間以上のSTOPと、profile上限によるauto stopは提出確認へ進める。
+* OI-030のtechnical margin `0.07秒`はUI timer、ユーザー回答時間、auto stop時刻、STOP可能時間へ加算しない。
 * 422: 音声認識不可時は、エラー表示後に再録音または再提出へ戻す導線を用意する。
 * 詳細なユーザー向け説明文言、再録音導線、エラー表示方針は OI-006 で管理する。
 * 本文書では具体文言を確定しない。
@@ -326,7 +336,7 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 #### 主な要素
 
 * 選択中の問題表示（タイトル、問題文、カテゴリ、難易度）
-* 推奨秒数の表示（`questions.recommended_duration_seconds`）
+* 評価profile選択（初期値は`questions.recommended_duration_seconds`、選択肢は10 / 40 / 60 / 90 / 120秒）
 * START / STOP ボタン
 * 録音タイマー
 * 提出ボタン
@@ -340,6 +350,9 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 
 * 画面の主役を「問題文」と「録音開始アクション」に置く
 * 録音中は集中を妨げない最小限の表示とする
+* STOPは録音中いつでも可能とし、最低採点時間未満なら提出確認へ進めず、録音を破棄して再録音できる状態へ戻す
+* 最低採点時間以上なら提出確認へ進め、profile上限ではauto stopする
+* UIの回答時間とauto stopはprofileそのものを基準とし、OI-030の`0.07秒`を加算しない
 * 提出後は解析中の状態を明示し、完了時に結果表示へ遷移する
 * エラー時（422: 音声認識不可）は再提出を案内する（OI-006）
 * 422時は空欄の結果画面へ進めず、ホーム上または提出フロー内で再録音 / 再提出に戻す
@@ -392,38 +405,48 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 
 ---
 
-### 7-4. 結果表示（evaluations の6項目表示）
+### 7-4. Stage-A結果表示
 
 #### 画面の役割
 
-音声提出に対する評価結果を確認する画面。evaluations の6項目を表示する簡易版レベル判定として機能する。
+音声提出に対するStage-A評価結果を確認する画面。Stage-Aの合否、スコア、認識事実を表示し、Stage-B用項目と混在させない。
 
 #### 主な要素
 
-* 総合スコア（`evaluations.overall_score`）
-* 速度（`evaluations.characters_per_minute` + `speed_assessment`）
-* 発音（`evaluations.pronunciation_result`）— Feature Flag OFF 時は非表示
-* 流暢さ（`evaluations.fluency_result`）— Feature Flag OFF 時は非表示
+* Stage-Aスコア（`evaluations.final_score`）
+* 合否（`evaluations.evaluation_result`）
 * transcript（`evaluations.transcript`）
-* コメント（`evaluations.comment`）— テンプレート生成。具体文面は OI-011
+* 速度（`evaluations.characters_per_minute` + `speed_assessment`）
 
 #### 設計意図
 
-* 総合スコアを大きく表示し、一目で結果を把握できるようにする
-* 各評価項目を分解して表示し、改善可能な点を示す
-* 発音・流暢さは Feature Flag 制御（ARCHITECTURE.md §6）。OFF 時はセクション自体を非表示とし、表示領域を他の項目で活用する
-* Feature Flag OFF 時に、空欄・NULL・未評価などの内部状態をユーザーに表示しない
-* コメントで次の練習への示唆を与える
-* コメントはテンプレート生成を前提とし、具体文面は OI-011 で管理する
+* `final_score`と`evaluation_result`を明確に表示し、`overall_score`をStage-Aスコアの代用にしない
+* Stage-Aのみでは`pronunciation_result`、`fluency_result`、`overall_score`、`comment`を表示しない。NULL・空欄・未評価等の内部状態も表示しない
+* Stage-Aではpronunciation、fluency、template commentを生成・表示しない
+* `slow` / `appropriate` / `fast`は補助分類であり、`final_score`そのものとして表示しない
+* `character_score` / `time_score` / `character_count`等の内部採点値を表示するかは本書で新規確定せず、後続UI仕様で決定する
+* 採点詳細、境界、pass / failは `STAGE_A_SCORING.md` を正とし、本書へ採点表を複製しない
 
-#### Feature Flag との連動
+#### 結果分類
 
-`useFeatureFlag` composable（ARCHITECTURE.md §7.3）で以下を参照し、表示/非表示を制御する。
+UIは次を別状態として扱い、同じエラー表示や空欄の結果画面へまとめない。
+
+1. 合格: evaluationあり、`evaluation_result = pass`
+2. 採点不合格: evaluationあり、`evaluation_result = fail`、submissionは`completed`
+3. 採点対象外: Stage-A採点およびevaluation作成なし（例: OI-030上限超過）
+4. 422 `speech_unrecognized`: STT認識不可
+5. system error: 500系、timeout等のシステム障害
+
+具体的なユーザー向け文言、ボタンラベル、最終レイアウトは本節で確定せず、OI-006等の未確定事項と後続UIタスクへ委譲する。
+
+#### Stage-B Feature Flagとの境界
+
+既存Feature Flag設計は将来のStage-B有効化判断に使用する。現行Stage-A productionではFlagにかかわらずStage-B用4項目を生成・表示しない。
 
 * `speech.pronunciation_assessment.enabled` → 発音セクション
 * `speech.fluency_assessment.enabled` → 流暢さセクション
 
-Pronunciation Assessment / Fluency Assessment は PoC 完了まで Feature Flag OFF を維持し、PoC 成功時のみ正式有効化する。
+Pronunciation Assessment / Fluency Assessment は PoC 完了まで Feature Flag OFF を維持する。PoC成功後もStage-Bとしての具体実装・表示仕様を別途確定してから有効化する。
 continuous recognition の安定性検証は OI-010、PoC Go/No-Go は OI-012 で管理する。
 
 ---

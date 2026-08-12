@@ -27,7 +27,7 @@
 - `has_model_answer` は模範解答有無として扱い、問題形式と混同しない
 - OI-023は解消済みであり、`user_learning_settings` は `question_format_preference` / `timer_display_mode` の2項目だけを保存する
 - `speech_duration_seconds` / `force_stop_enabled` / `transcript_display_enabled` は仕様上廃止済みであり、現行仕様として使用しない。現在の実装からの撤去はT011-03で行う
-- OI-029 / OI-030 / OI-031は未解消・優先度「高」とし、各仕様確定タスクの完了前に依存実装を開始しない
+- OI-029 / OI-030 / OI-031は仕様確定済みであり、T000-08で各正本文書へ横断反映中とする。実装は確定済み正本と後続タスクの責務に従う
 - 提出時に `prompt_snapshot` / `evaluation_profile_seconds` を保存し、Queue・採点・結果表示はsubmissionの保存値を使用する
 - Stage-AとStage-Bの責務を分離し、Stage-Aのみでは `pronunciation_result` / `fluency_result` / `overall_score` / `comment` をNULL・非表示とする
 - Stage-A成功時にtemplate comment、pronunciation、fluencyを生成・表示せず、`overall_score` を `final_score` の代用にしない
@@ -897,7 +897,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 
 ### T000-08: OI確定後の正本文書横断補正
 
-- [ ] 状態: 未着手
+- [ ] 状態: 作業中（正本文書編集・レビュー待ち）
 - 種別: 文書
 - 目的:
   - T000-05〜T000-07の確定結果と承認済みStage-A／Stage-B責務を正本文書へ反映する

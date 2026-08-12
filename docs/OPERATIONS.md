@@ -17,7 +17,7 @@ MVP では以下を前提とする。
 - 運用担当者がサーバーに SSH でアクセスできる前提
 - 運用上の点検・一次対応は、MVP テスト環境で検証可能な最小範囲に限定する
 
-設計判断の正本は `ARCHITECTURE.md`、DB 設計の正本は `DB_SCHEMA.md`、UI/UX 設計の正本は `DESIGN.md`、未確定事項の唯一の管理台帳は `OPEN_ISSUES.md` を参照する。
+設計判断の正本は `ARCHITECTURE.md`、DB 設計の正本は `DB_SCHEMA.md`、UI/UX 設計の正本は `DESIGN.md`、Stage-A採点仕様の正本は `STAGE_A_SCORING.md`、未確定事項の唯一の管理台帳は `OPEN_ISSUES.md` を参照する。
 
 Feature Flag の設計、Stripe Webhook 対象イベント、管理画面 MVP 範囲など、運用に影響するが設計判断または未確定事項に属するものは、本文書へ詳細を重複させず、各正本または `OPEN_ISSUES.md` の ID 参照で管理する。
 
@@ -38,7 +38,7 @@ Feature Flag の設計、Stripe Webhook 対象イベント、管理画面 MVP �
 | 音声一時ファイル | `storage/app/audio/` | 残存ファイルの蓄積有無 |
 | ヘルスチェック | `GET /health`（FastAPI） | Python サービスの生存確認 |
 | ストレージ残容量 | OS コマンド（`df`） | 逼迫兆候の有無 |
-| Feature Flag 反映後表示 | 結果画面 | 発音・流暢さセクションの表示/非表示が `DESIGN.md` と整合しているか |
+| Feature Flag 反映後表示 | 結果画面 | 現行Stage-AでStage-B用4項目が非表示であり、将来Stage-B有効化時は承認済み仕様と `DESIGN.md` に整合するか |
 | 管理画面 | admin ロールでのアクセス | MVP 範囲内の画面到達・基本表示の確認。具体範囲は OI-028 で管理 |
 
 Stripe Webhook の対象イベント一覧は OI-027 で管理する。本文書では、Webhook 処理の成功/失敗、継続失敗、契約状態同期への影響確認を運用点検対象とする。
@@ -89,6 +89,20 @@ hard delete 実行主体の確定は OI-105 で管理。
 
 CleanupTempFilesJob は、音声一時ファイルの即時削除失敗時の回復手段である。音声ファイルを永続保存するための仕組みではない。
 音声一時ファイルはバックアップ対象外であり、削除失敗時はバックアップから復元するのではなく、残存ファイルの削除により整合性を回復する。
+
+### 2.3 historical bulk rescore
+
+historical bulk rescoreの実行triggerは運用責務であり、scoring algorithm自体の正本には含めない。再採点のscoring semanticsは `STAGE_A_SCORING.md` を参照する。
+本節を定期運用章へ配置することは定期実行・自動実行・Scheduler採用を意味しない。
+
+運用上は次の原則を維持する。
+
+- Azure STTを再実行せず、同じhistorical submissionの保存済み事実から採点計算だけを再実行する
+- 再現に必要な事実が不足するデータを推測補完せず、再採点不能として扱う
+- 実際に使用した`scoring_version`を保存し、old／new version、score、resultを追跡可能にする
+- submissionへ固定保存されたprofileを使用し、現在のquestion設定やuser設定から採点条件を再取得しない
+
+実行者、実行時期、自動／手動方式、具体的trigger、artisan command、Scheduler／Queue採用は本書では確定せず、後続運用設計で決定する。
 
 ---
 
@@ -239,13 +253,12 @@ Feature Flag の設計正本は `ARCHITECTURE.md §6` とする。
 1. `.env` を更新する
 2. Laravel の設定キャッシュをクリアまたは再生成する
 3. Queue Worker / アプリケーションプロセスが新しい設定を参照していることを確認する
-4. 結果画面で Feature Flag に応じた表示/非表示を確認する
+4. 結果画面で現行Stage-AのStage-B用4項目非表示を確認し、将来Stage-B有効化時は承認済み仕様に応じた表示を確認する
 
 デプロイと機能有効化を分けて扱えることを前提とする。
 
-Feature Flag OFF 時は、結果画面で発音・流暢さセクション自体を非表示にする。
-空欄・NULL・未評価などの内部状態をユーザーに表示しない。
-Feature Flag ON 時は、PoC 結果および OI-012 の判断に基づき、表示内容が `DESIGN.md` と整合していることを確認する。
+現行Stage-A productionではFeature Flagの値にかかわらず、pronunciation、fluency、comment、`overall_score`を生成・保存・表示しない。結果画面へ空欄・NULL・未評価などの内部状態も表示しない。
+Feature Flagは将来のStage-B有効化判断のため維持する。Feature Flag ONによるStage-B機能の反映確認は、PoC結果、OI-012および後続で確定するStage-B仕様に基づき、表示内容が`DESIGN.md`と整合していることを確認する。
 
 Feature Flag のキー、管理方式、Python 側への伝達方式は `ARCHITECTURE.md §6` を参照し、本文書では設計正本を重複管理しない。
 
@@ -344,10 +357,10 @@ Feature Flag の設計詳細は `ARCHITECTURE.md §6` を参照する。
 - 音声評価経路
 - Stripe 連携経路
 - Queue 処理経路
-- Feature Flag による結果画面の表示/非表示
+- 現行Stage-AのStage-B用4項目非表示と、将来Stage-B有効化時の結果画面表示
 - Google OAuth 認証経路
 
-Feature Flag に関係する設定変更では、発音・流暢さセクションの表示/非表示が `DESIGN.md` と整合しているか確認する。
+Feature Flagに関係する設定変更では、現行Stage-AでStage-B用項目が表示されないことを確認する。将来Stage-Bを有効化する場合は、承認済みStage-B仕様と`DESIGN.md`に整合することを確認する。
 
 ---
 

@@ -19,6 +19,7 @@
 | 未確定事項（業務判断待ち・PoC 待ち・運用詳細未定） | `OPEN_ISSUES.md` | 唯一の管理台帳 |
 | 運用手順（点検・障害対応・リリース・バックアップ） | `OPERATIONS.md` | MVP テスト環境向け最小運用 |
 | UI/UX 設計 | `DESIGN.md` | MVP UI/UX 設計の正本 |
+| Stage-A 採点仕様 | `STAGE_A_SCORING.md` | 採点表・境界・version・再採点semanticsの正本 |
 | プロジェクト全体像・フェーズ定義 | `README.md` | 入口文書 |
 
 ---
@@ -160,7 +161,7 @@ graph TB
 2. **Laravel → Python: HTTP 経由のみ** — 共有 DB・共有ファイルキューを介した暗黙的通信を禁止
 3. **Python → Laravel: HTTP レスポンスのみ** — コールバック禁止
 4. **Python サービスはステートレス** — 一時ファイル以外の永続化を持たない
-5. **LLM 層の分離** — MVP ではテンプレートベース実装。LLM 統合時は実装差し替えで対応
+5. **LLM 層の分離** — comment生成の既存インターフェースはSpeech／Stage-Aから分離し、現行Stage-A productionでは実行しない
 
 ---
 
@@ -177,7 +178,7 @@ graph TB
 
 | メソッド | パス | 概要 | 認証 |
 |---|---|---|---|
-| POST | /evaluate | 音声ファイルを受け取り、Azure STT + 評価を実行 | X-Internal-Token |
+| POST | /evaluate | 音声ファイルを受け取り、Azure STTとStage-A採点に必要な認識事実値の取得を行う | X-Internal-Token |
 | GET | /health | ヘルスチェック | なし（localhost 限定） |
 
 ### 4.2 リクエスト・レスポンス形式
@@ -189,27 +190,19 @@ audio_file:       (binary)       # WebM/Opus → Python 側で WAV 変換
 submission_id:    "uuid-string"
 question_id:      42
 expected_duration: 60
-feature_flags:    '{"pronunciation_assessment":false,"fluency_assessment":false}'
 ```
 
-**レスポンス（成功時: 200）:**
+**成功レスポンスの責務:**
 
-```json
-{
-  "status": "success",
-  "transcript": "本日は天気が良いので...",
-  "duration_seconds": 58.3,
-  "speech_rate": {
-    "characters_per_minute": 320,
-    "words_detected": 24,
-    "assessment": "appropriate"
-  },
-  "pronunciation": null,
-  "fluency": null,
-  "azure_request_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "raw_azure_response": { }
-}
-```
+- PythonはAzure STTを実行し、表示用transcriptとStage-A採点に必要な認識事実値を返す
+- 表示用transcriptは各final recognition segmentの表示用textを半角空白で結合する
+- `character_count`は表示用transcriptではなく、各segmentの`NBest[0].Lexical`をOI-029の`ja-jp-character-count-v1`で処理して算出する
+- Pythonは算出した`character_count`と、適用したcharacter count versionの事実をLaravelへ返す。具体的なresponse field名は後続実装タスクで既存契約と整合させる
+- Lexical取得不能時はDisplay、ITN、MaskedITN、表示用textへfallbackせず、Stage-A response contract failureとして扱う
+- Pythonは`character_score`、`time_score`、`final_score`、`evaluation_result`を決定しない。Laravelが`STAGE_A_SCORING.md`に従って算出・保存する
+- Stage-A productionではpronunciation、fluency、template comment、`overall_score`を生成しない
+
+具体的なresponse field名、Lexical欠損時のHTTP status／error code等のAPI error contractは本節で新規確定せず、後続実装タスクで既存契約と整合させる。
 
 **エラーレスポンス:**
 
@@ -227,6 +220,8 @@ feature_flags:    '{"pronunciation_assessment":false,"fluency_assessment":false}
 | 読み取りタイムアウト | 120秒 | 最長音声（120秒）+ Azure 処理時間 |
 | ジョブ全体タイムアウト | 180秒 | 読み取りタイムアウト + 前後処理マージン |
 
+OI-030のtechnical margin `0.07秒`は元WebMのAzure送信前上限判定専用であり、接続・読み取り・ジョブ全体のtimeoutへ加算しない。
+
 ---
 
 ## 5. 非同期ジョブ設計
@@ -238,6 +233,7 @@ sequenceDiagram
     participant U as ブラウザ
     participant L as Laravel Web
     participant Q as Queue Worker
+    participant V as Azure送信前検証責務（配置未確定）
     participant P as Python FastAPI
     participant A as Azure AI Speech
     participant DB as PostgreSQL
@@ -248,19 +244,37 @@ sequenceDiagram
     L-->>U: 202 Accepted + submission_id
 
     Q->>DB: status → processing
+    Q->>V: 元WebMと固定保存済みprofile Pを渡す
+    V->>V: Azure送信前にffprobe duration Dを取得
+    V->>V: DとPをtechnical margin 0.07秒で比較
+    alt D > P + 0.07
+        V-->>Q: 上限超過
+        Q->>Q: Azure送信せず採点対象外として処理
+    else D <= P + 0.07
+    V-->>Q: 上限内
     Q->>P: POST /evaluate (音声 + メタデータ)
     P->>P: WebM/Opus → WAV 変換
     P->>A: Azure STT リクエスト
-    A-->>P: STT + 評価結果
-    P-->>Q: JSON レスポンス
+    A-->>P: final recognition segments
+    P->>P: 表示用transcriptと採点用Lexical事実を分離
+    P-->>Q: Stage-A認識事実値
 
-    Q->>DB: evaluations INSERT
+    Q->>Q: 採点に必要なP、録音制御上の経過時間T、stop reason事実を使用
+    Q->>Q: Stage-A scoring正本に従って採点
+    Q->>DB: evaluations INSERT (Stage-A値、Stage-B用4カラムはNULL)
     Q->>DB: status → completed
+    end
     Q->>Q: 音声一時ファイル削除
 
     U->>L: ポーリング GET /api/submissions/{id}/status
     L-->>U: { status: "completed", redirect_url: "..." }
 ```
+
+`D`は元WebMからffprobeで取得するduration、`P`はsubmissionへ固定保存した`evaluation_profile_seconds`である。`env-d`（iPhone Safari）で`format.duration`が`N/A`の場合にだけ、packetの`pts_time + duration_time`最大値をfallbackとして使用する。D取得・判定をLaravel／Pythonのどちらへ配置するか、ffprobe取得失敗時および上限超過時の最終API contractは本書で確定せず、後続実装で決定する。
+
+OI-030の`0.07秒`をUI timer、ユーザー回答時間、auto stop時刻、time_score用の録音制御上の経過時間`T`、Queue timeout、HTTP timeoutへ転用しない。
+
+time_score用`T`、stop reason／profile limit到達相当の事実はhistorical submissionの再採点を再現できる形で永続化する必要があるが、最終DBカラム名、型、精度、保存場所は本書で確定せず、T002-06 / T002-07へ委譲する。
 
 ### 5.2 リトライ方針
 
@@ -306,17 +320,19 @@ sequenceDiagram
 
 PoC 未検証の機能（発音・流暢さ評価）の安全な有効/無効制御。デプロイと機能リリースの分離。
 
-Pronunciation Assessment / Fluency Assessment は PoC 完了まで Feature Flag OFF を維持し、PoC 成功時のみ正式有効化する。
+Pronunciation Assessment / Fluency Assessment は PoC 完了まで Feature Flag OFF を維持する。PoC成功だけでは有効化せず、将来Stage-Bとしての具体実装・表示仕様を別途確定した後に有効化を判断する。
 continuous recognition の安定性検証は OI-010、PoC Go/No-Go は OI-012 で管理する。
+
+現行Stage-A productionではFeature Flagの値にかかわらず、pronunciation、fluency、comment、`overall_score`をStage-A値として生成・保存・表示しない。これらは将来のStage-B用責務であり、具体的なStage-B実装方式は本書で新規確定しない。
 
 ### 6.2 MVP キー一覧
 
 | キー | デフォルト | 説明 |
 |---|---|---|
-| `speech.pronunciation_assessment.enabled` | false | Pronunciation Assessment。PoC 成功後に true |
-| `speech.fluency_assessment.enabled` | false | Fluency Assessment。PoC 成功後に true |
+| `speech.pronunciation_assessment.enabled` | false | 将来のStage-B候補。現行Stage-Aでは使用せず、PoC成功だけでは有効化しない |
+| `speech.fluency_assessment.enabled` | false | 将来のStage-B候補。現行Stage-Aでは使用せず、PoC成功だけでは有効化しない |
 | `speech.content_assessment.enabled` | false | 内容評価（将来 LLM 統合用。MVP 常時 false） |
-| `comment.llm_generation.enabled` | false | LLM コメント生成（MVP ではテンプレートのみ） |
+| `comment.llm_generation.enabled` | false | 将来のStage-B comment生成用。現行Stage-Aでは使用しない |
 
 ### 6.3 管理方式
 
@@ -371,10 +387,10 @@ Pinia store は「ページ遷移を跨ぐ状態」または「複数コンポ�
 
 ## 8. LLM レイヤー分離設計
 
-> **Strategy パターンによるインターフェース分離を選定。**
-> `CommentGeneratorInterface` を定義し、MVP では `TemplateCommentGenerator` を実装。LLM 統合時は `LlmCommentGenerator` を追加し、Service Container バインディングで切替。
+> **将来のStage-B向け分離境界。**
+> `CommentGeneratorInterface` / `TemplateCommentGenerator` は既存実装の履歴として存在するが、現行Stage-A productionの実行構成には含めない。既存Stage-A comment接続との差分はT010-04で補正する。Stage-Bの具体実装方式は後続で決定する。
 
-### 8.1 テンプレートベース実装（MVP）
+### 8.1 既存テンプレート実装の配置
 
 | 要素 | 配置 |
 |---|---|
@@ -383,13 +399,11 @@ Pinia store は「ページ遷移を跨ぐ状態」または「複数コンポ�
 | `EvaluationResult` / `CommentResult` | `app/Dto/` |
 | コメントテンプレート | `config/comment_templates.php` |
 
-テンプレート選択: 速度（slow / appropriate / fast）× 音声長（short / medium / long）= 9パターン、各3〜5バリエーション。
+テンプレート選択実装は速度（slow / appropriate / fast）× 音声長（short / medium / long）を使用する既存資産である。速度補助分類自体は維持するが、Stage-Aの`final_score`へ反映せず、現行Stage-Aではtemplate commentを生成・保存・表示しない。
 
-### 8.2 将来の LLM 統合時の変更箇所
+### 8.2 将来のStage-B
 
-1. `LlmCommentGenerator` クラス追加
-2. `AppServiceProvider` バインディング変更（Feature Flag で切替）
-3. Azure OpenAI キーを `.env` に追加
+Stage-Bのcomment、内容・構成評価、Azure OpenAI等の具体構成は本タスクでは確定しない。Stage-Aと値を混在・上書きしない境界だけを維持する。
 
 ---
 
@@ -521,7 +535,8 @@ DB 設計の正本は `DB_SCHEMA.md` である。本節はアーキテクチャ�
 - `question_format` と `has_model_answer` は別概念であり、混同しない
 - `submissions.id` は UUID v4（外部露出 ID の推測困難性を優先）
 - `evaluations` は `submissions` と 1対1。`submission_id` UNIQUE
-- `pronunciation_result` / `fluency_result` は nullable JSONB（Feature Flag OFF 時は NULL）
+- `pronunciation_result` / `fluency_result` / `overall_score` / `comment` は将来のStage-B用nullableカラム。Stage-AのみではFeature FlagにかかわらずNULLとし、生成・表示しない
+- Stage-Aは`final_score`を使用し、`overall_score`を代用にしない
 - 音声ファイルは永続保存しない。`audio_path` は一時ファイルパス
 - 退会: `users.deleted_at` による soft delete → 30日後 hard delete
 - ユーザー設定5項目の保存先は OI-023 で確定済み。`user_learning_settings` テーブル方式を採用する

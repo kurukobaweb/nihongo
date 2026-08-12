@@ -16,7 +16,7 @@
 
 このリポジトリは、日本語スピーチ練習アプリ MVP の前提条件・設計判断・未確定事項・実装計画を管理するためのリポジトリです。
 
-現在は、MVP 実装前の設計整理を完了し、CodeX による実装着手前の準備が完了した状態です。
+現在は、MVP の実装・検証と、承認済み仕様の正本文書への同期を進めています。詳細な進行状態は `docs/TASKS.md` を参照してください。
 
 本リポジトリの役割は次のとおりです。
 
@@ -25,9 +25,6 @@
 - 未確定事項を本文から分離し、追跡可能な状態で管理する
 - CodeX での実装順序・依存関係・禁止事項・完了条件を管理する
 - MVP 検証後に、本番構築・運営へ引き継げる文書基盤を整備する
-
-T000-01〜T000-03 の実装前確定タスクは完了済みです。
-T001-01 以降で、Laravel / Inertia / Vue / Tailwind を起点に実装コードを追加していきます。
 
 ---
 
@@ -126,8 +123,12 @@ Stripe 解約 → 音声削除 → soft delete → 30日後 hard delete
 **当面はフェーズ①の設計正本**として運用します。
 
 ### `docs/DB_SCHEMA.md`
-DB 設計の正本です。  
+DB 設計の正本です。
 テーブル、主なカラム、型、関係、削除方針との整合は本ファイルを基準に確認します。
+
+### `docs/STAGE_A_SCORING.md`
+Stage-A 採点仕様の正本です。
+採点表、境界、`character_score` / `time_score` / `final_score`、pass / fail、scoring version、再採点 semantics は本ファイルを基準に確認します。`docs/verification/` 配下の Decision Record は判断履歴・根拠であり、現在仕様全文の正本ではありません。
 
 ### `docs/OPEN_ISSUES.md`
 未確定事項の唯一の管理先です。  
@@ -154,17 +155,19 @@ CodeX で MVP 実装を進めるための実行計画書です。
 
 1. `README.md`  
    プロジェクト全体像と現在の対象範囲を把握する
-2. `docs/ARCHITECTURE.md`  
+2. `docs/ARCHITECTURE.md`
    フェーズ①のシステム設計方針を確認する
-3. `docs/DB_SCHEMA.md`  
+3. `docs/STAGE_A_SCORING.md`
+   Stage-A 採点仕様を確認する
+4. `docs/DB_SCHEMA.md`
    データ構造と削除方針を確認する
-4. `docs/OPEN_ISSUES.md`  
+5. `docs/OPEN_ISSUES.md`
    未確定事項と今後の検討論点を確認する
-5. `docs/OPERATIONS.md`  
+6. `docs/OPERATIONS.md`
    運用観点を確認する
-6. `docs/DESIGN.md`  
+7. `docs/DESIGN.md`
    UI / UX 設計を確認する
-7. `docs/TASKS.md`  
+8. `docs/TASKS.md`
    CodeX での実装順序、依存関係、禁止事項、完了条件を確認する
 
 ---
@@ -180,7 +183,6 @@ CodeX で MVP 実装を進めるための実行計画書です。
 - 障害通知チャネル
 - 外部バックアップ保管先・暗号化方式・復旧責任
 - 音声残存ファイル削除バッチの実行頻度
-- `expected_duration` の根拠
 - continuous recognition の安定性評価結果
 
 未確定事項は **1 ID = 1 管理項目** を原則とし、他文書へ全文重複させない方針とします。
@@ -199,23 +201,16 @@ CodeX で MVP 実装を進めるための実行計画書です。
 
 ## 9. 現在の状態
 
-- フェーズ: **MVP実装準備完了 / CodeX実装着手前**
+- フェーズ: **MVPの実装・検証中**
 - 現在の詳細設計対象: **① MVP の作成とテスト環境の検証**
-- 実装コード: **T001-01 以降で追加予定**
 - 対象リポジトリ: `kurukobaweb/nihongo`
 - 正規の作業ディレクトリ: `C:\Projects\nihongo`
-- 作業ブランチ: `codex/t000-setup`
-- 実装前確定タスク:
-  - `T000-01`: 完了（2026-05-26 確認済み）
-  - `T000-02`: 完了（2026-05-26 確認済み）
-  - `T000-03`: 完了（2026-05-26 確認済み）
-- 次工程:
-  - `T001-01`: Laravel / Inertia / Vue / Tailwind 基盤作成
-- `README.md`: 現在状態を反映済み
-- `docs/TASKS.md`: CodeX 実装計画として更新済み
+- 詳細なタスク状態・依存関係・次工程: `docs/TASKS.md` を参照
+- OI-029 / OI-030 / OI-031: 仕様確定済み。正本文書への横断反映はT000-08で管理
 - `.env.example`: 実Secretsなしの雛形として追加済み
 - `docs/ARCHITECTURE.md`: MVP アーキテクチャ正本
 - `docs/DB_SCHEMA.md`: DB 設計正本
+- `docs/STAGE_A_SCORING.md`: Stage-A 採点仕様正本
 - `docs/OPEN_ISSUES.md`: 未確定事項の唯一の管理台帳
 - `docs/OPERATIONS.md`: MVP テスト環境向け最小運用正本
 - `docs/DESIGN.md`: MVP UI/UX 設計正本
