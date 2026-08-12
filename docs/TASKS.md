@@ -843,13 +843,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 
 ### T000-07: OI-031 Stage-A採点仕様確定
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-12 ユーザー承認済み）
 - 種別: 仕様
 - 目的:
   - Stage-Aの採点式、合否条件、scoring versionを確定する
 - 参照仕様書:
   - `OPEN_ISSUES.md` OI-031
   - `DB_SCHEMA.md`
+  - `docs/STAGE_A_SCORING.md`
+  - `docs/verification/t000-07/OI-031_DECISION.md`
 - 変更対象:
   - OI-031判断材料
   - 採点表、統合式、境界値、version管理、再採点手順
@@ -872,6 +874,10 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 認識成功後に採点不合格と確定した場合は`evaluation_result = fail`、`final_score = 0`とする
   - 採点不合格でもevaluationを作成し、submissionをcompletedとして扱う
   - fail確定後の`final_score = 0`はOI-031で再判断しない
+- 確認結果:
+  - `docs/STAGE_A_SCORING.md`をStage-A採点仕様の正本としてユーザー承認済み
+  - `docs/verification/t000-07/OI-031_DECISION.md`をDecision Recordとしてユーザー承認済み
+  - T000-07の完了条件を満たし、T000-08の依存Blockerを解除
 - 実装してはいけないこと:
   - fail確定後の`final_score = 0`を再判断しない
   - 暫定式を最終仕様として実装しない
@@ -896,6 +902,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 目的:
   - T000-05〜T000-07の確定結果と承認済みStage-A／Stage-B責務を正本文書へ反映する
 - 参照仕様書:
+  - `docs/STAGE_A_SCORING.md`
   - `OPEN_ISSUES.md`
   - `DB_SCHEMA.md`
   - `ARCHITECTURE.md`
@@ -925,6 +932,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - Stage-Aではtemplate commentを生成・保存しない方針へ統一する
   - Stage-Aではpronunciation / fluencyを生成・表示しない方針へ統一する
   - `overall_score`をStage-Aへ使用しない方針へ統一する
+  - historical bulk rescoreの実行triggerは採点仕様ではなく運用責務として扱い、`OPERATIONS.md`等への配置を整理する。具体的な実行者、実行時期、自動／手動方式は本タスクで確定しない
 - 実装してはいけないこと:
   - 実装コードを修正しない
   - migrationを作成しない
@@ -939,6 +947,54 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 文書補正だけを行い、実装タスクへ進まない
 - 担当:
   - CodeXが編集する
+  - ChatGPTがレビューする
+  - ユーザーが承認する
+- Blocker区分: Blocker
+
+### T000-09: TASKS.md責務整理・仕様正本切り分け
+
+- [ ] 状態: 未着手
+- 種別: 文書整理
+- 目的:
+  - T000-08直後に`docs/TASKS.md`全体をレビューし、「TASKSは実行計画、仕様は仕様書」という責務へ戻す
+  - TASKS.mdへ蓄積した仕様本文を適切な正本仕様書へ切り分け、仕様の正本を明確にする
+- 参照仕様書:
+  - `docs/TASKS.md`
+  - T000-08で整合済みの正本文書
+- 変更対象:
+  - `docs/TASKS.md`
+  - 仕様移管先となる既存正本文書
+  - 既存正本文書の責務に自然に入らない独立仕様の正本文書
+- 依存タスク:
+  - T000-08
+- 実装内容:
+  - TASKS.md全体の記載を実行計画、仕様、実装履歴／証跡に分類する
+  - 仕様本文を対応する既存正本文書へ移す
+  - 既存正本文書の責務に自然に入らない独立仕様だけ新規正本を作る
+  - TASKS.mdにはタスク管理上必要な情報と正本への参照を残す
+  - commit、PR、test、E2E等の重要証跡を失わない
+  - TASKS.mdから削除する仕様本文に必ず正本配置先が存在することを確認する
+  - 仕様内容は変更せず、文書責務だけを整理する
+- 実装してはいけないこと:
+  - TASKS.mdを短くすること自体を目的にしない
+  - 仕様を正本へ移さず削除しない
+  - 文書整理中に仕様内容を変更しない
+  - 過去の重要な検証証跡を失わない
+  - 実装コードを変更しない
+  - migrationを作成しない
+- 完了条件:
+  - TASKS.mdと正本文書の責務が明確に分離されている
+  - TASKS.mdから削除した仕様に正本未配置が0件である
+  - 重要証跡の消失が0件である
+  - ユーザーが分離結果を承認する
+- テスト観点:
+  - TASKS.mdから削除した各仕様に対応する正本配置先と参照がある
+  - commit、PR、test、E2E等の重要証跡が整理前後で追跡可能である
+  - 文書整理による仕様内容の変更がない
+- CodeX投入時の注意:
+  - 文書責務の整理だけを行い、仕様再決定や実装へ進まない
+- 担当:
+  - CodeXが分類・編集する
   - ChatGPTがレビューする
   - ユーザーが承認する
 - Blocker区分: Blocker
@@ -1715,6 +1771,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 最終制約と旧カラム削除の担当タスク割当
 - 依存タスク:
   - T000-08
+  - T000-09
 - 実装内容:
   - `questions` / `submissions` / `evaluations` / `user_learning_settings`の現行DB・Model・既存行をread-onlyで確認する
   - nullable追加、新規writer導入、backfill、検証、NOT NULL化、CHECK追加、型変更、旧カラム削除の順序を設計する
@@ -3105,12 +3162,14 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `OPEN_ISSUES.md` OI-009, OI-023, OI-030
   - `DB_SCHEMA.md`
   - `DESIGN.md`
+  - `docs/STAGE_A_SCORING.md`
 - 変更対象:
   - 録音画面Vueコンポーネント・composable
   - 録音制御・タイマー制御
   - 関連フロントエンドテスト
 - 依存タスク:
   - T000-06
+  - T000-07
   - T004-04
   - T011-03
 - 実装内容:
@@ -3120,6 +3179,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `hidden`では録音中の数値タイマーを表示しない
   - timer表示方式と独立して評価プロファイル別上限監視を常時有効にする
   - OI-030で承認されたtechnical marginと自動停止・上限判定を実装する
+  - 手動STOPは常時可能とし、最低採点時間未満では提出させず再録音へ進め、最低採点時間以上では提出確認へ進める
 - 実装してはいけないこと:
   - 全問題共通のspeech duration設定を追加しない
   - `force_stop_enabled`を復活させない
