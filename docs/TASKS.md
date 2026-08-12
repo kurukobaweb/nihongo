@@ -692,7 +692,7 @@
 
 ### T000-06-04: iPhone Safari物理端末MediaRecorder検証
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-12）
 - 種別: 実ブラウザ・物理端末検証
 - 目的:
   - iPhone物理端末＋SafariでMediaRecorder録音を確認する
@@ -731,6 +731,13 @@
 - 成果物:
   - 環境情報、trial inventory、sanitized数値証跡、環境別最大値、25件拡張要否
   - raw音声削除前のユーザー承認待ち状態
+- 確認結果:
+  - `env-d` の正式9 valid trialを完了
+  - 25 valid trialへの拡張は不要
+  - `env-d` runtime SHA: `874ad87593c160a4970f868360ec4c71c0c008cb`
+  - 詳細証跡:
+    - `docs/verification/t000-06/ENVIRONMENT_env-d_RESULT.md`
+    - `docs/verification/t000-06/media-recorder-measurements.env-d.sanitized.csv`
 - 完了条件:
   - 最低9 valid trial、または拡張条件該当時は25 valid trialがある
   - iPhone Safariの環境別最大値を再計算できる
