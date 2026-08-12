@@ -2,12 +2,13 @@
 
 ## 1. 決定の適用範囲
 
-この文書は、T000-06で実施したWindows＋CodeX内蔵ブラウザの基準環境計測に基づき、同じ基準環境内の10 / 40 / 60 / 90 / 120秒profileへ共通適用するMediaRecorderのtechnical marginを記録する。
+この文書は、T000-06の基準環境計測とT000-06-02〜T000-06-04の追加環境計測をT000-06-05で横断集計し、全MVP対象環境へ共通適用するMediaRecorderのproduction technical marginを記録する。
 
-- 判定対象はMediaRecorderが生成した元WebMをffprobeで取得した `format.duration` である。
-- `0.07秒`は基準環境についてユーザー承認済みの値である。
-- 全MVP対象環境に適用するproduction共通値は、T000-06-01で検証環境と対象matrixを確定し、T000-06-02〜T000-06-04でWindows通常Chrome、Android物理端末、iPhone物理端末を検証した後、T000-06-05で横断集計して最終承認する。
-- technical marginはAzure送信前のduration上限判定に使用するが、productionコード、DB変更、Azure送信制御の実装はT000-06-05完了後の後続タスクで行う。
+- MVP対応対象は `env-a` / `env-b` / `env-c` / `env-d` である。
+- 正式trialは4環境合計52件である。
+- production共通technical marginは、T000-06-05でユーザー承認済みの `0.07秒` である。
+- 判定対象はMediaRecorderが生成した元WebMをffprobeで取得したdurationである。`env-a` / `env-b` / `env-c` は `format.duration` を使用し、`env-d` は `format.duration` が `N/A` の場合だけpacketの `pts_time + duration_time` 最大値をfallbackとして使用する。
+- technical marginはAzure送信前のduration上限判定に使用するが、productionコード、DB変更、Azure送信制御の実装は後続タスクで行う。
 - OI-030の `OPEN_ISSUES.md` 上の台帳移動と正本文書への横断反映は、T000-06-05の結果を踏まえてT000-08で行う。
 - OI-029の文字数算出仕様およびOI-031の採点仕様は変更しない。
 
@@ -26,7 +27,7 @@ D > P + 0.07
 
 各記号は次のとおりである。
 
-- `D`: 元WebMをffprobeで取得したduration
+- `D`: 元WebMをffprobeで取得したduration。`format.duration` を優先し、`env-d` で値が `N/A` の場合だけpacketの `pts_time + duration_time` 最大値をfallbackとして使用する
 - `P`: submissionへ固定保存する `evaluation_profile_seconds`
 - `M`: MediaRecorderのtechnical marginである0.07秒
 
@@ -50,33 +51,34 @@ D > P + 0.07
 
 ブラウザ識別情報はJSONLに保存されたuser agentから確認した。新しい録音、外部アクセス、追加のブラウザ計測による補完は行っていない。
 
-### 計測環境の限界
+### T000-06-05全環境横断確認
 
-- 物理Android端末は未検証である。
-- 物理iPhone端末は未検証である。
-- Windows通常ChromeおよびWindows Edgeは未検証である。
-- macOS SafariおよびiPad Safariは未検証である。
-- 端末エミュレーションやレスポンシブ表示を物理端末検証の代替とする確認は行っていない。
-- これらは未確認事項であり、失敗または非対応を意味しない。
+T000-06-05で次の4環境をMVP対応対象として横断確認した。
 
-## 追加対象環境検証との関係
+| environment | 対象 | 正式trial | runtime SHA |
+|---|---|---:|---|
+| `env-a` | Windows＋CodeX内蔵ブラウザ | 25 | `243f1a5eeac52086efef14b8a407e6cb67f5f774` |
+| `env-b` | Windows実PC＋Chrome stable | 9 | `243f1a5eeac52086efef14b8a407e6cb67f5f774` |
+| `env-c` | Android物理端末＋Chrome | 9 | `243f1a5eeac52086efef14b8a407e6cb67f5f774` |
+| `env-d` | iPhone物理端末＋Safari | 9 | `874ad87593c160a4970f868360ec4c71c0c008cb` |
+| 合計 |  | 52 |  |
 
-- T000-06の正式25 trialと数値判断は、Windows＋CodeX内蔵ブラウザの基準環境について確定している。
-- `0.07秒`は基準環境の承認値である。
-- T000-06-01は検証環境、対象matrix、接続条件を確定し、録音は行わない。
-- T000-06-02〜T000-06-04はWindows通常Chrome、Android Chrome物理端末、iPhone Safari物理端末の環境別計測を担当する。
-- production共通値の全環境集計と最終承認はT000-06-05で行う。
-- T000-06-02〜T000-06-04と承認済み追加環境の根拠値が`0.07秒`以内であれば、T000-06-05で`0.07秒`をproduction共通値として維持する候補とする。
-- `0.07秒`を超える根拠値が確認された場合は、本書と同じ計算規則でtechnical marginを再計算してユーザー判断へ戻す。
-- MIME typeまたはcodecの差により共通判定が困難な場合は、環境別marginまたは非対応環境の判断材料として提示する。
+- `env-d` のSafariでは、WebMの `format.duration` が `N/A` の場合だけffprobe packetの `pts_time + duration_time` 最大値をdurationとして使用する互換fallbackを適用する。
+- `env-d` でも数値の `format.duration` を取得できる場合は、それを優先する。
+- `env-a` / `env-b` / `env-c` の既存duration取得経路は変更しない。
 - T000-06の既存trial、計測値、sanitized CSV、raw WebM削除記録は無効化または変更しない。
-- 基準環境の `storage/app/local/t000-06/raw/measurements.jsonl` は追加環境の書込先として使用せず、26 record、31,820 bytes、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3` を不変条件とする。
-- environment IDの変更だけでは保存領域の分離にならない。追加環境のJSONL、raw WebM、temporary WAVは、基準環境から隔離されたruntimeまたはbase pathへ保存する。
-- 基準環境の `media-recorder-measurements.sanitized.csv` を追加環境結果で上書きせず、追加環境ごとにsanitized証跡を分離する。
-- T000-06-05は分離済みの環境別証跡を明示的に読み分けて横断集計する。
-- 現行runtimeで保存領域を安全に隔離できない場合は追加録音を開始しない。必要なbase path分離実装は別タスク候補としてユーザー判断へ戻し、本決定文書でコード変更を確定しない。
-- T013-09で使用するprimary環境はT000-06-01でユーザーが承認する。現時点では未確定であり、Windows通常Chrome、Android Chrome、iPhone Safariのいずれかへ推測補完しない。
+- 基準環境のJSONLは26 record、31,820 bytes、SHA-256 `47EA09A6DDEADA0883A73A4711BFB4C7855FA746E868B18A902361D51BFF3AF3` の不変条件を維持する。
+- 基準環境と追加環境のJSONL、raw WebM、temporary WAV、sanitized証跡は分離して集計した。
+- T013-09で使用するprimary環境はT000-06-01でユーザー承認済みである。
 - OI-030の台帳移動は、T000-06-05と後続の正本文書反映の事実を踏まえて行う。
+
+### 外部入力デバイスに関する既知懸念
+
+- Bluetoothイヤフォン、Bluetoothマイク、有線外部マイクは今回の正式集計対象外である。
+- AndroidのBluetooth入力では、内蔵マイクより大きな `duration_method_difference_seconds` を観測した。この事実は既知の重要懸念として維持する。
+- 外部入力デバイスのtrialは、production共通technical margin `0.07秒` の根拠値へ混入させない。
+- 将来、外部入力デバイスを正式サポートする場合は入力経路別に追加検証し、marginまたはduration判定方法を再評価する。
+- 現時点では外部入力デバイスの利用をUI上で禁止する決定までは行わない。
 
 ## 4. 正式trialと除外trial
 
@@ -156,7 +158,7 @@ env-a-p090-r05-a01
 | 90 | 5 | `89.940046` | `90.000218` | `-0.059954000000004726` | `0.00021800000000382624` | `0.00021800000000382624` | `0.06006299999999953` |
 | 120 | 5 | `120.000007` | `120.000656` | `0.000006999999996537554` | `0.0006560000000064292` | `0.0006560000000064292` | `0.059993000000005736` |
 
-## 7. technical margin導出
+## 7. 基準環境におけるtechnical margin導出
 
 ```text
 overrun_basis
@@ -203,6 +205,45 @@ overrun_basis + method_difference_basis
 
 加算方式でも0.01秒単位の切り上げ結果は0.07秒となる。ただし、正式採用した導出は、承認済みの保守的統合方式 `max(overrun_basis, method_difference_basis)` である。
 
+### T000-06-05全環境横断結果
+
+```text
+正式trial合計:
+52件
+
+全環境max total_overrun_seconds:
+0.02300000000000324秒
+
+該当trial:
+env-d-p040-r01-a03
+
+全環境max duration_method_difference_seconds:
+0.060274000000007秒
+
+該当trial:
+env-c-p120-r01-a03
+```
+
+```text
+overrun_basis
+= max(0, 全対象環境の最大total_overrun_seconds)
+= 0.02300000000000324秒
+
+method_difference_basis
+= 全対象環境の最大duration_method_difference_seconds
+= 0.060274000000007秒
+
+combined_basis
+= max(overrun_basis, method_difference_basis)
+= 0.060274000000007秒
+
+production common technical margin
+= combined_basisを下回らないよう0.01秒単位で切り上げ
+= 0.07秒
+```
+
+全4環境の正式52 trialを横断集計した結果、production共通technical marginはユーザー承認により `0.07秒` で確定した。基準環境で導出した既存値と正式計測値は変更しない。
+
 ## 8. 境界値例
 
 ```text
@@ -231,10 +272,10 @@ D = 60.070001秒
 
 ## 9. Azure送信前判定との関係
 
-- 次の判定式は基準環境で承認済みであり、production共通値としての実装はT000-06-05後の再承認を待つ。
+- 次の判定式はT000-06-05で全MVP対象4環境のproduction共通値として承認済みである。
 - duration判定はAzure送信前に行う。
 - `D > P + 0.07` の音声はAzureへ送信しない。
-- `D`は元WebMのffprobe durationである。
+- `D`は元WebMのffprobe durationである。`format.duration` を優先し、`env-d` で `N/A` の場合だけpacketの `pts_time + duration_time` 最大値をfallbackとして使用する。
 - `P`はsubmissionに固定保存された `evaluation_profile_seconds` である。
 - 判定時にUI入力値や現在のquestion設定を再参照しない。
 - エラーコード、HTTP status、ユーザー向け文言は本決定だけでは新規確定しない。
@@ -270,6 +311,7 @@ temporary WAV:
 - tracked証跡には `media-recorder-measurements.sanitized.csv` を使用する。
 - tracked成果物へ音声内容、transcript、個人情報、Secrets、絶対パスを含めない。
 - sanitized CSVは削除したraw音声の代替ではなく、承認済み数値判断を再確認するための証跡である。
+- `env-b` / `env-c` / `env-d` のraw成果物は、横断集計と承認済み決定の記録時点では未削除であり、別途削除承認を得て扱う。
 
 ## 11. 補足事象
 
@@ -286,14 +328,16 @@ temporary WAV:
 
 ## 12. 後続申し送り
 
-- T000-06-01で検証環境、対象matrix、接続条件を確定する。
-- T000-06-02でWindows通常Chrome、T000-06-03でAndroid Chrome物理端末、T000-06-04でiPhone Safari物理端末のMediaRecorder互換性と停止誤差を検証する。
-- production上限判定の実装前に、T000-06-05で全対象環境を横断集計し、production共通technical marginをユーザーが再承認する。
+- T000-06-01で検証環境、対象matrix、接続条件を確定済みである。
+- T000-06-02でWindows通常Chrome、T000-06-03でAndroid Chrome物理端末、T000-06-04でiPhone Safari物理端末のMediaRecorder互換性と停止誤差を検証済みである。
+- T000-06-05で全対象環境を横断集計し、production共通technical margin `0.07秒`、MVP対応対象 `env-a` / `env-b` / `env-c` / `env-d`、外部入力デバイス方針をユーザー承認済みである。
+- T000-06-05は追加環境のraw成果物削除状況を確認するまで完全完了としない。
+- T000-07はT000-06-05の完全完了前に開始しない。
 - productionの上限判定を実装する。
 - submission snapshotの `evaluation_profile_seconds` を使用する。
 - ffprobe duration取得失敗時の扱いは、後続実装で既存エラー契約と整合させる。
 - 境界一致、境界直前、境界直後の自動テストを追加する。
 - 上限超過時にAzureへ送信されないことを確認する。
 - OI-030の `OPEN_ISSUES.md` 上の台帳移動と正本文書への横断反映は、T000-06-05の結果を踏まえてT000-08で行う。
-- T000-07はT000-06-05完了後、再承認されたproduction共通値を時間判定の前提として参照する。
+- T000-07はT000-06-05完了後、承認済みproduction共通値 `0.07秒` を時間判定の前提として参照する。
 - T000-06の証跡だけでproduction実装完了とは扱わない。
