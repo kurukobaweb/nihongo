@@ -753,7 +753,7 @@
 
 ### T000-06-05: 全環境集計・production共通technical margin確定
 
-- [ ] 状態: 未着手
+- [ ] 状態: 進行中（横断集計・決定承認済み、raw成果物削除未完了）
 - 種別: 仕様・集計
 - 目的:
   - T000-06基準環境、Windows通常Chrome、Android Chrome物理端末、iPhone Safari物理端末、およびユーザー承認により追加された環境の正式trialを横断集計する
@@ -763,6 +763,7 @@
   - `docs/verification/t000-06/OI-030_DECISION.md`
   - `docs/verification/t000-06/PROCEDURE.md`
   - `docs/verification/t000-06/media-recorder-measurements.sanitized.csv`
+  - `docs/verification/t000-06/T000-06-05_RESULT.md`
 - 依存タスク:
   - T000-06-02
   - T000-06-03
@@ -798,6 +799,21 @@
   - `0.07秒`を超える根拠値がある場合、同じ規則で新しい共通値を算出してユーザー判断へ戻す
   - 環境差が大きく共通値が不適切な場合、環境別margin、処理分岐、またはMVP非対応環境の判断材料を提示する
   - CodeXは最終値、環境別対応、非対応環境を独断で確定しない
+- 確認結果:
+  - `env-a` / `env-b` / `env-c` / `env-d` の正式trial合計52件を横断集計済み
+  - 全環境max `total_overrun_seconds`: `0.02300000000000324`、該当trial: `env-d-p040-r01-a03`
+  - 全環境max `duration_method_difference_seconds`: `0.060274000000007`、該当trial: `env-c-p120-r01-a03`
+  - `combined_basis`: `0.060274000000007`
+  - 0.01秒単位の切り上げ結果: `0.07秒`
+  - production共通technical margin: `0.07秒` ユーザー承認済み
+  - MVP対応対象: `env-a` / `env-b` / `env-c` / `env-d` ユーザー承認済み
+  - Bluetoothイヤフォン、Bluetoothマイク、有線外部マイクは今回の正式集計対象外とする方針をユーザー承認済み
+  - Android Bluetooth入力で内蔵マイクより大きな方式間差を観測した事実を既知の重要懸念として維持し、現行`0.07秒`の根拠値には含めない
+  - 将来、外部入力デバイスを正式サポートする場合は入力経路別に追加検証し、marginまたはduration判定方法を再評価する
+  - 現時点では外部入力デバイスのUI上の利用禁止までは決定しない
+  - 横断集計、production共通値、4環境MVP対応、外部入力デバイス方針の承認は完了済み
+  - raw成果物削除だけが未完了であり、T000-06-05は完全完了として扱わない
+  - T000-07は未着手であり、T000-06-05の完全完了前に開始しない
 - raw成果物:
   1. 環境別計測を完了する
   2. 集計値を確認する
