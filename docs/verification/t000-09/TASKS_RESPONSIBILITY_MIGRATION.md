@@ -221,3 +221,63 @@ correction pass後も、new mandatory task 12件、new OI 4件、task削除0、r
 - `git diff --check`: pass
 
 未実施のE2Eやimplementation evidenceは追加していない。Phase 3のuser approval、commit、push、PRは未実施である。
+
+## 15. Final approval / merge / cleanup record
+
+### User approval
+
+- Phase 3 final actual diff: user approved
+- GitHub PR actual diff: user approved for merge
+
+### Final approved patch
+
+- patch: `t000-09-phase3-micro-correction-actual-20260813-192631.diff`
+- SHA-256: `8FF0BEF5398011C1981EF48355D5F23ACDC4EB389A5589DEDD4165524B8CD39C`
+- patch本体はrepositoryへ追加していない
+
+### Git evidence
+
+- implementation commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`
+- PR: `#72 docs: reorganize MVP task responsibilities`
+- merge commit: `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`
+- base: `develop`
+- PR changed files: 9
+- PR commit count: 1
+- PR diff: 1004 insertions / 227 deletions
+
+### GitHub review result
+
+- actual GitHub PR diffをreviewし、approved Phase 3 final diffとの一致を確認した
+- PRがmergeableであることを確認後、ユーザーがmergeを承認した
+- PR #72は`develop`へ正常にmergeされた
+
+### Post-merge
+
+- local `develop`: `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`
+- `origin/develop`: `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`
+- ahead / behind: `0 / 0`
+- working tree: clean
+- local task branch: normally deleted
+- remote task branch: deleted
+- force delete: No
+- force push: No
+
+### Validation summary
+
+- existing task deletion: 0
+- task renumber: 0
+- new mandatory task: 12
+- new OI: 4
+- missing dependency target: 0
+- dependency cycle: 0
+- High / Medium OI owner/path orphan: 0
+- M1 / M2 orphan: 0
+- critical invariant violation: 0
+- canonical orphan: 0
+- historical evidence orphan: 0
+- `STAGE_A_SCORING.md`: unchanged
+- application implementation: none
+
+### Final result
+
+TASKS.mdと正本文書の責務分離、canonical未配置0件、重要historical evidence消失0件、actual diffのユーザー承認、PR #72の`develop` mergeを確認し、T000-09の目的とcompletion conditionを満たした。これはT000-09の文書責務整理完了記録であり、MVP、T017、downstream taskの完了判定ではない。

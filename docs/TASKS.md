@@ -943,7 +943,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 
 ### T000-09: TASKS.md責務整理・仕様正本切り分け
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-13、PR #72 merge済み）
 - 種別: 文書整理
 - 目的:
   - T000-08直後に`docs/TASKS.md`全体をレビューし、「TASKSは実行計画、仕様は仕様書」という責務へ戻す
@@ -981,6 +981,13 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - TASKS.mdから削除した各仕様に対応する正本配置先と参照がある
   - commit、PR、test、E2E等の重要証跡が整理前後で追跡可能である
   - 文書整理による仕様内容の変更がない
+- 確認結果:
+  - TASKS.mdをexecution plan責務へ整理し、恒久仕様を既存canonicalへ同期した。新規canonical documentは作成していない
+  - existing task削除0件、task renumber 0件、canonical orphan 0件、historical evidence orphan 0件を確認し、重要historical evidenceを維持した
+  - new mandatory task 12件、new OI 4件（OI-109〜OI-112）を登録し、`docs/STAGE_A_SCORING.md`は変更していない。application implementationは行っていない
+  - actual diffをChatGPTがreviewし、ユーザーが最終diffを承認した。implementation commitは`d59396fd595115d4233d6d89110f58ec5cfe412a`、PRは#72、merge commitは`03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`
+  - merge後のlocal / remote `develop`は`03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`へ同期し、task branchはlocal / remoteともcleanup済み
+  - verification: `docs/verification/t000-09/TASKS_RESPONSIBILITY_MIGRATION.md`
 - CodeX投入時の注意:
   - 文書責務の整理だけを行い、仕様再決定や実装へ進まない
 - 担当:
