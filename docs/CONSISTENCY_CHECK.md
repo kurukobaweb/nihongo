@@ -49,7 +49,7 @@
 - `questions.question_format` は DB_SCHEMA.md に反映済みである
 - `questions.question_format` は問題形式を表す分類軸として扱われている
 - `questions.question_format` の値域は `single_prompt` / `two_choice` として確定済みである
-- `questions.question_format` のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一` として確定済みである
+- `questions.question_format` のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `2択` として確定済みである。仕様説明は「二テーマ選択」とする
 - `question_format` と `has_model_answer` は別概念として両文書で整理済みである
 - `question_format` は問題形式、`has_model_answer` は模範解答有無であり、混同しない方針が両文書で一致している
 - `submissions.id` = UUID v4 は両文書で一貫している
@@ -58,7 +58,7 @@
 - CleanupTempFilesJob は、即時削除失敗時の回復手段として両文書で整合している
 - 音声一時ファイルはバックアップ対象外として両文書で整合している
 - Cashier v15+ 準拠（`customers` の `billable_id` + `billable_type`）は両文書で一貫している
-- ユーザー設定5項目の保存先は OI-023 で確定済みであり、`user_learning_settings` テーブル方式として整理されている
+- ユーザー設定は OI-023 で確定済みの `question_format_preference` / `timer_display_mode` の2項目を`user_learning_settings`へ保存する
 - `users` JSONB方式は不採用として、ARCHITECTURE.md §13 / DB_SCHEMA.md §2 ともに 18テーブル / 5カテゴリへ更新されている
 - Stripe Webhook 対象イベントの最小範囲は OI-027 管理であり、ARCHITECTURE.md / DB_SCHEMA.md ともに確定済みイベント一覧としては扱っていない
 - 管理画面MVP範囲は OI-028 管理であり、追加権限テーブルは現時点で追加しない方針で整合している
@@ -76,9 +76,9 @@
 
 ### 要確認（OI 依存）
 
-- `questions.question_format` の具体値は `single_prompt` / `two_choice` として確定済み。CHECK 制約値域はT002-05で反映する
-- ユーザー設定5項目の保存方式は OI-023 で `user_learning_settings` テーブル方式に確定済み
-- T011-02はこの確定方針を前提に、migration / model / 保存API / UI保存処理の実装へ進める
+- `questions.question_format` の具体値は `single_prompt` / `two_choice` として確定済み。CHECK制約、Seeder、UIラベル、validationのコード反映・静的確認はT002-05で完了済みであり、当時未完了だった実DB確認等はT002-06 / T002-07等の後続current chainで回収する
+- ユーザー設定2項目の保存方式は OI-023 で `user_learning_settings` テーブル方式に確定済み
+- historical T011-02で`user_learning_settings`方式と当時の5設定項目の保存基盤を実装済みであり、current 2項目（`question_format_preference` / `timer_display_mode`）への補正はT011-03で回収する
 
 ---
 
@@ -95,10 +95,10 @@
   - §10: Google OAuth 自動リンク → OI-016
   - §10: Stripe Webhook 対象イベント → OI-027
   - §10: 管理画面 MVP 範囲 → OI-028
-  - §13: `questions.question_format` 値域 → OI-022
-  - §13: ユーザー設定5項目の保存先 → OI-023
+  - §13: `questions.question_format` 値域 → DB_SCHEMA.md / DESIGN.md current specification（OI-022は解消済みdecision history）
+  - §13: ユーザー設定2項目の保存先 → 解消済みOI-023
   - §14: バックアップ外部保管先 → OI-020
-- ARCHITECTURE.md §13 の `question_format` は、OPEN_ISSUES.md OI-022 の管理対象と整合している
+- ARCHITECTURE.md §13 の `question_format` は、DB_SCHEMA.md / DESIGN.md のcurrent specificationと整合し、OI-022は解消済みdecision historyとして参照される
 - ユーザー設定保存先は、OPEN_ISSUES.md OI-023 の確定方針（`user_learning_settings` テーブル方式、`users` JSONB方式不採用）と整合している
 - Stripe Webhook 対象イベントは、OPEN_ISSUES.md OI-027 の管理対象と整合している
 - 管理画面MVP範囲は、OPEN_ISSUES.md OI-028 の管理対象と整合している
@@ -190,7 +190,7 @@
 - DESIGN.md §7-6 の admin ロール参照（ARCHITECTURE.md §10.2）が正確である
 - 現行Stage-AではFeature Flagにかかわらず発音・流暢さ・comment・`overall_score`を表示せず、空欄・NULL・未評価も表示しない方針で整合している
 - `questions.question_format` は、ARCHITECTURE.md §13 と DESIGN.md §7-3 で問題形式を表す分類軸として整合している
-- `questions.question_format` の値域は OI-022 管理に留められており、両文書で具体値を確定していない
+- `questions.question_format` の値域はDB_SCHEMA.md / DESIGN.mdで`single_prompt` / `two_choice`として確定済みであり、OI-022は解消済みdecision historyである
 - `difficulty` と `question_format` は独立した分類軸として両文書で整合している
 - `has_model_answer` は模範解答有無であり、問題形式ではないという扱いが両文書で整合している
 - 管理画面は admin ロール前提で整合している
@@ -221,9 +221,9 @@
 - DESIGN.md §4.1 の DB 対応列が DB_SCHEMA.md のテーブル構成と一致している
 - DESIGN.md §7-3 の difficulty 値（beginner / intermediate / advanced）は DB_SCHEMA.md §5.2 と一致している
 - DESIGN.md §7-3 の `questions.question_format` は、DB_SCHEMA.md に反映済みのカラムである
-- DESIGN.md / DB_SCHEMA.md の整合状態は、`question_format` の「カラム追加待ち」ではなく「T002-05での値域・CHECK制約・Seeder・UIラベル・validation反映待ち」である
+- DESIGN.md / DB_SCHEMA.md の整合状態は、`question_format`のカラム、値域、CHECK制約、Seeder、UIラベル、validationがT002-05で実装・静的確認済みであり、当時未完了だった実DBでのmigration / seed / CHECK動作確認をT002-06 / T002-07等の後続current chainで回収する状態である
 - `questions.question_format` の具体値・値域は `single_prompt` / `two_choice` として確定済みである
-- `questions.question_format` のUI表示ラベルは `単体問題` / `二者択一` として確定済みである
+- `questions.question_format` のUI表示ラベルは `単体問題` / `2択` として確定済みである
 - `difficulty` と `question_format` は独立した分類軸である
 - `has_model_answer` は模範解答有無であり、問題形式ではない
 - `question_type` は使用しない方針で一致している
@@ -235,7 +235,7 @@
 
 ### 要確認（OI 依存）
 
-- `questions.question_format`: DBカラムは反映済み。具体値・値域は `single_prompt` / `two_choice` として確定済みで、CHECK制約・Seeder・UIラベル・validationはT002-05で反映する
+- `questions.question_format`: DBカラム、具体値・値域 `single_prompt` / `two_choice`、CHECK制約、Seeder、UIラベル、validationはT002-05で反映・静的確認済みであり、実DB確認等はT002-06 / T002-07等の後続current chainで回収する
 - 設定項目の保存先: OI-023 確定方針に従い、DB_SCHEMA.md / DESIGN.md / ARCHITECTURE.md の該当箇所を `user_learning_settings` テーブル方式へ更新済み
 - テーブル数は18テーブル / 5カテゴリとして更新済み
 
@@ -247,8 +247,8 @@
 
 - DESIGN.md 本文中の OI 参照は OPEN_ISSUES.md の ID と整合している
   - §1.2: OI-026（学習管理画面 MVP 対象外）
-  - §1.3: OI-022（`questions.question_format` の値域）
-  - §1.3: OI-023（設定項目の保存先）
+  - §1.3: DB_SCHEMA.md / DESIGN.md current specification（`questions.question_format`の値域。OI-022は解消済みdecision history）
+  - §1.3: DB_SCHEMA.md / ARCHITECTURE.md / DESIGN.md current specification（設定項目の保存先。OI-023は解消済みdecision history）
   - §1.3: OI-024（ナビゲーション最終構成）
   - §1.3: OI-025（デザイントークン具体値）
   - §1.3: OI-028（管理画面 MVP 範囲）
@@ -267,8 +267,8 @@
   - §7-6: OI-028（管理画面 MVP 範囲）
   - §7-7: OI-027（Stripe Webhook 対象イベント）
   - §8: OI-025（ブレイクポイント）
-- OI-022 は、問題形式の値域管理として DESIGN.md と整合している
-- OI-023 は、設定項目保存先の確定方針（`user_learning_settings` テーブル方式、`users` JSONB方式不採用）として DESIGN.md と整合している
+- OI-022 は解消済みdecision historyであり、current primary sourceはDB_SCHEMA.md / DESIGN.mdで整合している
+- OI-023 は解消済みdecision historyであり、current primary sourceはDB_SCHEMA.md / ARCHITECTURE.md / DESIGN.md（`user_learning_settings` テーブル方式、`users` JSONB方式不採用）で整合している
 - OI-024 は、ナビゲーション最終構成の未確定管理として DESIGN.md と整合している
 - OI-025 は、デザイントークン具体値の未確定管理として DESIGN.md と整合している
 - OI-026 は、学習管理画面をMVP対象外とする扱いとして DESIGN.md と整合している
@@ -320,7 +320,7 @@
 - `has_model_answer` は模範解答有無として維持されている
 - ユーザー設定保存先は OI-023 で確定済みであり、`user_learning_settings` テーブル方式として OPEN_ISSUES.md / DB_SCHEMA.md / ARCHITECTURE.md / DESIGN.md / TASKS.md 間で統一されている
 - `users` JSONB方式は不採用として統一されている
-- T011-02はこの確定方針を前提に実装へ進める
+- historical T011-02の5項目実装との差はcurrent correction task T011-03で回収する
 - Stripe Webhook 対象イベントは OI-027 管理であり、確定済みイベント一覧として扱っていない
 - 管理画面MVP範囲は OI-028 管理であり、確定済み範囲として広げていない
 - CleanupTempFilesJob は即時削除失敗時の回復手段として扱われている
@@ -339,4 +339,52 @@
 - `character_count_version`、time_score用`T`、stop reason／profile limit到達相当の最終DBカラム名・型・精度・保存場所・migrationはT002-06 / T002-07の後続責務として未確定を維持している
 
 本メモは文書間整合性の確認結果であり、実装タスク定義および CodeX 実装指示は別文書で管理する。
+
+---
+
+## 11. T000-09 Phase 3 文書責務整理
+
+### 責務・境界
+
+- `TASKS.md` はpurpose、dependency、decision gate、implementation action、completion、test/evidence、blocker、重要なhistorical evidenceを管理し、恒久仕様本文は各canonicalを参照する
+- `OPEN_ISSUES.md` は未確定事項の唯一の台帳として、対象フェーズ `MVP` / `R1` / `F1` / `MVP/R1 split` を優先度と分離して管理する
+- 新規OI OI-109〜OI-112と、そのdecision/implementation pathをTASKSへ登録した
+- 新規mandatory task 12件を追加し、既存task削除・renumberは行っていない
+- completed taskのhistorical evidenceと当時のscopeは維持し、current correctionは後追加taskへ分離した
+
+### MVP final review
+
+- T017-01はreview開始を禁止するhard dependencyを持たず、prerequisite未完了でも`incomplete`を記録できる
+- MVP `complete` prerequisiteはT013-01 / T013-10 / T013-12 / T015-04 / T016-03 / T016-05 / T016-06の7系列
+- `条件付き完了`は廃止し、review task completionとMVP acceptance result (`complete` / `incomplete`) を分離する
+- blocking item解消後の再reviewではprevious resultを履歴として保持し、latest resultとuser judgmentを記録する
+
+### 未解消事項
+
+- OI-109 / OI-110 / OI-111 / OI-112は登録済みで未解消。各TASKのdecision gateで処理する
+- OI-103はR1としてproduction release前に要否を判断し、custom PDF / invoice UI等の追加拡張だけをF1候補として分離する
+- R1（production）とF1（future）はMVP `incomplete`理由へ混在させず、README Phase②またはfuture handoffで管理する
+- 本節は整合結果の記録であり、未確定仕様を新規決定しない
+
+### Phase 3 initial static check
+
+- task ID duplicate 0、dependency target orphan 0、cycle 0
+- OI definition/reference target orphan 0、High / Medium OI owner/path orphan 0
+- canonical orphan 0、historical evidence orphan 0
+- critical invariant violation 0、`STAGE_A_SCORING.md`変更0
+- 詳細証跡: `docs/verification/t000-09/TASKS_RESPONSIBILITY_MIGRATION.md`
+
+### Phase 3 correction pass
+
+- T013-05はT012-06で確定するconfigured audio storage pathを参照し、固定pathを再決定しない
+- T013-02のStripe前順序はhistorical recordへ限定し、current T014のexecution gateにはしない
+- OPEN_ISSUES priorityは対象フェーズ相対、OI-103はR1、OI-111はDESIGN.mdを含むuser-facing decisionとして同期した
+- Stripe Webhook idempotency key / persistence contractとQueue retry / non-pending no-opの関係は、各実装task着手前のtechnical clarificationとして扱う
+- T013-09のtest viewpointはpass / fail / 422 / pre-Azure upper-limit / system failureの5分類へ同期した
+- ffmpeg記述はcurrent implementation factへ限定し、hard delete executorはOI-105結果に応じたbatch / manualのconditional operationとして扱う
+- OI-022 / OI-023は解消済みdecision historyであり、current primary sourceをDB_SCHEMA.md / DESIGN.md / ARCHITECTURE.mdへ同期した
+- correction後static validation: task 111 / duplicate 0、dependency edge 203 / missing target 0 / cycle 0、OI definition/reference 43 / 43 / missing 0
+- historical task deletion 0、new mandatory task 12、task renumber 0、High / Medium OI owner/path orphan 0、M1/M2 orphan 0
+- canonical orphan 0、historical evidence orphan 0、critical invariant violation 0、Markdown fence imbalance 0、`STAGE_A_SCORING.md`変更0、`git diff --check` pass
+- correction後の詳細証跡: `docs/verification/t000-09/TASKS_RESPONSIBILITY_MIGRATION.md` §14
 ---

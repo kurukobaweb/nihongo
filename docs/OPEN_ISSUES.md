@@ -1,7 +1,7 @@
 # OPEN_ISSUES.md
 
 > **目的: 未確定事項の唯一の管理台帳**
-> **最終更新: 2026-08-12（OI-029〜OI-031確定結果の反映）**
+> **最終更新: 2026-08-13（T000-09 Phase 3: 対象フェーズ管理と OI-109〜OI-112 の登録）**
 
 ---
 
@@ -16,14 +16,27 @@
 - 各設計文書からは ID 参照のみ行う（例: 「OI-012 で管理」）
 - 確定した項目は「解消済み」セクションへ移動し、ID の連続性を維持する
 - 新規追加時は末尾に採番する
+- 未解消項目は、優先度とは別に対象フェーズを `MVP` / `R1` / `F1` / `MVP/R1 split` で管理する
+- `R1` は本番リリースまでに必要な項目、`F1` は本番後の将来拡張を表す。MVP完了判定へ混在させない
+- `MVP/R1 split` は、MVPテスト環境で必要な最小判断と、本番固有の判断を同じID内で明示的に分離する
+- 優先度は対象フェーズ内での優先度であり、`R1` の「中」をMVP結合テスト前の必須条件とは読まない
 
 ### 優先度基準
 
 | 優先度 | 定義 |
 |---|---|
-| **高** | MVP リリースまでに確定必須。未確定だと実装がブロックされる |
-| **中** | 実装開始は可能だが、結合テスト前には確定が必要 |
-| **低** | リリース後でも対応可能だが、設計時に認識しておくべき |
+| **高** | 対象フェーズのrelease / acceptanceまでに確定必須。未確定だと対象フェーズの実装・受入をblockする |
+| **中** | 対象フェーズの実装開始は可能だが、対象フェーズのintegration / operational acceptance前には確定が必要 |
+| **低** | 対象フェーズ内で後続判断可能だが、設計時に認識しておくべき |
+
+### 対象フェーズ管理
+
+| 対象フェーズ | 意味 |
+|---|---|
+| `MVP` | フェーズ①の実装・テスト・MVP判定までに処理する |
+| `R1` | フェーズ②の本番構築・本番リリースまでに処理する |
+| `F1` | 本番後の将来拡張として管理する |
+| `MVP/R1 split` | MVP最小条件と本番固有条件を分け、各側のtask/gateで処理する |
 
 ### MVP実装前の確認観点
 
@@ -31,7 +44,7 @@ CodeX での MVP 実装に入る前に、以下の観点で本台帳を確認す
 
 - DB マイグレーション、Seeder、認証フロー、音声評価E2Eに影響する項目は実装ブロック要因として扱う
 - Feature Flag OFF のまま実装可能な項目と、PoC 後に有効化判断が必要な項目を区別する
-- 実装開始は可能でも、結合テスト前に確定が必要な項目は優先度「中」以上で管理する
+- 対象フェーズの実装開始は可能でも、同フェーズのintegration / operational acceptance前に確定が必要な項目は優先度「中」以上で管理する
 - 実装順序のみの課題は本台帳ではなく、実装タスク側で扱う
 
 ---
@@ -40,76 +53,85 @@ CodeX での MVP 実装に入る前に、以下の観点で本台帳を確認す
 
 ### アーキテクチャ・設計
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-001 | アーキ | Scheduler の具体的な用途リスト（CleanupTempFilesJob 以外の定期ジョブを含む最終構成） | OPERATIONS.md 定期運用 | 運用整理時 | 中 |
-| OI-002 | アーキ | FastAPI ポート番号の最終決定（仮: 8100）。8100 を正式採用するか、環境変数・Nginx 設定・ヘルスチェック設定で別値を採用するかを実装前に判断する | ARCHITECTURE.md §4, Nginx 設定, FastAPI 起動設定 | 実装時 | 中 |
-| OI-003 | 運用 | Queue ドライバ database → Redis 移行トリガー条件の数値精緻化 | ARCHITECTURE.md §2, OPERATIONS.md | 性能検証時 | 中 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-001 | アーキ | Scheduler の具体的な用途リスト（CleanupTempFilesJob 以外の定期ジョブを含む最終構成） | OPERATIONS.md 定期運用 | MVP/R1 split | 運用整理時 | 中 |
+| OI-002 | アーキ | FastAPIのconfigured endpoint/port管理。MVP non-productionでは環境設定値とLaravel client / Python起動 / health checkの一致を確認し、productionで標準化する値・proxy構成は後続判断とする | ARCHITECTURE.md §4, T013-06, Nginx 設定, FastAPI 起動設定 | MVP/R1 split | MVP E2E前 / production構築時 | 中 |
+| OI-003 | 運用 | Queue ドライバ database → Redis 移行トリガー条件の数値精緻化 | ARCHITECTURE.md §2, OPERATIONS.md | MVP/R1 split | 性能検証時 | 中 |
 
 ### 仕様・UX
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-006 | UX | STT 認識不可時（422）のユーザー向け UX 方針の詳細。現状は「再提出案内」のみ定義。再録音導線、ユーザー向け説明文言、エラー表示方針を実装前に確定する | DESIGN.md, フロントエンド実装, 音声提出フロー | 実装前 | 高 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-006 | UX | STT 認識不可時（422）のユーザー向け UX 方針の詳細。現状は「再提出案内」のみ定義。再録音導線、ユーザー向け説明文言、エラー表示方針を実装前に確定する | DESIGN.md, フロントエンド実装, 音声提出フロー | MVP | 実装前 | 高 |
 
 ### 音声・Azure AI Speech
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-010 | 音声 | Azure Speech SDK の continuous recognition の安定性検証（長時間音声での途切れ・タイムアウト・再試行影響）。長時間音声での検証結果は音声評価E2E成立の前提として扱う | 音声評価サービス全体, 音声提出E2E | PoC 時 | 高 |
-| OI-012 | 事業判断 | Pronunciation Assessment PoC の実施タイミングと Go/No-Go 基準の最終合意。PoC 完了までは Feature Flag OFF を維持し、PoC 後に有効化可否を判断する | Feature Flag 運用, 費用試算, 結果表示 | 実装前 | 高 |
-| OI-014 | コスト | Azure AI Speech の月額予算上限値の確定 | 費用管理, アラート設定 | 運用準備時 | 中 |
-| OI-021 | 運用 | 音声残存ファイル削除用 CleanupTempFilesJob の実行頻度および削除対象条件。即時削除失敗時の回復手段として、実行頻度だけでなく削除対象の経過時間条件も確定する | Scheduler, ストレージ管理, 音声一時ファイル削除 | 実装前 | 中 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-010 | 音声 | Azure Speech SDK の continuous recognition の安定性検証（長時間音声での途切れ・タイムアウト・再試行影響）。長時間音声での検証結果は音声評価E2E成立の前提として扱う | 音声評価サービス全体, 音声提出E2E | MVP | PoC 時 | 高 |
+| OI-012 | 事業判断 | Pronunciation Assessment PoC の実施タイミングと Go/No-Go 基準の最終合意。PoC 完了までは Feature Flag OFF を維持し、PoC 後に有効化可否を判断する | Feature Flag 運用, 費用試算, 結果表示 | MVP | 実装前 | 高 |
+| OI-014 | コスト | Azure AI Speech の月額予算上限値の確定 | 費用管理, アラート設定 | R1 | 運用準備時 | 中 |
+| OI-021 | 運用 | 音声残存ファイル削除用 CleanupTempFilesJob の実行頻度および削除対象条件。即時削除失敗時の回復手段として、実行頻度だけでなく削除対象の経過時間条件も確定する | Scheduler, ストレージ管理, 音声一時ファイル削除 | MVP/R1 split | 実装前 | 中 |
 
 ### セキュリティ・認証
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-007 | セキュリティ | 内部通信トークン（X-Internal-Token）のローテーション方針・頻度 | Laravel ⇔ Python 通信 | セキュリティ運用整理時 | 低 |
-| OI-013 | セキュリティ | Azure API キーのローテーション運用手順（Key1 / Key2 切替の具体的手順） | 音声評価サービス | 運用準備時 | 低 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-007 | セキュリティ | 内部通信トークン（X-Internal-Token）のローテーション方針・頻度 | Laravel ⇔ Python 通信 | R1 | セキュリティ運用整理時 | 低 |
+| OI-013 | セキュリティ | Azure API キーのローテーション運用手順（Key1 / Key2 切替の具体的手順） | 音声評価サービス | R1 | 運用準備時 | 低 |
 
 ### 性能
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-004 | 監視 | ログファイルの物理配置パスの最終確定 | OPERATIONS.md 点検手順 | 実装時 | 低 |
-| OI-008 | 性能 | Queue database ドライバ利用時のポーリング間隔 3秒の妥当性検証。同時アクセス数、ポーリング頻度、DB 負荷の観点で検証し、必要に応じて間隔・最大回数・Redis 移行条件を見直す | フロントエンド, DB 性能, Queue 運用 | 性能検証時 | 中 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-004 | 監視 | ログファイルの物理配置パスの最終確定 | OPERATIONS.md 点検手順 | R1 | 実装時 | 低 |
+| OI-008 | 性能 | Queue database ドライバ利用時のポーリング間隔 3秒の妥当性検証。同時アクセス数、ポーリング頻度、DB 負荷の観点で検証し、必要に応じて間隔・最大回数・Redis 移行条件を見直す | フロントエンド, DB 性能, Queue 運用 | MVP | 性能検証時 | 中 |
 
 ### リリース・運用
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-018 | リリース | Git ブランチ戦略（CodeX作業ブランチ、開発統合ブランチ、本番反映ブランチの扱い）の最終確定。実装開始前に作業ブランチ、統合先、main反映フローを明確にする | 開発フロー全体, CodeX実装作業 | 実装前 | 高 |
-| OI-019 | 監視 | 障害通知チャネルの最終決定（メール / Slack / その他） | OPERATIONS.md 障害対応 | 運用準備時 | 中 |
-| OI-020 | バックアップ | 外部バックアップ保管先、暗号化方式、復旧責任者の最終確定 | OPERATIONS.md バックアップ運用 | 運用準備時 | 中 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-018 | リリース | Git ブランチ戦略。MVPではtask branch → PR → review → `develop`統合を運用し、本番のmain反映・release・deployment・rollbackは後続で確定する | 開発フロー全体, CodeX実装作業 | MVP/R1 split | MVP workflowは運用中、production flowはR1 | 高 |
+| OI-019 | 監視 | 障害通知チャネルの最終決定（メール / Slack / その他） | OPERATIONS.md 障害対応 | R1 | 運用準備時 | 中 |
+| OI-020 | バックアップ | 外部バックアップ保管先、暗号化方式、復旧責任者の最終確定 | OPERATIONS.md バックアップ運用 | R1 | 運用準備時 | 中 |
 
 ### 事業・法務（DB_SCHEMA.md 由来）
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-101 | 事業 | 年額プランの導入時期と価格 | Stripe 設定, subscriptions | MVP 後 | 低 |
-| OI-102 | 請求 | PDF 領収書テンプレート要否（現状は Stripe 自動送信に委譲） | Stripe 設定 | MVP 後 | 低 |
-| OI-103 | 法務 | インボイス制度対応の要否（国内販売要件に応じて判断） | Stripe 設定, 法務ページ | MVP 後 | 低 |
-| OI-104 | 運用 | 管理者 seed の初期パスワード管理方式（.env / 手動入力 / Secret 管理を比較）。AdminUserSeeder 実装前に、初期パスワードをどの方式で投入・保護するかを確定する | AdminUserSeeder, 初期セットアップ | 実装前 | 高 |
-| OI-105 | 運用 | 30日後 hard delete 実行主体（バッチ or 手動運用）。soft delete 後30日経過ユーザーの hard delete を、バッチで行うか手動運用で行うかは退会フローとSchedulerに影響する | 退会フロー, Scheduler | 実装前 | 中 |
-| OI-106 | 仕様 | 規約更新時の再同意フロー（MVP 対象外、将来対応） | consents テーブル | MVP 後 | 低 |
-| OI-107 | 非機能 | `raw_azure_response` が 500KB を超える場合の保持方針（切り捨て / 要約 / 未保存）。500KB超過時の扱いは評価保存処理に影響するため、実装前に方針を確定する | evaluations テーブル, 評価保存処理 | 実装前 | 高 |
-| OI-108 | 設計 | 利用規約 / プライバシーポリシー最新バージョンの永続管理方式（専用テーブル追加要否） | consents, アプリ設定 | 実装前 | 低 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-101 | 事業 | 年額プランの導入時期と価格 | Stripe 設定, subscriptions | F1 | MVP 後 | 低 |
+| OI-102 | 請求 | PDF 領収書テンプレート要否（現状は Stripe 自動送信に委譲） | Stripe 設定 | F1 | MVP 後 | 低 |
+| OI-103 | 法務 | インボイス制度対応の要否（国内販売要件に応じて判断）。production release前に要否を判断し、法的に不要と正式判断した場合は追加implementationを要求しない。custom PDF / invoice UI等の追加拡張はF1になり得る | Stripe 設定, 法務ページ | R1 | production release準備時 | 低 |
+| OI-104 | 運用 | 管理者 seed の初期パスワード管理方式（.env / 手動入力 / Secret 管理を比較）。non-production credential投入とproduction Secret運用を分離する | AdminUserSeeder, 初期セットアップ | MVP/R1 split | non-production実装前 / production構築前 | 高 |
+| OI-105 | 運用 | 30日後 hard delete 実行主体（バッチ or 手動運用）。soft delete 後30日経過ユーザーの hard delete を、バッチで行うか手動運用で行うかは退会フローとSchedulerに影響する | 退会フロー, Scheduler | MVP | 実装前 | 中 |
+| OI-106 | 仕様 | 規約更新時の再同意フロー（MVP 対象外、将来対応） | consents テーブル | F1 | MVP 後 | 低 |
+| OI-107 | 非機能 | `raw_azure_response` が 500KB を超える場合の保持方針（切り捨て / 要約 / 未保存）。500KB超過時の扱いは評価保存処理に影響するため、実装前に方針を確定する | evaluations テーブル, 評価保存処理 | MVP | 実装前 | 高 |
+| OI-108 | 設計 | 利用規約 / プライバシーポリシー最新バージョンの永続管理方式（専用テーブル追加要否） | consents, アプリ設定 | F1 | MVP 後 | 低 |
 
 ### UI設計・DESIGN.md 由来
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-024 | UI設計 | ナビゲーション最終構成。ボトムナビに含める項目、ハンバーガーメニューの採否、PC サイドバーとの項目対応を確定 | DESIGN.md §6, フロントエンド実装 | 実装前 | 中 |
-| OI-025 | UI設計 | デザイントークンの確定。カラーパレット（役割ベースの色定義）、タイポグラフィ（フォントファミリー・サイズ体系）、アイコン体系（ライブラリ選定含む）に加え、Tailwind 実装時に必要な最小トークン値を確定する | DESIGN.md §3, フロントエンド実装, Tailwind 設定 | 実装前 | 高 |
-| OI-026 | 仕様 | 学習管理画面（統計カード, カレンダー, 連続日数）は MVP 対象外。将来実装時の残タスクとして記録。実装時には集計設計・表示項目定義が必要 | DESIGN.md, DB設計（集計テーブル追加の可能性） | MVP後 | 低 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-024 | UI設計 | ナビゲーション最終構成。ボトムナビに含める項目、ハンバーガーメニューの採否、PC サイドバーとの項目対応を確定 | DESIGN.md §6, フロントエンド実装 | MVP | 実装前 | 中 |
+| OI-025 | UI設計 | デザイントークンの確定。カラーパレット（役割ベースの色定義）、タイポグラフィ（フォントファミリー・サイズ体系）、アイコン体系（ライブラリ選定含む）に加え、Tailwind 実装時に必要な最小トークン値を確定する | DESIGN.md §3, フロントエンド実装, Tailwind 設定 | MVP | 実装前 | 高 |
+| OI-026 | 仕様 | 学習管理画面（統計カード, カレンダー, 連続日数）は MVP 対象外。将来実装時の残タスクとして記録。実装時には集計設計・表示項目定義が必要 | DESIGN.md, DB設計（集計テーブル追加の可能性） | F1 | MVP後 | 低 |
 
 ### 課金・管理画面（MVP実装前レビュー由来）
 
-| ID | カテゴリ | 内容 | 影響範囲 | 確定予定 | 優先度 |
-|---|---|---|---|---|---|
-| OI-027 | 課金 | MVPで処理対象とする Stripe Webhook イベントの最小範囲。候補は `customer.subscription.created` / `customer.subscription.updated` / `customer.subscription.deleted` / `invoice.payment_failed`。署名検証、Queue処理、契約状態同期への影響を含めて確定する | Stripe Webhook, Queue, subscriptions, 契約状態同期 | 実装前 | 高 |
-| OI-028 | 管理画面 | MVP 管理画面で実装する最小範囲の確定。候補はユーザー閲覧、問題管理の最小CRUD、提出/評価閲覧、Stripe契約状態閲覧。初期実装で多機能化しないためのスコープ確認項目として管理する | DESIGN.md 管理画面, admin ロール, フロントエンド実装 | 実装前 | 高 |
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-027 | 課金 | MVPで処理対象とする Stripe Webhook イベントの最小範囲。候補は `customer.subscription.created` / `customer.subscription.updated` / `customer.subscription.deleted` / `invoice.payment_failed`。署名検証、Queue処理、契約状態同期への影響を含めて確定する | Stripe Webhook, Queue, subscriptions, 契約状態同期 | MVP | 実装前 | 高 |
+| OI-028 | 管理画面 | MVP 管理画面で実装する最小範囲の確定。候補はユーザー閲覧、問題管理の最小CRUD、提出/評価閲覧、Stripe契約状態閲覧。初期実装で多機能化しないためのスコープ確認項目として管理する | DESIGN.md 管理画面, admin ロール, フロントエンド実装 | MVP | 実装前 | 高 |
+
+### 退会・Stage-A横断契約（T000-09レビュー由来）
+
+| ID | カテゴリ | 内容 | 影響範囲 | 対象フェーズ | 確定予定 | 優先度 |
+|---|---|---|---|---|---|---|
+| OI-109 | 退会 | 退会時のpending / processing submissionおよび実行中Queue Jobとの競合制御。wait / reject / job cancel / force fail / audio handlingのいずれを採るかは未確定 | ARCHITECTURE.md, DB_SCHEMA.md, OPERATIONS.md, T015-02, T015-04 | MVP | T015-02前 | 高 |
+| OI-110 | 退会 | Stripe解約予約、audio cleanup、sessions削除、soft deleteからなる退会オーケストレーションの部分失敗・補償・中断境界 | ARCHITECTURE.md, DB_SCHEMA.md, OPERATIONS.md, T015-02, T015-04 | MVP | T015-02前 | 高 |
+| OI-111 | 通知 | 退会完了通知の送信timing。soft delete成立時、外部処理完了時等の具体条件は未確定 | ARCHITECTURE.md, DESIGN.md, OPERATIONS.md, T015-02-01 | MVP | 通知実装前 | 中 |
+| OI-112 | Stage-A | `speech_unrecognized`、ffprobe / conversion failure、pre-Azure upper-limit、Azure unavailable、timeout、retry exhaustion、generic system failureについて、Python → Laravel Job → DB state → status API → Result/error UIを跨ぐerror contract | ARCHITECTURE.md, DB_SCHEMA.md, DESIGN.md, T000-10, T007-06, T008-05, T009-06, T013-08/09 | MVP | current Stage-A補正実装前 | 高 |
 
 ---
 
