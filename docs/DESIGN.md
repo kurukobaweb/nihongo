@@ -41,11 +41,13 @@ DB 設計の詳細は `DB_SCHEMA.md`、システム設計・状態管理・Featu
 | 運用手順 | `OPERATIONS.md` |
 | Stage-A採点仕様 | `STAGE_A_SCORING.md` |
 | フロントエンド状態管理 | `ARCHITECTURE.md` §7 |
-| `questions.question_format` の値域 | `OPEN_ISSUES.md` OI-022 |
-| 設定項目の保存先 | `OPEN_ISSUES.md` OI-023 |
+| `questions.question_format` の値域 | `DB_SCHEMA.md` / 本文書 §4.1, §7-3（OI-022は解消済みdecision history） |
+| 設定項目の保存先 | `DB_SCHEMA.md` / `ARCHITECTURE.md` §13 / 本文書 §4.1, §7-5（OI-023は解消済みdecision history） |
 | ナビゲーション最終構成 | `OPEN_ISSUES.md` OI-024 |
 | デザイントークン具体値 | `OPEN_ISSUES.md` OI-025 |
 | 管理画面 MVP 範囲 | `OPEN_ISSUES.md` OI-028 |
+
+OI-022 / OI-023は解消済みdecisionの履歴参照であり、current未確定事項またはprimary sourceとして扱わない。
 
 ---
 
@@ -123,8 +125,8 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 | パスワード再設定 | パスワード復旧 | メール入力、新パスワード入力 | `password_reset_tokens` |
 | ホーム | 課題選択・録音・提出 | 問題表示、録音ボタン、タイマー、提出後ポーリング | `questions`, `submissions` |
 | 問題一覧 | 問題の閲覧・選択 | difficulty フィルタ、question_format フィルタ、問題リスト | `questions.question_format`, `categories`, `tags` |
-| 結果表示 | 評価結果の確認 | 総合スコア、速度、発音、流暢さ、transcript、コメント | `evaluations` |
-| 設定 | 練習条件の調整 | 出題方式、スピーチ時間、タイマー表示、強制終了、文字起こし表示 | `user_learning_settings`（T011-02で実装予定） |
+| 結果表示 | 評価結果の確認 | Stage-Aの`final_score`、合否、速度、transcript。Stage-B用項目は現行Stage-Aでは非表示 | `evaluations` |
+| 設定 | 練習条件の調整 | 出題方式、タイマー表示方式 | `user_learning_settings`（current補正はT011-03） |
 | サブスクリプション管理 | 契約状態の確認・操作 | プラン表示、契約状態表示、解約導線 | `customers`, `subscriptions` |
 | 退会 | アカウント削除 | 退会確認、注意事項表示 | `users.deleted_at` |
 | 管理画面 | 管理者向け運用 | ユーザー一覧、問題管理、提出音声一覧、評価結果確認、Stripe 契約状態確認 | admin ロール。MVP範囲は OI-028 |
@@ -134,8 +136,8 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 
 - 問題一覧の問題形式フィルタは `questions.question_format` を使用する。
 - `questions.question_format` は DB_SCHEMA.md 反映済みのカラムである。値域は `single_prompt` / `two_choice` とする。
-- 問題形式のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一` とする。
-- 設定画面の保存先は OI-023 で `user_learning_settings` テーブル方式に確定済み。T011-02で永続化を実装する。
+- 問題形式のUI表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `2択` とする。正本文書上の説明は「二テーマ選択」とする。
+- 設定画面の保存先は OI-023 で `user_learning_settings` テーブル方式、保存項目は2項目に確定済み。historical 5項目実装との差はT011-03で補正する。
 - 管理画面は単一 admin ロールを前提とする。MVP で実装する最小範囲は OI-028 で管理する。
 - サブスクリプション管理画面は契約状態の表示と解約導線を扱う。Stripe Webhook 対象イベントは OI-027 で管理し、本文書では詳細化しない。
 
@@ -163,7 +165,7 @@ JLPT N5〜N1 の幅広いレベルを想定し、初級者でも迷わず練習�
 
 - `questions.question_format` は問題形式を表す分類軸であり、DB_SCHEMA.md 反映済みである。
 - `questions.question_format` の値域は `single_prompt` / `two_choice` とする。
-- UI上ではDB値をそのまま表示せず、`single_prompt` は `単体問題`、`two_choice` は `二者択一` と表示する。
+- UI上ではDB値をそのまま表示せず、`single_prompt` は `単体問題`、`two_choice` は `2択` と表示する。
 - `questions.has_model_answer` は模範解答有無を表す項目であり、問題形式ではない。
 - `question_type` は使用しない。
 
@@ -323,7 +325,7 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 
 * 初回接触時に「日本語スピーチ練習アプリ」であることを明確に伝える
 * 入力構造をシンプルにし、練習開始までの導線を短くする
-* Google OAuth の自動リンク方針は OI-016 で管理
+* Google OAuth の自動リンク方針は解消済みOI-016の確定内容に従う
 
 ---
 
@@ -356,6 +358,7 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 * 提出後は解析中の状態を明示し、完了時に結果表示へ遷移する
 * エラー時（422: 音声認識不可）は再提出を案内する（OI-006）
 * 422時は空欄の結果画面へ進めず、ホーム上または提出フロー内で再録音 / 再提出に戻す
+* 422の具体文言・配置と、その他のStage-A failureの最終UI actionは OI-006 / OI-112 の確定内容に従う
 
 #### 状態遷移
 
@@ -373,7 +376,7 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 #### 主な要素
 
 * 難易度タブ（beginner / intermediate / advanced）
-* 問題形式タブ（`単体問題` / `二者択一`）
+* 問題形式タブ（`単体問題` / `2択`）
 * 問題リスト（タイトル、カテゴリ、推奨秒数）
 * 問題ごとの実施済みマーク
 * 問題選択 → ホームへの遷移
@@ -398,9 +401,9 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 
 * `questions.question_format` は DB_SCHEMA.md 反映済みのカラムである。
 * `questions.question_format` の値域は `single_prompt` / `two_choice` とする。
-* 問題形式タブの表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `二者択一` とする。
+* 問題形式タブの表示ラベルは `single_prompt` = `単体問題`、`two_choice` = `2択` とする。仕様説明では「二テーマ選択」を使用する。
 * UI上ではDB値をそのまま表示せず、日本語ラベルへ変換する前提とする。
-* 「OI-022 確定後に DB カラム追加」ではなく、「DB カラムは反映済み、値域・CHECK制約・Seeder・UIラベル・validationをT002-05で反映」として扱う。
+* DBカラム、`single_prompt` / `two_choice`の値域、CHECK制約、Seeder、UIラベル（`two_choice` = `2択`）、validationはT002-05で反映・静的確認済みである。仕様説明では「二テーマ選択」を維持する。
 * `question_type` は使用しない。
 
 ---

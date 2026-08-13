@@ -848,6 +848,7 @@ WHERE submission_id = $1;
 - Stage-B導入後はStage-A結果に追加して使用・表示し、`final_score` を `overall_score` へ転用しない
 - `azure_request_id` / `raw_azure_response` はStage-AのAzure AI Speech情報に限定し、将来のAzure OpenAI等のStage-B情報を混在・上書きしない
 - 今回はStage-B用カラムまたはStage-B専用テーブルを追加しない
+- Stage-Aのfailure時にevaluationを作成するか、submissionをどのterminal stateへ遷移させるか、status API/UIへどのerrorを返すかというcross-layer contractは OI-112 / T000-10で確定する。本書では未確定のfield/statusを追加しない
 - `raw_azure_response` は全文検索しない
 - `raw_azure_response` に GIN インデックスは付与しない
 - 非機能要件: `raw_azure_response` は 1件 500KB を想定上限とする
@@ -1455,6 +1456,7 @@ MVP では `evaluations.pronunciation_result` / `fluency_result` / `raw_azure_re
 5. `deleted_at` から 30 日経過後に hard delete を実行する
 
 hard delete 実行主体は OI-105 で管理する。
+退会時のpending / processing submissionおよび実行中Queueとの競合は OI-109、Stripe解約予約・音声削除・sessions削除・soft deleteの部分失敗／補償境界は OI-110 で管理する。
 
 ### 7.4 Stripe 連携データの削除順序制約
 
@@ -1612,6 +1614,9 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 | OI-103 | インボイス制度対応の要否 | DB 追加なし。必要時に法務・請求設計で再検討 | 管理中 |
 | OI-104 | 管理者 seed の初期パスワード管理方式 | `AdminUserSeeder` は維持。初期パスワード管理方式は OI-104 参照 | 管理中 |
 | OI-105 | 30日後 hard delete 実行主体 | hard delete 条件は本文反映。実行主体は OI-105 参照 | 管理中 |
+| OI-109 | 退会時のsubmission / Queue競合 | data contractをOI-109で管理。未確定のstate遷移を追加しない | 管理中 |
+| OI-110 | 退会オーケストレーションの部分失敗・補償 | deletion orderの確定部分を維持し、未確定の補償contractはOI-110参照 | 管理中 |
+| OI-112 | Stage-A cross-layer error contract | failure時のevaluation有無、submission state、API/UI contractはOI-112参照 | 管理中 |
 | OI-106 | 規約更新時の再同意フロー | MVP 対象外。`consents` は新規登録時のみ記録 | 管理中 |
 | OI-107 | `raw_azure_response` 500KB 超過時の保持方針 | 想定上限と全文検索しない方針を本文反映。超過時の扱いは OI-107 参照 | 管理中 |
 | OI-108 | 利用規約 / PP 最新バージョンの永続管理方式 | 現時点ではアプリ設定値管理。専用テーブル追加要否は OI-108 参照 | 管理中 |

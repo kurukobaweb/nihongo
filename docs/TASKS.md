@@ -17,26 +17,16 @@
 - Laravel / Vue / Python / Stripe を1タスクで横断しすぎない
 - 未確定事項は OI ID で参照し、CodeXに勝手に決めさせない
 - 不明点が出たら、実装を広げず原因特定タスクに切り替える
-- PythonからLaravel DBへ直接アクセスさせない
-- 音声ファイルを永続保存させない
-- `question_type` を復活させない
-- `questions.question_format` のDBカラム追加タスクは作成しない
-- `question_format` の具体値・値域は `single_prompt` / `two_choice` として確定済みである
-- 正本文書上の表記とユーザー向け表示は、`single_prompt` = 「単一設問」 = 「単体問題」、`two_choice` = 「二テーマ選択」 = 「2択」とする
-- 設問文は `prompt_text` / `prompt_text_1` / `prompt_text_2` の3カラムを形式別規則に従って使用する
-- `has_model_answer` は模範解答有無として扱い、問題形式と混同しない
-- OI-023は解消済みであり、`user_learning_settings` は `question_format_preference` / `timer_display_mode` の2項目だけを保存する
-- `speech_duration_seconds` / `force_stop_enabled` / `transcript_display_enabled` は仕様上廃止済みであり、現行仕様として使用しない。現在の実装からの撤去はT011-03で行う
-- OI-029 / OI-030 / OI-031は仕様確定済みであり、T000-08で各正本文書へ横断反映中とする。実装は確定済み正本と後続タスクの責務に従う
-- 提出時に `prompt_snapshot` / `evaluation_profile_seconds` を保存し、Queue・採点・結果表示はsubmissionの保存値を使用する
-- Stage-AとStage-Bの責務を分離し、Stage-Aのみでは `pronunciation_result` / `fluency_result` / `overall_score` / `comment` をNULL・非表示とする
-- Stage-A成功時にtemplate comment、pronunciation、fluencyを生成・表示せず、`overall_score` を `final_score` の代用にしない
-- 認識成功後に採点不合格と確定した場合は、evaluationを作成し、`evaluation_result = fail` / `final_score = 0`、submissionをcompletedとして扱う
+- 恒久仕様は `ARCHITECTURE.md` / `DB_SCHEMA.md` / `DESIGN.md` / `OPERATIONS.md` / `STAGE_A_SCORING.md` を参照し、TASKSへ仕様本文を複製しない
+- 未確定事項は `OPEN_ISSUES.md` を唯一の台帳とし、TASKSにはOI IDとdecision/progress gateだけを残す
+- Python / Laravel / DB / UIの責務境界、音声非永続、問題形式、設定2項目、submission snapshot、Stage-A/B境界、採点仕様は各正本に従う
+- OI-029 / OI-030 / OI-031の正本文書反映はT000-08で完了済み。実装はcurrent correction taskの責務に従う
 - 完了済みタスク内の旧仕様記述は当時の実施履歴であり、2026-07-31確定仕様との差分はT000-04以降の新規差分タスクで対応する
 - Stripe Webhook対象イベントは OI-027 確定前に固定しない
 - 管理画面MVP範囲は OI-028 確定前に広げない
 - Feature Flag OFF前提の機能をデフォルトONにしない
 - 実Secretsをリポジトリへ書かない
+- MVP開発ではtask branchからPRを作成し、review後に`develop`へ統合する。`main`反映、production deploy、release/rollbackはOI-018のR1側で管理する
 - DB変更は安易な rollback 前提にしない
 - UIタスクでDB設計や未確定事項を勝手に確定しない
 - 422音声認識不可は、空欄の結果画面ではなく再録音 / 再提出導線として扱う
@@ -52,17 +42,17 @@
 ## 実装順序の補足
 
 - 最初の大マイルストーンまでは、基盤 → DB → 認証 → 問題表示 → 録音UI → 音声提出 → Python評価 → Laravel ⇔ Python連携 → ポーリング → 結果表示 → Feature Flag表示制御 → 422再録音 / 再提出導線の順を維持する
-- 12〜17章は、課金なしE2E前の運用準備 → 課金なしE2E・基本結合テスト → 課金・Stripe・法務ページ → 退会フロー → 管理入口・MVP周辺画面 → MVP最終確認の順に扱う
-- T013-02はT014のStripeタスク前に行う課金なし音声提出E2Eであり、MVP全体完了判定ではない
-- T014はT013-02完了後に進めるStripe / 法務ページタスク群として扱う
+- 12〜16章は依存関係に従って進める。speech、Stripe、UI等の独立系列を章番号だけで不要に直列化しない
+- T013-02はhistoricalにStripe着手前の課金なし音声提出E2Eとして実施された記録であり、current T014のexecution gateまたはMVP全体完了判定ではない
+- Stripe foundationはspeech current-correction系列と不要に直列化しない。各T014 taskの明示dependencyを正とする
 - T014-08はT014-02〜T014-07後に行うStripe E2Eとして扱う
-- T017-01はT013〜T016の確認完了後に行うMVP全体完了判定として最後に扱う
-- Stripe、管理画面、設定保存先の永続化は、課金なし音声提出E2E成立後または該当OI確定後に進める
+- T017-01はhard dependencyを持たないfinal reviewであり、未完了状態でも`incomplete`判定を記録できる。MVP `complete`にはT017-01記載のprerequisiteをすべて要求する
+- Stripe、管理画面、設定保存先のcurrent taskは、課金なし音声提出E2Eのhistorical順序ではなく、各taskの明示dependencyとdecision gateに従って進める
 - 課金なし音声提出E2E前に必要な運用ログ確認は、音声提出経路に限定する
 - Stripe Webhook受信 / 処理ログはT014-05 / T014-06側で扱い、T012-04には含めない
 - 管理画面はT016-01 / T016-02をadmin入口確認とし、T016-03はOI-028確定後に限定する
 - 依存タスク欄に複数IDがある場合、原則としてすべて完了してから着手する
-- PR #53 / PR #54後続作業は、T000-04 → T000-05 / T000-06 → T000-06-01 → T000-06-02 / T000-06-03 / T000-06-04 → T000-06-05 → T000-07 → T000-08 → T002-06 → T002-07 → T004-04 / T011-03 / T007-06 → T005-04 → T006-03 → T008-05 → T010-04 → T009-06 → T013-08 → T013-09 → T013-10 → T017-01 の順で進める
+- PR #53 / PR #54後続のStage-A correctionは、T000-08 / T000-09およびOI-112確定後、DB・UI・Python・Laravel補正、自動/migration gate、安定性検証、actual E2E、evidence同期の依存順に進める。正確なedgeは各taskの依存欄を正とする
 - T000-05とT000-06、およびT004-04とT011-03とT007-06は、依存条件を満たし変更ファイルが競合しない場合に限り並行可能とする
 - T000-06-01〜T000-06-05は、T000-06の追加環境検証を分割した実行タスクであり、各タスクに通常の1〜3時間ルール、1ステップ進行、ユーザー承認境界を適用する
 - T000-06-02〜T000-06-04は、T000-06-01完了後、各物理端末と安全なテストURLを利用でき、environment IDと保存先が競合せず、同じtrackedファイルを同時編集せず、各trialのユーザー承認境界を維持できる場合だけ並行可能とする
@@ -999,6 +989,39 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - ユーザーが承認する
 - Blocker区分: Blocker
 
+### T000-10: OI-112 Stage-A cross-layer error contract確定
+
+- [ ] 状態: 未着手
+- 種別: 仕様確定・文書同期
+- 目的:
+  - Python / Laravel Job / DB state / status API / Result・error UIを跨ぐStage-A error contractを確定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-112
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+- 依存タスク:
+  - T000-08
+- 実装内容:
+  - current implementationとhistorical T007-05 response contractをread-onlyでinventoryする
+  - OI-112の各failure categoryについてcanonical間の整合とuser decision事項を整理する
+  - 承認結果をOI-112と正本文書へ同期し、T007-06 / T008-05 / T009-06 / T013-08 / T013-09へhandoffする
+- 実装してはいけないこと:
+  - T007-05のhistorical recordをcurrent contractへ書き換えない
+  - error contract確定前に実装へ進まない
+- 完了条件:
+  - OI-112がユーザー承認済みcontractとして解消されている
+  - canonicalが同期され、下流のimplementation/test pathが明確である
+- テスト観点:
+  - `speech_unrecognized`、ffprobe / conversion failure、pre-Azure upper-limit、Azure unavailable、timeout、retry exhaustion、generic system failureを混同していない
+- CodeX投入時の注意:
+  - 本タスクでは仕様確定と文書同期だけを行い、実装しない
+- 担当:
+  - CodeXが調査・文書同期する
+  - ChatGPTがレビューする
+  - ユーザーが確定する
+- Blocker区分: Blocker
+
 ---
 
 # 1. プロジェクト基盤
@@ -1757,6 +1780,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T002-06: 音声仕様migration・backfill設計
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T002-01〜T002-05完了済み
+- metadata上のblocker区分: Blocker
 - 種別: DB設計
 - 目的:
   - 既存行を壊さずPR #53 / PR #54の最終スキーマへ移行する順序と担当タスクを確定する
@@ -1798,6 +1830,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T002-07: 先行互換DB差分・Model基盤実装
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T002-01〜T002-05完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: DB
 - 目的:
   - T002-06で承認された移行計画のうち、既存コードを直ちに破壊しない先行差分を実装する
@@ -2854,6 +2895,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T004-04: 二テーマ選択・設問3カラム・初期profile実装
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T004-01〜T004-03完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: DB・API・UI・Seeder
 - 目的:
   - OI-022およびquestion側のOI-009確定内容を既存実装へ反映する
@@ -3155,6 +3205,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T005-04: 評価profile選択・timer・常時上限監視
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T005-01〜T005-03完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: UI・録音
 - 目的:
   - 録音前に評価プロファイルを選択し、timer表示方式と上限監視を適用する
@@ -3371,6 +3430,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T006-03: submission snapshot保存
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T006-01 / T006-02完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: API・DB
 - 目的:
   - 提出時に実際に使用した設問文と最終選択された評価プロファイルをsubmissionへ固定保存する
@@ -3959,6 +4027,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T007-06: Python Stage-A事実値契約
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T007-01〜T007-05完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: Python
 - 目的:
   - OI-029確定規則により、Azureを再実行せず再採点できるStage-A事実値をLaravelへ返す
@@ -3974,6 +4051,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 依存タスク:
   - T000-05
   - T000-08
+  - T000-10
   - T002-07
 - 実装内容:
   - `transcript`を返す
@@ -4170,11 +4248,20 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T008-05: Laravel Stage-A採点・Queue連携
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T008-01〜T008-04完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: Queue・Service・DB
 - 目的:
   - submission保存値と確定済み採点仕様を用いてStage-Aを処理・保存する
 - 参照仕様書:
-  - `OPEN_ISSUES.md` OI-009, OI-029, OI-030, OI-031
+  - `OPEN_ISSUES.md` OI-009, OI-029, OI-030, OI-031, OI-107, OI-112
   - `DB_SCHEMA.md`
   - `ARCHITECTURE.md`
   - T000-06 / T000-07の承認済み仕様
@@ -4189,13 +4276,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - T002-07
   - T006-03
   - T007-06
+- decision gate:
+  - OI-107の`raw_azure_response` 500KB超過保持方針をtask冒頭でユーザー確定し、DB_SCHEMAへ同期してからevaluation保存実装へ進む
 - 実装内容:
   - Pythonへ渡す`expected_duration`を`submissions.evaluation_profile_seconds`から取得する
   - OI-030確定式でAzure送信前上限判定を行う
   - `character_score` / `time_score` / `final_score` / `evaluation_result` / `scoring_version`を算出する
   - Stage-A必須10値をevaluationsへ保存する
   - 認識成功・合格と認識成功・採点不合格ではevaluationを作成する
-  - STT認識不可（422）、Azure送信前上限超過、システム障害ではevaluationを作成しない
+  - 422、pre-Azure upper-limit、system failureのDB state / retry / evaluation有無をOI-112の承認済みcontractどおり実装する
   - evaluationsの最終型・NOT NULL・CHECKを適用する
   - Queue再実行時のべき等性を保証する
 - 固定条件:
@@ -4203,7 +4292,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 実装してはいけないこと:
   - 現在のquestionやuser settingから採点条件を再取得しない
   - technical marginを`expected_duration`へ加算しない
-  - 422時、Azure送信前上限超過時、システム障害時にevaluationを作成しない
+  - OI-112のfailure contractを独断で変更しない
   - Stage-B用4カラムへ値を保存しない
 - 完了条件:
   - 成功、採点fail、422、Azure送信前上限超過、システム障害の全分岐が仕様どおり成立する
@@ -4553,10 +4642,20 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T009-06: Stage-A結果・submission snapshot表示
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T009-01〜T009-05完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: API・UI
 - 目的:
   - 提出時条件とStage-A結果をstatus / result APIおよび結果画面へ表示する
 - 参照仕様書:
+  - `OPEN_ISSUES.md` OI-006, OI-112
   - `DB_SCHEMA.md`
   - `ARCHITECTURE.md`
   - `DESIGN.md`
@@ -4567,11 +4666,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 依存タスク:
   - T008-05
   - T010-04
+- decision gate:
+  - OI-006のUX方針をtask冒頭でユーザー確定し、DESIGNへ同期してからUI補正へ進む
 - 実装内容:
   - `prompt_snapshot` / `evaluation_profile_seconds`を表示データとして返す
-  - `transcript` / `character_count` / `duration_seconds` / `characters_per_minute`を表示する
-  - `speed_assessment` / `character_score` / `time_score` / `final_score`を表示する
+  - APIは`transcript` / `character_count` / `duration_seconds` / `characters_per_minute` / `speed_assessment` / `character_score` / `time_score` / `final_score`をcurrent contractどおり返す
+  - UIはDESIGNで確定済みの`transcript` / `characters_per_minute` / `speed_assessment` / `final_score` / `evaluation_result`を表示する
+  - `character_count` / `character_score` / `time_score`のUI表示可否は未確定のまま維持し、勝手に表示要件を追加しない
   - `evaluation_result` / `scoring_version` / pass・failを表示する
+  - OI-006で確定した422 UXとOI-112で確定したerror UI contractを反映し、自動testを追加する
   - question編集後もsubmissionとevaluationの保存値から履歴を再現する
 - 実装してはいけないこと:
   - 現在のquestionを履歴表示のために再取得しない
@@ -4821,6 +4924,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T010-04: Stage-B用カラム・旧Feature Flag・comment実装の新仕様反映
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T010-01〜T010-03完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: Service・Feature Flag・UI
 - 目的:
   - 既存のStage-A発音・流暢さ・comment処理を承認済みStage-A／Stage-B責務へ合わせる
@@ -5025,6 +5137,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T011-03: user_learning_settings 2項目化
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後続のcurrent speech specification correction
+- 確定根拠: OI-009 / OI-022 / OI-023 / OI-029 / OI-030 / OI-031およびT000-08で同期済みの正本
+- 位置づけ: historical chapter完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T011-01 / T011-02完了済み
+- metadata上のblocker区分: Pre-merge
 - 種別: DB・API・UI
 - 目的:
   - OI-023の確定済み2項目構成へ既存設定機能を移行する
@@ -5599,36 +5720,35 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - [ ] 状態: 未着手
 - 種別: 運用
 - 目的:
-  - OI-021で未確定となっている、音声一時保存と回復削除の本番運用条件を確定する
-  - 完了済みのT012-01を再開せず、未確定の運用値と環境条件を独立して管理する
+  - OI-021のうち、non-production MVP環境で回復削除を再現・acceptanceできる最小運用条件を確定する
+  - 完了済みT012-01のcleanup semanticsを再決定せず、production固有条件をR1へ分離する
 - 参照仕様書:
   - `OPEN_ISSUES.md`
   - `OPERATIONS.md`
   - `ARCHITECTURE.md`
   - `DB_SCHEMA.md`
   - `TASKS.md`
+- 関連OI:
+  - OI-001
+  - OI-021
 - 変更対象:
-  - 本タスク着手時に、対象となる正本文書、Docker設定、Scheduler設定、CleanupTempFilesJob関連実装、監視設定、テストを確認して確定する
+  - `OPEN_ISSUES.md`
+  - `OPERATIONS.md`
+  - non-production Scheduler / CleanupTempFilesJob設定と検証手順
 - 依存タスク:
   - T012-01
 - 実施内容:
-  - 本番環境における音声一時保存先のホスト絶対パスを確定する
-  - Laravelコンテナ内パスとDocker volumeの対応を確定する
-  - 保存先のowner、group、権限を確定する
-  - `CleanupTempFilesJob`の実行頻度を確定する
-  - 回復削除対象となる経過時間を確定する
-  - 即時削除と回復削除の責務を区別する
-  - 削除失敗を追跡できるログ条件を確定する
-  - 削除失敗の継続監視条件と保存容量の監視条件を確定する
-  - 確定結果をOI-021および関連正本文書へ反映する
+  - configurable storage pathを使い、non-productionで検証可能なrecovery ageとScheduler cadence / invocationを確定する
+  - minimum Scheduler executionでCleanupTempFilesJobが実際に起動できることを確認する
+  - T012-01で実装済みのcompleted / failed対象、pending / processing除外、missing-file idempotencyを前提として維持する
+  - OI-021のMVP側結果を関連正本へ反映する
+  - production absolute path、Docker volume、owner/group/permission、production cadence、monitoring/alert/capacityはR1として記録する
 - 完了条件:
-  - 音声一時保存先の物理パスとDocker volume対応が文書化されている
-  - 即時削除と回復削除の責務が区別されている
-  - Scheduler実行頻度と回復削除対象の経過時間が確定している
+  - non-productionで使用するconfigurable path、Scheduler invocation/cadence、recovery ageが確定している
+  - minimum Scheduler executionと回復削除を再現できる
   - `pending`または`processing`の音声を削除しない条件が維持されている
   - `completed`または`failed`の残存音声を回復削除できる条件が確定している
   - ファイル不存在時に冪等に処理できる条件が維持されている
-  - 削除失敗と容量超過を追跡できる条件が確定している
   - 音声ファイルをGit管理およびバックアップ対象にしない方針が維持されている
   - OI-021の解消判断に必要な証跡が提示されている
   - ユーザーが確定内容を確認している
@@ -5639,12 +5759,13 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `pending`または`processing`の音声を削除対象にしない
   - 音声ファイルをGitまたはバックアップ対象へ追加しない
   - T000-06の作業をこのタスクへ混在させない
+  - production path / volume / permissions / monitoring thresholdをMVP値として確定しない
 
 ---
 
 # 13. 課金なしE2E・基本結合テスト
 
-13章は、T014のStripeタスクに進む前の課金なしE2Eと基本結合テストを扱う。T013-02は課金なし音声提出E2Eであり、Stripe、退会、管理画面、運用確認を含むMVP全体完了判定とは分ける。
+13章は、historicalにStripe着手前に実施された課金なしE2Eと、currentの基本結合テストを扱う。T013-02は当時の課金なし音声提出E2E記録であり、current T014のexecution gate、またはStripe、退会、管理画面、運用確認を含むMVP全体完了判定とは分ける。
 
 ### T013-01: 認証E2Eテスト
 
@@ -5694,7 +5815,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - [x] 状態: 完了（2026-07-10）
 - 種別: テスト
 - 目的:
-  - T014のStripeタスク前に、最初の大マイルストーンである課金なし音声提出E2Eを確認する
+  - historicalにStripe着手前の最初の大マイルストーンとして、課金なし音声提出E2Eを確認する
   - T012-04で追加したログを使って、音声提出1件を `submission_id` で追跡する
 - 参照仕様書:
   - `ARCHITECTURE.md`
@@ -5753,7 +5874,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - ログが出ない場合は、どの段階で止まったかを切り分ける
 - CodeX投入時の注意:
   - MVP最初の大マイルストーンとして最優先で通す
-  - T014のStripeタスク前に実施する課金なし音声提出E2Eとして扱う
+  - historicalにStripe着手前に実施された課金なし音声提出E2Eとして扱い、current T014のexecution gateにはしない
   - 依存するT012-04は、Stripeを含まない音声提出E2E前ログ確認基盤を指す
   - T013-02は「課金なしで音声提出E2Eが動くこと」の判定であり、Stripe、退会、管理画面、運用確認を含むMVP全体完了判定とは分ける
   - T013-02投入前に、確認環境を明示する
@@ -6139,7 +6260,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - [ ] 状態: 未着手
 - 種別: テスト
 - 目的:
-  - 課金なし音声提出E2E後、音声一時ファイルが完了・失敗後に削除されることを確認する
+  - current Stage-A cleanup semanticsとMVP recovery条件をacceptanceする
 - 参照仕様書:
   - `DB_SCHEMA.md`
   - `OPERATIONS.md`
@@ -6147,36 +6268,38 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - テストコード
   - 確認手順
 - 依存タスク:
-  - T008-04
-  - T012-01
-  - T013-02
+  - T008-05
+  - T012-06
 - 実装内容:
-  - 課金なし音声提出E2E後のcompleted音声削除を確認する
-  - failed後の音声削除を確認する
-  - CleanupTempFilesJobで残存ファイルが回収されることを確認する
+  - completed / failed後の即時削除を確認する
+  - CleanupTempFilesJobによる回復削除を確認する
+  - pending / processingを削除しないこと、missing fileを冪等に扱うことを確認する
 - 実装してはいけないこと:
   - 音声ファイル永続保存を許容しない
 - 完了条件:
-  - 課金なし音声提出E2E後、一時音声が残存しないことを確認できる
+  - 即時cleanupとMVP recovery cleanupが正本どおり成立し、音声が永続化されない
 - テスト観点:
   - 即時削除
   - 削除失敗
   - Cleanup
+  - pending / processing除外
+  - missing file idempotency
 - CodeX投入時の注意:
-  - `storage/app/audio/` の残存確認を含める
+  - T012-06で確定したconfigured audio storage pathの残存確認を含める
 
 ### T013-06: VPSテスト環境・GitHub接続確認
 
 - [ ] 状態: 未着手
 - 種別: 確認
 - 目的:
-  - T013-07の3秒ポーリング簡易負荷確認を、意味のあるVPSテスト環境で実施できる前提を確認する
+  - T013-07、T013-11およびT013-09を実行できるnon-production VPS runtime prerequisiteを確認する
   - VPSテスト環境上で、どのGitHub branch / commit SHA のコードが動作しているかを明確にする
   - ローカル環境でのスクリプト動作確認と、VPSテスト環境での負荷判断を混同しない
 - 参照仕様書:
   - `ARCHITECTURE.md`
   - `OPERATIONS.md`
 - 関連OI:
+  - OI-002
   - OI-003
   - OI-008
 - 変更対象:
@@ -6190,8 +6313,10 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `git remote -v` が `https://github.com/kurukobaweb/nihongo.git` または同等の正しいremoteを指すことを確認する
   - VPS上の作業ディレクトリ、branch、commit SHAを確認する
   - VPSテスト環境へ反映する対象branchまたはcommit SHAを明示する
-  - Docker / nginx / php-fpm / PostgreSQL / Laravel / Python FastAPI の起動状態を確認する
-  - テストURLを確認する
+  - nginx / Laravel / PostgreSQL test DB / database Queue Worker / Python FastAPI / ffmpeg の起動・利用可能状態を確認する
+  - HTTPSテストURL、configured Python endpoint、`/health`によるprocess livenessを確認する
+  - test Azure Speech設定の存在をSecrets値を記録せず確認する
+  - 音声一時storageのwrite/deleteとログ確認経路を確認する
   - テストDBであることを確認する
   - 本番環境、本番DB、本番Azure Speechリソース、本番Stripe環境に接続していないことを確認する
   - VPSテスト環境に未committed変更がないことを確認する
@@ -6206,9 +6331,9 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 完了条件:
   - VPSテスト環境で稼働しているbranch / commit SHAを特定できている
   - GitHub上の対象branch / commit SHAと、VPS上の稼働コードの対応が確認できている
-  - テストURL、テストDB、Dockerサービス構成、ログ確認場所が特定できている
+  - HTTPSテストURL、test DB、Queue Worker、Python、ffmpeg、configured endpoint、storage write/delete、ログ確認場所が特定できている
   - 本番環境と分離されていることを確認できている
-  - T013-07を実施してよい対象環境が明確である
+  - T013-07 / T013-11 / T013-09を実施してよいnon-production環境が明確である
 - テスト観点:
   - SSH接続可否
   - Git remote
@@ -6222,17 +6347,18 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - ログ確認場所
   - 本番環境との分離
 - CodeX投入時の注意:
-  - このタスクはT013-07の前提確認であり、負荷テスト本体ではない
+  - このタスクはT013-07 / T013-11 / T013-09のVPS readiness前提確認であり、負荷テスト・安定性検証・総合E2E本体ではない
   - SSH接続先、秘密鍵、IPアドレス、環境変数の実値は指示文・報告・commitに含めない
-  - VPS上で対象branchまたはcommit SHAが不明な場合は、T013-07に進まない
-  - VPSテスト環境が未構築またはGitHub接続不可の場合は、T013-07を未着手のまま止める
+  - VPS上で対象branchまたはcommit SHAが不明な場合は、T013-07 / T013-11 / T013-09に進まない
+  - VPSテスト環境が未構築またはGitHub接続不可の場合は、T013-07 / T013-11 / T013-09を未着手のまま止める
+  - production deployment/readinessへscopeを拡張しない
 
 ### T013-07: 3秒ポーリング簡易負荷確認
 
 - [ ] 状態: 未着手
 - 種別: テスト
 - 目的:
-  - 課金なし音声提出E2E後、3秒ポーリングのDB負荷とUX上の妥当性を、VPSテスト環境で簡易確認する
+  - current status API/schemaによる3秒ポーリングのDB負荷とUX上の妥当性を、VPSテスト環境で簡易確認する
   - OI-008の後続判断材料を得る
 - 参照仕様書:
   - `ARCHITECTURE.md`
@@ -6244,9 +6370,9 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 確認手順
   - 必要に応じてテストスクリプト
 - 依存タスク:
-  - T009-02
-  - T013-02
   - T013-06
+  - T009-06
+  - T013-08
 - 対象環境:
   - VPSテスト環境
   - 対象URLはVPSテスト環境の非本番URLとする
@@ -6264,6 +6390,8 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - completed / failed 後にポーリングが停止することを確認する
   - Queue WorkerやAzure STT本体への負荷試験ではなく、status APIポーリングの簡易確認として扱う
   - 実施前に対象URL、対象branch、commit SHA、開始時刻、終了時刻、同時ポーリング数を記録する
+  - current status API/schemaを対象にOI-008のacceptance evidenceとOI-003のMVP database Queue継続判断材料を作る
+  - measurementを提示し、ユーザー判断後にMVP polling設定とdatabase Queue継続可否をOI-008 / OI-003へ同期する
 - 実装してはいけないこと:
   - 検証前にRedis移行しない
   - VPSテスト環境・GitHub接続確認前に実施しない
@@ -6280,6 +6408,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - Laravel / nginx / PostgreSQL に重大エラーが出ない
   - completed / failed 後にポーリングが停止する
   - OI-008の判断材料が得られる
+  - OI-003 / OI-008のMVP側decisionが記録され、production Redis triggerはR1へ分離されている
 - テスト観点:
   - 同時ポーリング数
   - 3秒間隔
@@ -6340,7 +6469,8 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 既存DB相当のupgradeとbackfillをリハーサルする
   - 最終CHECK・NOT NULL・型変更を検証する
   - API、UI contract、Queue、Python連携を検証する
-  - 422、Azure送信前上限超過、pass、failを検証する
+  - pass、fail、422、Azure送信前上限超過、system failureを別caseとして検証する
+  - Queue retry/idempotence、snapshot、Python facts、Laravel scoring、API/UI contractを検証する
   - Stage-B用4カラムのNULLとUI非表示を検証する
   - fixturesを新仕様へ更新する
 - 実装してはいけないこと:
@@ -6352,7 +6482,8 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - テスト観点:
   - 5評価プロファイルと2 timer mode
   - 2問題形式とsnapshot
-  - Stage-A必須10値
+  - transcript、duration_seconds、character_count、character_count_version、characters_per_minute、speed_assessment、character_score、time_score、final_score、evaluation_result、scoring_version
+  - prompt_snapshot / evaluation_profile_seconds
   - 作成／非作成分岐とStage-B NULL・非表示
 - CodeX投入時の注意:
   - 既存DB相当データは匿名fixtureを使用し、実データをcommitしない
@@ -6360,12 +6491,44 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - CodeX
 - Blocker区分: Pre-E2E
 
+### T013-11: OI-010 continuous recognition安定性検証
+
+- [ ] 状態: 未着手
+- 種別: 実Azure安定性検証
+- 目的:
+  - long-duration continuous recognitionの途切れ、timeout、transcript truncation、EndOfStream、retry影響について、T013-09前のacceptance evidenceを得る
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-010
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T013-08
+  - T013-06
+- 実装内容:
+  - OI-010で承認されたprofile / trial / acceptance designに従いnon-production VPSとtest Azure Speechで検証する
+  - timeout、transcript truncation、EndOfStream、retryの証跡を記録する
+  - 結果をOI-010の判断材料として同期する
+  - user acceptance結果をOI-010へ記録する
+- 実装してはいけないこと:
+  - profile、trial数、acceptance thresholdを本タスク内で独断決定しない
+  - 単発成功だけで長時間安定性を証明済みとしない
+  - production Azureを使用しない
+- 完了条件:
+  - OI-010の承認済み検証設計に対する証跡とuser acceptanceが揃い、OI-010が解消されT013-09を開始できる
+- テスト観点:
+  - long-duration recognition、timeout、truncation、EndOfStream、retry
+- CodeX投入時の注意:
+  - 実Azure利用はユーザー承認後に行い、Secrets・音声をcommitしない
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Pre-E2E
+
 ### T013-09: 新音声仕様の実Azure・実ブラウザ総合E2E
 
 - [ ] 状態: 未着手
 - 種別: E2E
 - 目的:
-  - 新音声仕様を実ブラウザ、実Azure、実DBで総合確認する
+  - current Stage-Aをactual browser → non-production VPS → Laravel → Queue → Python/ffmpeg → test Azure → DB/API → Result UIまで同一submissionで総合確認する
 - 参照仕様書:
   - `OPEN_ISSUES.md` OI-009, OI-022, OI-023, OI-029, OI-030, OI-031
   - `DB_SCHEMA.md`
@@ -6377,15 +6540,23 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 必要なE2E結果記録
 - 依存タスク:
   - T013-08
+  - T013-11
 - 実装内容:
+  - actual browserのWebMをnon-production VPSのHTTPS Laravelへ提出する
+  - submission、prompt/profile snapshot、一時audio、database Queue、Queue Worker、Laravel Job、VPS Python/FastAPI、ffmpeg、test Azure Speechの連続chainを追跡する
+  - Azure display transcriptとLexical由来character_count / character_count_version、recognized durationをPython factsからLaravel・DBへ追跡する
+  - Laravelが正本に従ってcharacter_score / time_score / final_score / evaluation_result / scoring_versionを算出・保存することを確認する
+  - 同一submissionのactual transcriptがDB、status/result API、Result UIで一致し、UIに表示されることを確認する
+  - Result UIではfinal_score、evaluation_result、transcript、speedを確認し、character_count / component scoreはDB/API確認とUI表示要件を分ける
+  - temporary audioの即時削除を確認する
   - T000-06-01で確定した対応環境matrixと検証環境を使用する
   - primary環境はT000-06-01でユーザー承認された環境を使用し、T013-09内では再選定しない
   - primary環境の変更が必要な場合は、CodeXが独断で変更せずユーザー判断へ戻す
   - T000-06-02〜T000-06-04の環境別停止誤差証跡と、T000-06-05で承認されたproduction共通technical marginを前提とする
-  - primary環境では正常、fail、422、Azure送信前上限超過を総合確認する
+  - primary環境ではrecognized pass、recognized fail、422 speech_unrecognized、pre-Azure upper-limit、system failureを別caseとして総合確認する
   - primary以外の必須環境では最低限、録音、提出、Queue、Azure、DB保存、completed結果表示までの正常経路を確認する
   - T000-06-02〜T000-06-04で実施した停止誤差の9件または25件計測を繰り返さない
-  - production実装後の総合E2Eとして実施し、technical margin自体の決定はT000-06-05で完了させる
+  - current correction implementation後のnon-production総合E2Eとして実施し、technical margin自体の決定はT000-06-05で完了済みとして扱う
   - `single_prompt` / `two_choice`を確認する
   - 5評価プロファイルと2 timer modeを確認する
   - prompt snapshotとevaluation profile snapshotを確認する
@@ -6401,10 +6572,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - E2E中に仕様を独断変更しない
   - 端末固有の異常が見つかった場合も、T013-09内で仕様またはtechnical marginを独断変更しない
 - 完了条件:
-  - 正常・異常経路をログ、DB、UI証跡付きで確認し、ユーザーが結果を承認する
+  - actual browser / VPS / Queue / Python / ffmpeg / test Azure / PostgreSQL / API / UIのchainを同一submissionの証跡で確認する
+  - actual Azure transcriptのUI表示、Stage-A facts・scoring・DB保存、outcome 5区分、audio削除を確認し、ユーザーが結果を承認する
 - テスト観点:
   - 形式・profile・timerの組み合わせ
-  - 成功・fail・422・上限超過
+  - recognized pass
+  - recognized fail（`final_score = 0`を含み、system failureと分離）
+  - 422 `speech_unrecognized`
+  - pre-Azure upper-limit
+  - system failure（Azure unavailable、timeout、conversion / ffprobe failure、retry exhaustion、generic system failure。具体contractはOI-112 / T000-10に従う）
   - snapshot履歴再現
   - Stage-B NULL・非表示
 - CodeX投入時の注意:
@@ -6432,9 +6608,11 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `README.md`
   - 関連正本文書
 - 依存タスク:
+  - T013-05
+  - T013-07
   - T013-09
 - 実装内容:
-  - OI-029〜OI-031の状態を承認・実装・E2E結果に基づいて更新する
+  - OI-029〜OI-031を再決定せず、既確定仕様のimplementation/test/E2E状態を証跡に基づいて同期する
   - commit、PR、test、E2E証跡を記録する
   - 未確認事項を明記する
   - 実装済み／未実装を区別する
@@ -6444,7 +6622,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 未実装事項を実装済みと記載しない
   - 本タスクで追加実装や仕様変更を行わない
 - 完了条件:
-  - 台帳、正本文書、実装・テスト・E2E証跡が一致している
+  - T013-05 / T013-07 / T013-09のevidence、台帳、正本文書、実装・テスト状態が一致し、T017 inputが準備できている
 - テスト観点:
   - OI状態と証跡の対応
   - T000-05〜T013-09の完了条件充足
@@ -6457,11 +6635,39 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - ユーザーが承認する
 - Blocker区分: Pre-MVP
 
+### T013-12: OI-012 Pronunciation Assessment PoC Go/No-Go確定
+
+- [ ] 状態: 未着手
+- 種別: PoC・事業判断
+- 目的:
+  - OI-012に必要なPoC evidence、実施timing、Go/No-Go判断を確定し、Feature Flag境界を同期する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-012
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+- 依存タスク:
+  - T000-08
+- 実装内容:
+  - OI-012解消に必要なPoC evidenceがあれば安全な範囲で取得する
+  - user Go/No-Go判断を記録し、OI/canonical/Feature Flag境界を同期する
+- 実装してはいけないこと:
+  - Pronunciation / Fluency / Stage-B implementationを行わない
+  - Feature Flag OFFで成立するStage-A branchと直列化しない
+- 完了条件:
+  - OI-012がuser decisionと必要証跡により解消され、Stage-B future handoffが明確である
+- テスト観点:
+  - decision evidenceとFeature Flag境界
+- CodeX投入時の注意:
+  - OI-010 stabilityと混同せず、Stage-B実装へ進まない
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Pre-MVP
+
 ---
 
 # 14. 課金・Stripe・法務ページ
 
-14章は、課金なし音声提出E2E成立後に進める法務ページ枠とStripeタスクを扱う。Webhook対象イベントはOI-027確定前に固定しない。法務文言、インボイス対応、規約バージョン永続管理はOI-103 / OI-108を確定扱いにしない。
+14章は法務ページ枠とStripe taskを扱う。Stripe foundationはspeech branchと不要に直列化せず、各taskの明示dependencyに従う。Webhook対象イベントはOI-027確定前に固定しない。法務文言、インボイス対応、規約バージョン永続管理はOI-103 / OI-108を確定扱いにしない。
 
 ### T014-01: 法務・情報系静的ページ作成
 
@@ -6485,6 +6691,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - プライバシーポリシーページ枠
   - 特定商取引法に基づく表記ページ枠
   - 会社概要ページ枠
+  - サイトポリシーページ枠
   - お問い合わせページ枠
   - 料金 / 解約案内ページ枠
   - 料金 / 解約案内の本文反映は、T014-04完了後または確定済み原稿がある場合に限定する
@@ -6519,21 +6726,20 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - Stripe関連Model
 - 依存タスク:
   - T002-01
-  - T013-02
 - 実装内容:
-  - Cashier v15+ 準拠で設定する
-  - `customers`, `subscriptions`, `subscription_items` と整合させる
+  - repositoryのLaravel/Cashier versionとpackage stateを確認して導入する
+  - UserのBillable責務と、既存custom `customers` / `subscriptions` / `subscription_items` schemaとのcompatibilityを確認する
+  - migration ownershipを明確にし、fresh / existing PostgreSQLで検証する
 - 実装してはいけないこと:
   - Stripe Webhookイベントを OI-027 確定前に固定しない
   - 年額プランを追加しない
 - 完了条件:
-  - Cashier基盤が動作する
+  - package、Billable、custom schema、migration ownershipが整合し、fresh / existing PostgreSQLでCashier基盤を開始できる
 - テスト観点:
   - 顧客作成準備
   - テーブル構造整合
 - CodeX投入時の注意:
-  - 課金なし音声提出E2E成立後に着手する
-  - StripeタスクはT013-02完了後に進める前提を維持する
+  - custom schemaとCashier期待値が衝突する場合は独断で新schemaを決めず停止する
 
 ### T014-03: Checkout / 顧客作成導線実装
 
@@ -6656,7 +6862,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - T014-05
 - 実装内容:
   - Webhook payloadをQueueへ渡す
-  - べき等性の土台
+  - event ID等のcurrent Stripe payload識別子を確認し、transport/Queue層のduplicate prevention・retry・failure loggingを実装する
   - Webhook処理成功/失敗ログ
 - 実装してはいけないこと:
   - OI-027未確定のイベント一覧を固定しない
@@ -6672,6 +6878,37 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - OI-027未確定の候補イベントを処理対象として固定しない
   - Stripe Webhook受信 / 処理ログはT014系タスクで扱う
   - T012-04の音声提出E2E前ログ確認基盤とは分離する
+  - `stripe_id`等の既存canonical名が曖昧な場合はimplementation前technical clarificationとして停止し、意味を創作しない
+
+### T014-06-01: OI-027 MVP Stripe Webhookイベント範囲確定
+
+- [ ] 状態: 未着手
+- 種別: decision gate
+- 目的:
+  - Webhook foundation確認後、MVP対象event scopeをuser decisionで確定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-027
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+- 依存タスク:
+  - T014-06
+- 実装内容:
+  - endpoint / signature / Queue / transport-level idempotence foundationの事実を確認する
+  - OI-027の候補を確定扱いせず、MVP event scopeの判断材料を提示する
+  - user decisionをOI/canonicalへ同期しT014-07へhandoffする
+- 実装してはいけないこと:
+  - event listをCodeXが決めない
+  - event別business syncを実装しない
+- 完了条件:
+  - OI-027がuser decisionで解消され、T014-07の処理対象がcanonicalで参照可能である
+- テスト観点:
+  - foundation evidenceとdecision scopeの対応
+- CodeX投入時の注意:
+  - 本taskは既存T014-06のsubtaskではなく、独立したdecision responsibilityである
+- 担当:
+  - CodeXが判断材料を整理する
+  - ユーザーが確定する
+- Blocker区分: Pre-implementation
 
 ### T014-07: OI-027確定後のWebhookイベント反映
 
@@ -6691,10 +6928,11 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - tests
 - 依存タスク:
   - T014-06
-  - OI-027確定
+  - T014-06-01
 - 実装内容:
   - 確定イベントのみ処理する
   - subscriptions / subscription_items を同期する
+  - duplicate eventでもbusiness-level mutationを重複適用しない
   - 失敗ログを確認できるようにする
 - 実装してはいけないこと:
   - OI-027未確定で実施しない
@@ -6713,7 +6951,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - [ ] 状態: 未着手
 - 種別: テスト
 - 目的:
-  - Stripe契約導線とWebhook同期が成立することを確認する
+  - actual browserとStripe test modeで契約導線、Webhook Queue、DB/UI同期が成立することを確認する
 - 参照仕様書:
   - `DB_SCHEMA.md`
   - `ARCHITECTURE.md`
@@ -6728,10 +6966,13 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - T014-07
 - 実装内容:
   - Checkout
+  - test Customer / subscription / trial
   - 契約状態表示
-  - 解約導線
+  - Billing Portal / period-end cancellation
+  - signature verification / invalid signature rejection
+  - Webhook Queue / OI-027確定event / duplicate safety
   - Webhook同期
-  - 課金導線上の利用規約 / プライバシーポリシー / 特定商取引法 / 料金・解約案内ページ枠へのリンク確認
+  - 課金導線上の利用規約 / プライバシーポリシー / 特定商取引法 / サイトポリシー / 料金・解約案内ページ枠へのリンク確認
   - リンク先ページ枠への遷移確認
 - 実装してはいけないこと:
   - OI-027未確定のイベントをテスト前提にしない
@@ -6746,12 +6987,13 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - CodeX投入時の注意:
   - Stripe後半タスクとして実施する
   - T014-01〜T014-07完了後のStripe E2Eとして扱い、T013-02の課金なし音声提出E2Eとは分ける
+  - live StripeはR1であり使用しない
 
 ---
 
 # 15. 退会フロー
 
-15章は退会確認画面、Stripe解約予約を含む退会処理、hard delete候補抽出、退会フローテストを扱う。hard delete実行主体はOI-105に従い、未確定のまま自動実行主体を固定しない。
+15章は退会確認画面、退会orchestration確定、Stripe解約予約を含むsoft delete、通知、hard delete候補抽出・executor確定・実削除、最終integration testを扱う。未確定contractはOI-105 / OI-109 / OI-110 / OI-111に従う。
 
 ### T015-01: 退会確認画面実装
 
@@ -6782,6 +7024,36 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 退会確認画面の枠は退会処理本体と分ける
   - 退会処理本体は次タスクで分ける
 
+### T015-01-01: OI-109/OI-110 退会オーケストレーション確定
+
+- [ ] 状態: 未着手
+- 種別: decision gate
+- 目的:
+  - 退会時のsubmission/Queue競合と、Stripe解約予約・audio cleanup・sessions削除・soft deleteの部分失敗／補償contractを確定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-109, OI-110
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T014-04
+- 実装内容:
+  - current Queue/withdrawal/Stripe foundationをinventoryする
+  - OI-109 / OI-110の判断材料を整理し、user decisionをcanonicalへ同期する
+  - T015-02へ承認済みcontractをhandoffする
+- 実装してはいけないこと:
+  - T015-01 UI完了を待つ必要条件にしない
+  - wait/reject/cancel/force-failやcompensationをCodeXが決めない
+  - 退会処理を実装しない
+- 完了条件:
+  - OI-109 / OI-110が解消され、T015-02のfail-safe implementation contractが参照可能である
+- テスト観点:
+  - raceとpartial failureを別のdecisionとして追跡できる
+- 担当:
+  - CodeXが判断材料を整理する
+  - ユーザーが確定する
+- Blocker区分: Pre-implementation
+
 ### T015-02: 退会処理 soft delete 実装
 
 - [ ] 状態: 未着手
@@ -6794,12 +7066,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `OPERATIONS.md`
 - 関連OI:
   - OI-105
+  - OI-109
+  - OI-110
 - 変更対象:
   - Withdraw Controller
   - User service
   - Storage service
 - 依存タスク:
   - T015-01
+  - T015-01-01
   - T014-04
 - 実装内容:
   - Stripe解約予約
@@ -6809,6 +7084,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 実装してはいけないこと:
   - 30日後hard deleteをここで即実行しない
   - 音声ファイルを残す前提にしない
+  - pending / processing submissionや部分失敗時の挙動をOI-109 / OI-110確定前に独断実装しない
 - 完了条件:
   - 退会後ログイン不可となる
   - soft deleteされる
@@ -6820,6 +7096,34 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - CodeX投入時の注意:
   - Stripe解約予約を含むためT014-04依存を維持し、Stripe契約状態表示後の要素として扱う
   - hard delete実行主体はOI-105で管理する
+
+### T015-02-01: 退会完了通知実装
+
+- [ ] 状態: 未着手
+- 種別: 通知実装・テスト
+- 目的:
+  - OI-111で確定したtimingに、退会完了通知を重複なく送信する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-111
+  - `ARCHITECTURE.md`
+  - `DESIGN.md`
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T015-02
+- decision gate:
+  - OI-111解消済み
+  - OI-111の決定結果がhard delete完了後の通知を要求する場合は、T015-03-02へのdependencyを追加してから実装する
+- 実装内容:
+  - test mailerで通知実装と自動testを行う
+  - retry等でduplicate sendしないことを確認する
+- 実装してはいけないこと:
+  - OI-111未確定で送信timingを決めない
+  - production mail providerを導入しない（R1）
+- 完了条件:
+  - 承認済みtimingで通知され、duplicate send防止を自動testで確認できる
+- テスト観点:
+  - success / retry / duplicate防止
+- Blocker区分: Pre-MVP
 
 ### T015-03: 30日後hard delete候補抽出
 
@@ -6850,7 +7154,53 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - Stripe未確認
 - CodeX投入時の注意:
   - T015-02後に扱う
-  - 実削除はOI-105確定後に別タスク化する
+  - 実削除はT015-03-01 / T015-03-02で扱う
+
+### T015-03-01: OI-105 hard delete executor確定
+
+- [ ] 状態: 未着手
+- 種別: decision gate
+- 目的:
+  - 30日後hard deleteをbatch/manual等のどのexecutorで起動するか確定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-105
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T015-03
+- 実装内容:
+  - candidate抽出の証跡を前提にexecutor判断材料を整理する
+  - user decisionをOI/canonicalへ同期しT015-03-02へhandoffする
+- 実装してはいけないこと:
+  - 30日後hard delete自体を再決定しない
+  - executorを実装しない
+- 完了条件:
+  - OI-105が解消され、実装taskのinvocation contractが明確である
+- Blocker区分: Pre-implementation
+
+### T015-03-02: actual hard delete実装
+
+- [ ] 状態: 未着手
+- 種別: 実装・テスト
+- 目的:
+  - 承認済みexecutorとcanonical deletion semanticsに従いactual hard deleteを実装する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T015-03
+  - T015-03-01
+- 実装内容:
+  - 30-day eligibility、Stripe解約確認、audio削除確認、canonical deletion order、idempotence、failure logging、executor invocationを実装する
+  - actual deletionの自動testを追加する
+- 実装してはいけないこと:
+  - 30日未満を削除しない
+  - OI-105確定外のexecutorを追加しない
+- 完了条件:
+  - eligible userだけをcanonical順序で冪等にhard deleteでき、failureを追跡できる
+- テスト観点:
+  - `<30日` / `>=30日`、Stripe/audio predicate、idempotence、failure
+- Blocker区分: Pre-MVP
 
 ### T015-04: 退会フローテスト
 
@@ -6864,29 +7214,36 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `OPERATIONS.md`
 - 関連OI:
   - OI-105
+  - OI-109
+  - OI-110
+  - OI-111
 - 変更対象:
   - テストコード
   - 確認手順
 - 依存タスク:
-  - T015-03
+  - T015-03-02
+  - T015-02-01
+  - T014-08
 - 実装内容:
   - Stripe解約予約
   - 音声削除
   - sessions削除
   - soft delete
-  - 30日後hard delete候補抽出
+  - 30日未満 / 30日以上のeligibility
+  - actual hard delete
+  - 退会完了通知
+  - OI-109 / OI-110確定contractに従うrace / partial failure
+  - login denial / idempotence
 - 実装してはいけないこと:
   - OI-105未確定で自動hard deleteを確定しない
 - 完了条件:
-  - soft deleteまで安全に完了する
-  - hard delete候補抽出はOI-105未確定の範囲内で確認できる
+  - Stripe test-mode contractの下でsoft delete、notification、30日境界、actual hard deleteまでの退会integration acceptanceが成立する
 - テスト観点:
   - 契約あり
   - 音声残存あり
   - ログイン不可
 - CodeX投入時の注意:
-  - hard delete実行主体はOI-105に従う
-  - OI-105未確定で自動hard deleteを確定しない
+  - OI-105 / OI-109 / OI-110 / OI-111の確定内容を再決定しない
 
 ---
 
@@ -6926,6 +7283,33 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - MVP管理画面範囲はOI-028で管理する
   - adminロールの入口制御に限定し、管理機能の範囲拡張は行わない
 
+### T016-01-01: non-production admin provisioning実装
+
+- [ ] 状態: 未着手
+- 種別: non-production環境準備
+- 目的:
+  - actual browserでadmin accessを確認できるnon-production admin accountを安全に用意する
+- 参照仕様書:
+  - `DB_SCHEMA.md`
+  - `OPEN_ISSUES.md` OI-104
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T002-03
+- decision gate:
+  - OI-104のMVP側non-production credential投入方式をユーザー承認し、production Secret運用はR1として残す
+- 実装内容:
+  - canonical MVP設計に沿ってAdminUserSeeder等のprovisioning pathを実装する
+  - credentialをnon-production環境から注入し、actual browser用adminを用意する
+- 実装してはいけないこと:
+  - passwordまたはcredential実値をrepository/evidenceへ記録しない
+  - production Secret storage/rotation/recovery/provisioningを実装しない（R1）
+  - T016-01 middlewareの実装前提として直列化しない
+- 完了条件:
+  - credentialを漏らさずnon-production adminを再現可能にprovisionできる
+- テスト観点:
+  - role、credential非記録、再実行安全性
+- Blocker区分: Pre-E2E
+
 ### T016-02: 管理画面最小シェル実装
 
 - [ ] 状態: 未着手
@@ -6957,12 +7341,34 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 機能追加はOI-028確定後に分割する
   - OI-028未確定の間は、広範囲CRUD・権限細分化・追加権限テーブルを実装しない
 
+### T016-02-01: OI-028 MVP admin scope確定
+
+- [ ] 状態: 未着手
+- 種別: decision gate
+- 目的:
+  - MVP admin scopeをexplicit minimal-onlyまたはselected featuresとしてuser decisionで確定する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-028
+  - `DESIGN.md`
+  - `ARCHITECTURE.md`
+- 依存タスク:
+  - T016-02
+- 実装内容:
+  - candidateを確定扱いせず、minimal shellを基準に判断材料を提示する
+  - user decisionをOI/canonicalへ同期し、selected featureまたはzero-child結果をT016-03へhandoffする
+- 実装してはいけないこと:
+  - 未決定をzero-child扱いしない
+  - child featureを実装しない
+- 完了条件:
+  - OI-028が解消され、minimal-onlyまたはselected featuresが明示されている
+- Blocker区分: Pre-implementation
+
 ### T016-03: OI-028確定後の管理画面機能分割
 
 - [ ] 状態: 未着手
-- 種別: 実装
+- 種別: conditional aggregator
 - 目的:
-  - OI-028で確定したMVP管理画面範囲を分割実装する
+  - minimal access evidenceとOI-028決定結果を集約し、selected childの完了またはexplicit zero-childを確認する
 - 参照仕様書:
   - `DESIGN.md`
   - `ARCHITECTURE.md`
@@ -6973,15 +7379,18 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - Admin Vue pages
   - routes
 - 依存タスク:
-  - T016-02
-  - OI-028確定
+  - T016-04
+  - T016-02-01
 - 実装内容:
-  - 確定範囲に応じて、ユーザー閲覧、問題管理、提出/評価閲覧、契約状態閲覧を別タスクへ分割する
+  - OI-028でselected featureがある場合だけ、独立dependency・completion・testを持つchild taskを作成する
+  - minimal-onlyの場合はexplicit zero-child evidenceを記録する
+  - selected featureがある場合は全child implementation/test evidenceを集約する
 - 実装してはいけないこと:
   - OI-028未確定で実装範囲を広げない
   - 権限細分化をMVP前提にしない
 - 完了条件:
-  - OI-028確定範囲に沿った子タスクが作成・実装される
+  - minimal accessがpassしOI-028が解消されている
+  - minimal-onlyならzero-child evidence、selected featureありなら全child implementation/test完了を確認できる
 - テスト観点:
   - admin権限
   - 一般ユーザー拒否
@@ -6991,6 +7400,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 契約状態閲覧などStripe関連機能を含める場合はT014後の要素として扱う
   - 1回のCodeX依頼で全管理機能をまとめて実装しない
   - OI-028確定内容を、ユーザー閲覧・問題管理・提出/評価閲覧・契約状態閲覧などに分割して扱う
+  - child → T016-03方向で集約し、T016-03 → childのcycleを作らない
 
 ### T016-04: 管理画面admin権限テスト
 
@@ -7007,8 +7417,9 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - テストコード
 - 依存タスク:
   - T016-02
+  - T016-01-01
 - 実装内容:
-  - adminアクセス
+  - actual non-production adminのbrowserアクセス
   - user拒否
   - 未ログイン拒否
 - 実装してはいけないこと:
@@ -7021,56 +7432,110 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - OI-028未確定の管理機能範囲までテスト対象にしない
   - 範囲確定後の管理機能テストは別タスク化する
 
+### T016-05: OI-024 navigation確定・実装・browser acceptance
+
+- [ ] 状態: 未着手
+- 種別: decision・UI・browser acceptance
+- 目的:
+  - OI-024を確定し、legal/site policy、subscription、withdrawal、admin entryを含むPC/mobile navigationを実装・確認する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-024
+  - `DESIGN.md`
+- 依存タスク:
+  - T014-01
+  - T014-04
+  - T015-01
+  - T016-02
+- 実装内容:
+  - user decisionに必要な現行navigation inventoryを提示する
+  - 承認済みnavigationを実装し、PC/mobile browserでlinkとvisibilityを確認する
+- 実装してはいけないこと:
+  - navigation配置・項目を独断決定しない
+  - OI-024外の画面を追加しない
+- 完了条件:
+  - OI-024が解消され、承認済みnavigationがbrowser evidence付きで成立する
+- テスト観点:
+  - auth state、admin visibility、PC/mobile、legal/subscription/withdrawal link
+- Blocker区分: Pre-MVP
+
+### T016-06: OI-025 minimum design token確定・実装・browser acceptance
+
+- [ ] 状態: 未着手
+- 種別: decision・UI・browser acceptance
+- 目的:
+  - MVPに必要なminimum design tokenを確定し、代表画面へ反映・browser確認する
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-025
+  - `DESIGN.md`
+- 依存タスク:
+  - T003-01
+  - T004-04
+  - T005-04
+  - T009-06
+  - T016-02
+- 実装内容:
+  - current Tailwind/UI inventoryを提示し、user decisionをOI/DESIGNへ同期する
+  - auth、question、recording、result、admin shellの代表画面へminimum tokenを反映する
+  - PC/mobile browserで一貫性と重大な表示崩れがないことを確認する
+- 実装してはいけないこと:
+  - token値やlibraryを独断決定しない
+  - production visual polishをMVPへ混在させない
+- 完了条件:
+  - OI-025が解消され、代表画面のimplementation/browser evidenceが揃う
+- テスト観点:
+  - token適用、代表画面、PC/mobile
+- Blocker区分: Pre-MVP
+
 ---
 
 # 17. MVP最終確認
 
-17章は、T013〜T016で必要なE2E・結合確認が完了した後のMVP全体完了判定だけを扱う。T017-01をT013-02の課金なし音声提出E2E判定と混同しない。
+17章は、MVP全体のfinal reviewを扱う。T017-01はprerequisite未完了でも開始でき、`incomplete`を正式に記録できる。T013-02のhistoricalな課金なし音声提出E2Eと混同しない。
 
 ### T017-01: MVP完了判定レビュー
 
 - [ ] 状態: 未着手
 - 種別: テスト
 - 目的:
-  - Stripe、退会、管理画面、運用確認などを含め、MVP全体が「主要ユースケースが一通り動作し、技術的破綻がない状態」に到達しているか判定する
+  - canonicalとevidenceに基づきM1/M2/OI・主要journeyをreviewし、MVP acceptance resultを`complete`または`incomplete`として記録する
 - 参照仕様書:
   - `README.md`
   - `CONSISTENCY_CHECK.md`
   - 全仕様書
 - 変更対象:
-  - なし
+  - TASKS completion record
+  - `CONSISTENCY_CHECK.md`
+  - verification evidence参照
 - 依存タスク:
-  - T012-02
-  - T012-03
-  - T013-01
-  - T013-02
-  - T013-03
-  - T013-04
-  - T013-05
-  - T013-07
-  - T013-10
-  - T014-08
-  - T015-04
-  - T016-04
-- 依存関係補足:
-  - T013-10は、T000-05〜T013-09までの新音声仕様差分対応を包含する最終台帳更新である
-  - T017-01はT013-10完了前にMVP全体完了判定へ進まない
+  - なし（review開始を禁止するhard dependencyは持たない）
+- MVP `complete`判定 prerequisite:
+
+  1. T013-01 — auth evidence
+  2. T013-10 — speech / operation branch final
+  3. T013-12 — OI-012 independent resolution
+  4. T015-04 — withdrawal final（T014-08 Stripeを推移包含）
+  5. T016-03 — admin final
+  6. T016-05 — navigation
+  7. T016-06 — design tokens
+- prerequisite補足:
+  - prerequisite未完了でもreviewを実施し、`incomplete`理由を記録できる
+  - R1 / F1だけが残ることを`incomplete`理由にしない
+  - CodeXは独断でMVP `complete`を確定せず、user final approvalを得る
 - 実装内容:
-  - 認証E2E確認
-  - 課金なし音声提出E2E確認
-  - 422確認
-  - Feature Flag確認
-  - 音声削除確認
-  - Stripe確認
-  - T014-08で確認した法務・料金・解約案内ページ枠リンク確認結果のレビュー
-  - 退会確認
-  - 管理画面権限確認
-  - ポーリング負荷確認
+  - auth、question format、recording/profile/timer、settings、submission snapshotsをreviewする
+  - Stage-A automated/migration、actual VPS/Azure、transcript、character count、duration facts、scoringをreviewする
+  - pass / fail / 422 / pre-Azure upper-limit / system failureを別結果としてreviewする
+  - cleanup、polling、Stripe test-mode、legal/site policy、withdrawal、actual hard delete、notificationをreviewする
+  - admin、navigation、design tokens、OI inventory、canonical consistency、evidence integrityをreviewする
+  - M1未完了、M2残存、MVP-blocking OI、E2E未実施/failed、evidence不足、dependency/canonical orphan、selected admin child未完了を`incomplete`理由として記録する
+  - R1/F1 handoffとuser judgment材料を記録する
 - 実装してはいけないこと:
   - 未確定事項を完了扱いにしない
   - 仕様書本文をこのレビューで直接修正しない
 - 完了条件:
-  - MVP完了 / 条件付き完了 / 未完了の判定ができる
+  - final reviewを実施し、M1/M2/OI/prerequisite/evidenceを確認してlatest resultと理由を記録する
+  - user judgmentを記録する
+  - MVP resultが`incomplete`でもreview task自体は完了可能である
 - テスト観点:
   - 主要ユースケース
   - データ整合
@@ -7082,3 +7547,6 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 未確定事項を完了扱いにしない
   - 仕様書本文をこのレビューで直接修正しない
   - T013-02の課金なし音声提出E2E判定と混同しない
+  - `条件付き完了`は使用しない。known limitationはR1/F1または明示したnon-blocking handoffとして管理する
+  - blocking item解消後はT017-01を再reviewできる。previous resultを履歴として残し、上書き消去せずlatest resultをcurrent acceptance resultとして記録する
+  - 再reviewでもuser judgmentを取得する

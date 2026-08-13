@@ -81,11 +81,11 @@ MVP では Laravel Scheduler を定期運用の起点とする。
 | ジョブ | 概要 | スケジュール |
 |---|---|---|
 | CleanupTempFilesJob | 即時削除に失敗した音声一時ファイルを回復的に削除 | OI-021 で管理 |
-| （将来）HardDeleteExpiredUsersJob | soft delete から30日経過したユーザーの hard delete | 実行主体は OI-105 で管理 |
 
 Scheduler の具体的なジョブ一覧の最終構成は OI-001 で管理。
 クリーンアップバッチの実行頻度および削除対象条件は OI-021 で管理。
-hard delete 実行主体の確定は OI-105 で管理。
+soft deleteから30日経過した対象のhard delete自体はMVP必須であり、executorの確定だけをOI-105で管理する。OI-105でbatchを採用した場合のみScheduler対象とし、manualを採用した場合は承認済みmanual operation pathから実行する。
+退会時のpending / processing submission・実行中Queueとの競合は OI-109、部分失敗・補償・中断境界は OI-110、退会完了通知timingは OI-111 で管理する。
 
 CleanupTempFilesJob は、音声一時ファイルの即時削除失敗時の回復手段である。音声ファイルを永続保存するための仕組みではない。
 音声一時ファイルはバックアップ対象外であり、削除失敗時はバックアップから復元するのではなく、残存ファイルの削除により整合性を回復する。
@@ -373,7 +373,7 @@ MVP では外部監視ツールを前提とせず、以下の観点で「検知�
 | エンドポイント | 提供元 | 確認内容 |
 |---|---|---|
 | Web アプリ基本疎通 | Laravel | HTTP 200 応答 |
-| `GET /health` | FastAPI | Python プロセス生存 + Azure 接続状態 |
+| `GET /health` | FastAPI | Pythonプロセスのliveness。Azure実接続は別の疎通/E2Eで確認 |
 
 ### 7.2 ログベースの異常検知
 

@@ -59,7 +59,7 @@ graph TB
         end
 
         subgraph Python["Python 音声評価サービス"]
-            FastAPI["FastAPI<br/>内部 HTTP API<br/>port 8100（仮）"]
+            FastAPI["FastAPI<br/>内部 HTTP API<br/>configured internal port"]
         end
 
         PostgreSQL["PostgreSQL"]
@@ -76,7 +76,7 @@ graph TB
     Browser -->|HTTPS| Nginx
     Nginx -->|PHP-FPM| Web
     Web -->|Enqueue| Queue
-    Queue -->|HTTP localhost:8100| FastAPI
+    Queue -->|HTTP configured endpoint| FastAPI
     FastAPI -->|REST API| Azure
     Web -->|Laravel Cashier| Stripe
     Stripe -->|"Webhook HTTPS"| Nginx
@@ -125,7 +125,7 @@ graph TB
 │  │ Jobs / Events / Listeners                    ││
 │  └──────────────────────────────────────────────┘│
 └──────┬───────────┬────────────────────────────────┘
-       │           │ HTTP localhost:8100
+       │           │ HTTP configured internal endpoint
        │    ┌──────▼──────────────────────┐
        │    │  音声評価層（Python / FastAPI）│
        │    │  Azure SDK 呼び出し          │
@@ -202,7 +202,7 @@ expected_duration: 60
 - Pythonは`character_score`、`time_score`、`final_score`、`evaluation_result`を決定しない。Laravelが`STAGE_A_SCORING.md`に従って算出・保存する
 - Stage-A productionではpronunciation、fluency、template comment、`overall_score`を生成しない
 
-具体的なresponse field名、Lexical欠損時のHTTP status／error code等のAPI error contractは本節で新規確定せず、後続実装タスクで既存契約と整合させる。
+具体的なresponse field名、Lexical欠損時のHTTP status／error codeを含むcross-layer error contractは `OPEN_ISSUES.md` OI-112 と T000-10 で確定し、T007-06 / T008-05 / T009-06へ引き渡す。本節では未確定値を新規決定しない。
 
 **エラーレスポンス:**
 
@@ -211,6 +211,8 @@ expected_duration: 60
 | 422 | 音声認識不可（無音・ノイズ等） | status=failed、ユーザーに再提出案内 |
 | 500 | Python 内部エラー | リトライ対象 |
 | 502/503 | Azure API 障害 | リトライ対象 |
+
+この表は現行実装の概要であり、`speech_unrecognized`、ffprobe / conversion failure、pre-Azure upper-limit、Azure unavailable、timeout、retry exhaustion、generic system failureの最終DB state・API field・UI actionは OI-112 の正本同期後に確定する。
 
 ### 4.3 タイムアウト設計
 
@@ -292,6 +294,8 @@ time_score用`T`、stop reason／profile limit到達相当の事実はhistorical
 1. **ユニークジョブ制御** — `ShouldBeUnique`、キー=`submission_id`、ロック期間240秒
 2. **ステータスチェック** — ジョブ開始時に `status !== 'pending'` なら正常終了
 3. **DB ユニーク制約** — `evaluations.submission_id` UNIQUE
+
+上記のリトライ方針とnon-pending no-opの関係は、current Stage-Aの最終retry contractとして未確定である。T008-05着手前に、authorized retry、duplicate dispatch、stale job、`processing`状態でのretry、terminal submission、retry exhaustionを区別するtask-local technical designを明確化し、T008-05で実装、T013-08でtestする。本文書では具体的なstatus transitionまたはretry実装方式を新規決定しない。
 
 ### 5.4 ステータス遷移
 
@@ -423,7 +427,7 @@ Stage-Bのcomment、内容・構成評価、Azure OpenAI等の具体構成は本
 
 > **WAV 変換方式を選定。**
 > ブラウザ録音（WebM/Opus）→ Python 側で WAV（PCM 16kHz 16bit mono）に変換後、Azure SDK に渡す。
-> pydub + ffmpeg を使用。変換後の一時 WAV は処理完了後に即時削除。
+> current approved implementationではsystem ffmpeg binaryをsubprocessから直接使用しており、pydub / moviepy / av等のwrapper packageは導入していない。これはcurrent implementation factであり、将来の変換実装方式を恒久的に禁止するものではない。変換後の一時 WAV は処理完了後に即時削除する。
 
 ### 9.3 Pronunciation Assessment（PoC 方針）
 
@@ -467,7 +471,8 @@ Stage-Bのcomment、内容・構成評価、Azure OpenAI等の具体構成は本
 
 - Stripe 署名検証（`Stripe-Signature` ヘッダ）で真正性を確認
 - Webhook 処理は Queue 経由で非同期実行
-- べき等性: `stripe_id` ベースで重複処理を防止
+- Webhook duplicate deliveryを安全に扱う。transport-level idempotenceはT014-06、business mutation idempotenceはT014-07の責務とする
+- concrete idempotency key（Stripe event ID / business object Stripe ID等）とpersistence contractは未確定であり、T014-06 / T014-07着手前のtechnical clarificationで確定する
 - MVP で処理対象とする Stripe Webhook イベントの最小範囲は OI-027 で管理する
 - 契約状態同期は `DB_SCHEMA.md` の Stripe 関連テーブル定義と OI-027 を参照する
 - 本文書では Webhook 対象イベントを確定済みとして列挙しない
@@ -530,7 +535,7 @@ DB 設計の正本は `DB_SCHEMA.md` である。本節はアーキテクチャ�
 
 - `questions.question_type` は **不採用**。復活させない
 - `questions.question_format` は問題形式を表す分類軸として扱う
-- `questions.question_format` の値域は OI-022 で管理する
+- `questions.question_format` の値域は解消済みOI-022および `DB_SCHEMA.md` の `single_prompt` / `two_choice` を正とする
 - `questions.has_model_answer` は模範解答有無を表す
 - `question_format` と `has_model_answer` は別概念であり、混同しない
 - `submissions.id` は UUID v4（外部露出 ID の推測困難性を優先）
@@ -539,9 +544,10 @@ DB 設計の正本は `DB_SCHEMA.md` である。本節はアーキテクチャ�
 - Stage-Aは`final_score`を使用し、`overall_score`を代用にしない
 - 音声ファイルは永続保存しない。`audio_path` は一時ファイルパス
 - 退会: `users.deleted_at` による soft delete → 30日後 hard delete
-- ユーザー設定5項目の保存先は OI-023 で確定済み。`user_learning_settings` テーブル方式を採用する
+- 退会時の実行中submission/Queueとの競合は OI-109、部分失敗・補償境界は OI-110、退会完了通知timingは OI-111で管理する
+- ユーザー設定は OI-023 で確定済みの `question_format_preference` / `timer_display_mode` の2項目を `user_learning_settings` に保存する
 - `users` JSONB方式は採用せず、`users` テーブルに設定JSONを追加しない
-- T011-02では `user_learning_settings` へ保存する前提で、migration / model / 保存API / 設定画面保存処理を実装する
+- `user_learning_settings`方式は採用済みで、historical T011-02で当時の5設定項目の保存基盤を実装した。current設定は`question_format_preference` / `timer_display_mode`の2項目とし、historical実装との差はT011-03で補正する。task詳細は`TASKS.md`を参照する
 
 ---
 
