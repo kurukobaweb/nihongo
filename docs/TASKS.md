@@ -1008,7 +1008,8 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 
 ### T000-10: OI-112 Stage-A cross-layer error contract確定
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-14 ユーザー承認・canonical sync確認済み）
+- 完了日: 2026-08-14
 - 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
 - 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
@@ -1029,9 +1030,41 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - current implementationとhistorical T007-05 response contractをread-onlyでinventoryする
   - OI-112の各failure categoryについてcanonical間の整合とuser decision事項を整理する
   - 承認結果をOI-112と正本文書へ同期し、T007-06 / T008-05 / T009-06 / T013-08 / T013-09へhandoffする
+- ユーザー承認済みDecision Record:
+  - DR-T000-10-001: Evaluationありpass / failのみ`completed`、Evaluationなしterminal failureは`failed`
+  - DR-T000-10-002: PythonからUIまでstable structured error transportを維持する
+  - DR-T000-10-003: sanitized diagnosticはapplication log中心としpublic API / UIへ露出しない
+  - DR-T000-10-004: pre-Azure upper-limitはstable category `pre_azure_upper_limit`＋terminal classification `not_scored`、submission `failed`、Evaluation / Resultなし、retryなし
+  - DR-T000-10-005: public category / subtype、internal code、diagnostic、frontend-local stateを分離する
+  - DR-T000-10-006: backend stable category `timeout`をpublic subtype `connect` / `read` / `azure`で区別し、frontend timeoutを分離する
+  - DR-T000-10-007: initial 1回＋最大3 retries＝最大4 total attempts、backoff 30 / 60 / 120秒
+  - DR-T000-10-008: semantic retryをprimaryとし、connect timeoutは最初のretry前に`/health` gateを適用する
+  - DR-T000-10-009: generic system failureにstable category `system_failure` / subtype `unexpected`のfallback contractを設ける
+  - DR-T000-10-010: Lexical missingを`speech_unrecognized`とは異なるindependent Stage-A fact failureとし、stable category `stage_a_fact_failure` / subtype・error classification `lexical_missing`、HTTP status `500`、response status `error`、non-retryableとする
+- canonical sync対象:
+  - `OPEN_ISSUES.md`
+  - `ARCHITECTURE.md`
+  - `DB_SCHEMA.md`
+  - `DESIGN.md`
+  - `OPERATIONS.md`
+  - `TASKS.md`
+- 完了記録:
+  - OI-112のcross-layer failure contractとDR-T000-10-001〜010をユーザー承認済み仕様として確定した
+  - lifecycle、structured taxonomy、semantic retry、initial 1 attempt＋max 3 retries＝max 4 total attempts、backoff 30 / 60 / 120秒、connect timeoutの`/health` gateを確定した
+  - pre-Azure `pre_azure_upper_limit` / `not_scored`、frontend-local polling timeout、generic `system_failure` / `unexpected`、backend `timeout` / `connect`・`read`・`azure`を確定した
+  - Lexical missingは`stage_a_fact_failure` / `lexical_missing`、HTTP `500`、response status `error`、non-retryable、terminal `failed`、Evaluationなし、Result不可、fallbackなしとし、`speech_unrecognized`へ統合しない
+  - `OPEN_ISSUES.md` / `ARCHITECTURE.md` / `DB_SCHEMA.md` / `DESIGN.md` / `OPERATIONS.md` / `TASKS.md`へcanonical syncした
+  - OI-029 / OI-030 / OI-031は変更・再決定していない
+  - T000-10は仕様確定・canonical sync taskであり、application implementation / migration / automated test / actual Azure / actual browser E2Eは本タスクでは未実施
+- downstream handoff:
+  - T007-06: Stage-A facts、structured Python failure response、Python semantic classification、Lexical missing、generic fallback、Azure / internal timeout classification、diagnostic / sanitizationを実装する。submission DB terminal state、Queue retry、pre-Azure判定、cleanup、API / UIは担当外とする
+  - T008-05: Laravel-sideのpre-Azure OI-030判定とduration verification、Queue、DB structured persistence、semantic retry、max 4 total attempts、health gate、terminal lifecycle、Evaluation有無、retry exhaustion、cleanup、idempotencyを実装する
+  - T009-06: status API structured contract、machine-readable UI、Result eligibility、not-scored、speech recognition failure、system / service failure、Stage-A fact failure、frontend-local timeout、status re-fetchを実装する
+  - T013-08: automated cross-layer verification、PostgreSQL migration rehearsal、failure matrix、retry / health gate / 4 total attempts、terminal lifecycle、Evaluation / Result、cleanup、Lexical fallback禁止を検証する
+  - T013-09: actual Azure / browser / Queue runtime、timeout、retry exhaustion、conversion / ffprobe、generic failure、Lexical、cleanupを含むfull cross-layer evidenceを取得する
 - 実装してはいけないこと:
   - T007-05のhistorical recordをcurrent contractへ書き換えない
-  - error contract確定前に実装へ進まない
+  - 本タスク内でapplication / migration / test implementationへ進まない
 - 完了条件:
   - OI-112がユーザー承認済みcontractとして解消されている
   - canonicalが同期され、下流のimplementation/test pathが明確である
@@ -4064,6 +4097,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - OI-029確定規則により、Azureを再実行せず再採点できるStage-A事実値をLaravelへ返す
 - 参照仕様書:
   - `OPEN_ISSUES.md` OI-029
+  - `OPEN_ISSUES.md` OI-112
   - `DB_SCHEMA.md`
   - `ARCHITECTURE.md`
   - T000-05の承認済み文字数規則
@@ -4084,11 +4118,18 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `speed_assessment`をversion管理された評価設定で判定する
   - 文字数計算version相当の契約とsegment処理を実装する
   - Laravel側が事実値を型・精度込みで検証できるresponse contractにする
+  - OI-112に従い、Python failure responseからstable public semantic classificationへmapping可能な情報を返す
+  - internal diagnosticとsafe public informationを分離し、Python側でsanitized diagnostic / correlation loggingを行う
+  - catch外exceptionをframework / raw responseへ委ねず、stable category `system_failure` / subtype `unexpected`のfallback responseへ変換する
+  - Lexical missingを検出し、`speech_unrecognized`とは異なるstable category `stage_a_fact_failure` / subtype・error classification `lexical_missing`として、HTTP status `500` / response status `error`のnon-retryable responseを返す。Display / ITN / MaskedITN / 表示用textへfallbackしない
+  - Azure / internal timeoutをstable category `timeout` / public subtype `azure`としてLaravel側が識別可能なresponse contractにする
 - 実装してはいけないこと:
   - OI-031の採点処理をPythonへ無断で移動しない
   - `len(transcript)`を無条件で継続使用しない
   - Stage-B値を生成しない
   - PythonからLaravel DBへ直接アクセスしない
+  - submission terminal state、terminal timestamp、EvaluationのDB作成可否をPython側で保存しない
+  - Queue retry / exhaustion、pre-Azure ffprobe / upper-limit判定、terminal audio cleanup、status API / UIを本taskへ移さない
 - 完了条件:
   - Azureを再実行せずLaravel側が再採点できるStage-A事実値が返る
   - 文字数、認識時間、CPM、速度区分を同一responseから再現できる
@@ -4307,7 +4348,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `character_score` / `time_score` / `final_score` / `evaluation_result` / `scoring_version`を算出する
   - Stage-A必須10値をevaluationsへ保存する
   - 認識成功・合格と認識成功・採点不合格ではevaluationを作成する
-  - 422、pre-Azure upper-limit、system failureのDB state / retry / evaluation有無をOI-112の承認済みcontractどおり実装する
+  - 422、`pre_azure_upper_limit` / `not_scored`、`system_failure` / `unexpected`、`stage_a_fact_failure` / `lexical_missing`等のDB state / retry / evaluation有無をOI-112の承認済みcontractどおり実装する
+  - OI-030の元WebM duration取得とAzure送信前上限判定をLaravel側Queue / Service責務として実装し、上限超過時はAzureを呼び出さない
+  - pre-Azure verificationを`ProcessSpeechEvaluationJob`へ直接置くかLaravel側専用Serviceへ分離するかはtask-local technical designで決定し、Pythonへ配置しない
+  - submissionへtop-level failure category、該当するsubtype、safe message / action、terminal classificationを永続化可能にする。OI-112で承認済みのstable valueを維持し、physical column名・型はT002-07と整合させる
+  - retry可否はHTTP status一律ではなくOI-112のsemantic retry policyをprimaryとする
+  - initial 1回＋最大3 retries＝最大4 total attempts、backoff 30 / 60 / 120秒を実装する
+  - connect timeoutの1回目retry前に`/health`を確認し、正常時だけbounded retry、無応答時は即terminal `failed`とする
+  - retry中は`processing`と一時audioを維持し、non-retryable確定またはretry exhaustion時にterminal `failed`、terminal timestamp、Evaluationなし、cleanupを適用する
+  - pass / failのEvaluationが成立した場合だけ`completed`とし、Queue再実行時のterminal state / Evaluation作成 / cleanupのべき等性を保証する
   - evaluationsの最終型・NOT NULL・CHECKを適用する
   - Queue再実行時のべき等性を保証する
 - 固定条件:
@@ -4317,6 +4366,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - technical marginを`expected_duration`へ加算しない
   - OI-112のfailure contractを独断で変更しない
   - Stage-B用4カラムへ値を保存しない
+  - pre-Azure ffprobe / upper-limit判定をT007-06のPython事実値契約へ移さない
 - 完了条件:
   - 成功、採点fail、422、Azure送信前上限超過、システム障害の全分岐が仕様どおり成立する
   - Stage-A成功時のevaluationに必須10値が保存される
@@ -4698,12 +4748,18 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `character_count` / `character_score` / `time_score`のUI表示可否は未確定のまま維持し、勝手に表示要件を追加しない
   - `evaluation_result` / `scoring_version` / pass・failを表示する
   - OI-006で確定した422 UXとOI-112で確定したerror UI contractを反映し、自動testを追加する
+  - status APIでsubmission status、machine-readableなfailure category / subtype、safe message / action、Result eligibilityを返せるcontractを実装する。exact JSON keyはtask-local API designで既存consumerと整合させる
+  - UIのfailure分岐を`error_message`文字列marker解析からmachine-readable semantic contractへ移行する
+  - `pre_azure_upper_limit` / `not_scored`、`speech_unrecognized`、`system_failure` / `unexpected`、`stage_a_fact_failure` / `lexical_missing`を別outcomeとして扱い、Evaluationなしの`failed`をResult routeへ進めない
+  - backend category `timeout`のpublic subtype `connect` / `read` / `azure`を扱い、frontend polling timeoutをbackend categoryから分離する。frontend timeoutではDB submissionを`failed`へ変更せずbackend Jobも停止せず、後からstatusを再取得可能なflowを実装する
   - question編集後もsubmissionとevaluationの保存値から履歴を再現する
 - 実装してはいけないこと:
   - 現在のquestionを履歴表示のために再取得しない
   - `overall_score`を`final_score`の代用にしない
   - Stage-B用のNULL項目を表示しない
   - Stage-Aで`comment`を表示しない
+  - internal diagnostic、secret、token、stack trace、provider-sensitive raw detailをstatus API / UIへ露出しない
+  - OI-006で未確定の具体文言、button label、layoutを本taskで独断決定しない
 - 完了条件:
   - question編集後も提出時の設問、評価プロファイル、Stage-A結果を再現できる
   - pass / failと`final_score`が保存値どおり表示される
@@ -6488,6 +6544,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 目的:
   - 新音声仕様のfresh DB、既存DB upgrade、Laravel／Python／UI連携を自動確認する
 - 参照仕様書:
+  - `OPEN_ISSUES.md` OI-112
   - `DB_SCHEMA.md`
   - `ARCHITECTURE.md`
   - `DESIGN.md`
@@ -6511,8 +6568,12 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 既存DB相当のupgradeとbackfillをリハーサルする
   - 最終CHECK・NOT NULL・型変更を検証する
   - API、UI contract、Queue、Python連携を検証する
-  - pass、fail、422、Azure送信前上限超過、system failureを別caseとして検証する
+  - pass、fail、422、`pre_azure_upper_limit` / `not_scored`、`system_failure` / `unexpected`、`stage_a_fact_failure` / `lexical_missing`を別caseとして検証する
   - Queue retry/idempotence、snapshot、Python facts、Laravel scoring、API/UI contractを検証する
+  - OI-112のautomated cross-layer failure matrixとして、structured category / subtype / safe action、terminal state、Evaluation / Result eligibilityを各failureで検証する
+  - semantic retry、connect timeoutの`/health` gate、initial 1回＋最大3 retries＝最大4 total attempts、retry exhaustionを検証する
+  - retry途中のaudio保持とcompleted / non-retryable failed / retry exhaustion後のcleanupを検証する
+  - `stage_a_fact_failure` / `lexical_missing`を`speech_unrecognized`と分離し、HTTP status `500` / response status `error`、non-retryable、Evaluation / Resultなし、Display / ITN / MaskedITN / 表示用textへfallbackしないことを検証する
   - Stage-B用4カラムのNULLとUI非表示を検証する
   - fixturesを新仕様へ更新する
 - 実装してはいけないこと:
@@ -6546,7 +6607,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 目的:
   - current Stage-Aをactual browser → non-production VPS → Laravel → Queue → Python/ffmpeg → test Azure → DB/API → Result UIまで同一submissionで総合確認する
 - 参照仕様書:
-  - `OPEN_ISSUES.md` OI-009, OI-022, OI-023, OI-029, OI-030, OI-031
+  - `OPEN_ISSUES.md` OI-009, OI-022, OI-023, OI-029, OI-030, OI-031, OI-112
   - `DB_SCHEMA.md`
   - `ARCHITECTURE.md`
   - `DESIGN.md`
@@ -6569,7 +6630,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - primary環境はT000-06-01でユーザー承認された環境を使用し、T013-09内では再選定しない
   - primary環境の変更が必要な場合は、CodeXが独断で変更せずユーザー判断へ戻す
   - T000-06-02〜T000-06-04の環境別停止誤差証跡と、T000-06-05で承認されたproduction共通technical marginを前提とする
-  - primary環境ではrecognized pass、recognized fail、422 speech_unrecognized、pre-Azure upper-limit、system failureを別caseとして総合確認する
+  - primary環境ではrecognized pass、recognized fail、422 speech_unrecognized、`pre_azure_upper_limit` / `not_scored`、`system_failure` / `unexpected`、`stage_a_fact_failure` / `lexical_missing`を別caseとして総合確認する
   - primary以外の必須環境では最低限、録音、提出、Queue、Azure、DB保存、completed結果表示までの正常経路を確認する
   - T000-06-02〜T000-06-04で実施した停止誤差の9件または25件計測を繰り返さない
   - current correction implementation後のnon-production総合E2Eとして実施し、technical margin自体の決定はT000-06-05で完了済みとして扱う
@@ -6578,6 +6639,10 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - prompt snapshotとevaluation profile snapshotを確認する
   - pass、failと`final_score = 0`を確認する
   - 422とAzure送信前上限超過を確認する
+  - actual Azure / Python failure classification、backend category `timeout`とpublic subtype `connect` / `read` / `azure`、actual Queue retry / exhaustion、connect timeout時の`/health` gateを確認する
+  - actual browserのfrontend polling timeoutがbackend Job / submission stateを変更せず、後からstatusを再取得できることを確認する
+  - success、non-retryable failure、retry exhaustionでactual temporary audio cleanupを確認する
+  - actual Azure responseでLexical factを追跡し、`stage_a_fact_failure` / `lexical_missing`時にHTTP status `500` / response status `error`、non-retryable、Evaluation / Resultなしとなり、表示用textへfallbackしないcontractを確認する
   - Stage-B用4カラムのNULLとUI非表示を確認する
   - question編集後の履歴再現を確認する
   - 正常・異常経路のログ、DB、UI証跡を記録する
@@ -6589,7 +6654,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 端末固有の異常が見つかった場合も、T013-09内で仕様またはtechnical marginを独断変更しない
 - 完了条件:
   - actual browser / VPS / Queue / Python / ffmpeg / test Azure / PostgreSQL / API / UIのchainを同一submissionの証跡で確認する
-  - actual Azure transcriptのUI表示、Stage-A facts・scoring・DB保存、outcome 5区分、audio削除を確認し、ユーザーが結果を承認する
+  - actual Azure transcriptのUI表示、Stage-A facts・scoring・DB保存、OI-112承認済みoutcome分類、audio削除を確認し、ユーザーが結果を承認する
 - テスト観点:
   - 形式・profile・timerの組み合わせ
   - recognized pass

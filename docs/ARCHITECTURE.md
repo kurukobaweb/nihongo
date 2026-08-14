@@ -202,17 +202,54 @@ expected_duration: 60
 - Pythonは`character_score`、`time_score`、`final_score`、`evaluation_result`を決定しない。Laravelが`STAGE_A_SCORING.md`に従って算出・保存する
 - Stage-A productionではpronunciation、fluency、template comment、`overall_score`を生成しない
 
-具体的なresponse field名、Lexical欠損時のHTTP status／error codeを含むcross-layer error contractは `OPEN_ISSUES.md` OI-112 と T000-10 で確定し、T007-06 / T008-05 / T009-06へ引き渡す。本節では未確定値を新規決定しない。
+OI-112 / T000-10で承認されたcross-layer error contractを以下に定め、T007-06 / T008-05 / T009-06へ引き渡す。Lexical missingのstable categoryは`stage_a_fact_failure`、stable subtype / error classificationは`lexical_missing`、HTTP statusは`500`、response statusは`error`とする。これらのstable valueを格納・返却する具体的なresponse field名、DB column名、Laravel DTO property名、internal exception class名はdownstream technical designで既存contractと整合させる。
 
-**エラーレスポンス:**
+**Stage-A cross-layer error contract:**
 
-| コード | 意味 | Laravel 側の対処 |
-|---|---|---|
-| 422 | 音声認識不可（無音・ノイズ等） | status=failed、ユーザーに再提出案内 |
-| 500 | Python 内部エラー | リトライ対象 |
-| 502/503 | Azure API 障害 | リトライ対象 |
+HTTP statusはfailureの検出・transportを補助するsignalであり、retry可否またはユーザー向けoutcomeを単独では決定しない。PythonからLaravel、Queue、DB、status API、UIへ渡すfailureは、stableなsemantic classificationとretry policyをprimaryとして扱う。
 
-この表は現行実装の概要であり、`speech_unrecognized`、ffprobe / conversion failure、pre-Azure upper-limit、Azure unavailable、timeout、retry exhaustion、generic system failureの最終DB state・API field・UI actionは OI-112 の正本同期後に確定する。
+logical error contractは少なくとも次の責務を分離する。
+
+- stable public top-level category
+- 必要なpublic subtype
+- safe user-facing message / information
+- safe user action
+- terminal classification
+- internal diagnostic
+
+public semantic contract、implementation-internal code、diagnostic category、frontend-local stateは同一namespaceとして扱わない。UIは`error_message`の文字列marker解析へ依存せず、machine-readableなsemantic classificationを使用する。internal diagnostic、secret、token、stack trace、provider-sensitive raw detailはpublic API / UIへそのまま返さない。
+
+status APIはlogical contractとして、submission status、stable top-level category、該当するpublic subtype、safe user-facing message / action、Result eligibilityをUIが取得可能にする。具体的なJSON key名とcompatibility方式はT009-06で既存consumerと整合させる。
+
+具体的なDB column名・型、API JSON key名、internal exception class名は本書では固定せず、上記semanticを保持するdownstream technical designとしてT007-06 / T008-05 / T009-06へ委譲する。
+
+**failure lifecycle:**
+
+- 認識成功後にStage-A pass / failのEvaluationが成立した場合だけsubmissionを`completed`とする
+- Evaluationを生成せずterminal終了するfailureはsubmissionを`failed`とする
+- retry中はsubmissionを`processing`に維持する
+- non-retryable確定時またはretry exhaustion時にterminal `failed`とし、terminal timestampを保存する
+- 新しいsubmission statusは追加しない
+- Result routeへ進めるのは`completed`かつEvaluationありの場合だけとし、`failed` outcomeはResult routeへ進めない
+
+`failed`はtransport / lifecycle stateであり、その意味はstructured classificationによって、`not_scored`、speech recognition failure、service / system failure、Stage-A fact failure等に区別する。
+
+**core failure mapping:**
+
+| Failure | Semantic classification | Automatic retry | Terminal / Evaluation / Result | User-facing responsibility |
+|---|---|---|---|---|
+| `speech_unrecognized` | speech recognition failure | しない | `failed` / Evaluationなし / Result不可 | recognition failureとして再録音・再提出flowへ戻す |
+| invalid audio / conversion input failure | audio processing failure | しない | `failed` / Evaluationなし / Result不可 | 入力音声を確認できるsafe actionを提示可能にする |
+| permanent conversion dependency failure | permanent system / dependency failure | しない | `failed` / Evaluationなし / Result不可 | transient service failureと区別する |
+| pre-Azure upper-limit | stable categoryは`pre_azure_upper_limit`、terminal classificationは`not_scored`。判定は`D > P + 0.07` | しない | Azure未呼出し、`failed` / Evaluationなし / Result不可 | system errorやpass/failではなく「採点対象外」 |
+| Azure configuration unavailable | permanent service configuration failure | しない | `failed` / Evaluationなし / Result不可 | transient unavailableと区別する |
+| Azure transient unavailable / retryable cancellation | transient service failure | bounded retry | exhaustion後`failed` / Evaluationなし / Result不可 | retry中とterminal service failureを区別する |
+| backend timeout | stable categoryは`timeout`。public subtypeは`connect` / `read` / `azure` | subtype policyに従う | exhaustionまたはhealth gateによるterminal時に`failed` | frontend polling timeoutとは分離する |
+| retry exhaustion | retry exhaustion | further retryなし | `failed` / Evaluationなし / Result不可、`failed_jobs`記録対象 | terminal failureとして扱う |
+| generic system failure | stable categoryは`system_failure`、stable subtypeは`unexpected` | unknown unexpected failureはbounded retry、known permanentはretryしない | exhaustion後`failed` / Evaluationなし / Result不可 | safe generic detailだけを表示可能にする |
+| Lexical missing | stable categoryは`stage_a_fact_failure`、stable subtype / error classificationは`lexical_missing` | しない | HTTP `500`、response status `error`、`failed` / Evaluationなし / Result不可 | `speech_unrecognized`と混同しない |
+
+`lexical_missing`時は`NBest[0].Lexical`以外へfallbackせず、Display、ITN、MaskedITN、表示用textを採点用factとして代用しない。`stage_a_fact_failure` / `lexical_missing`というstable value自体は確定済みであり、これらを格納・返却するDB column / API propertyの具体名だけをdownstream technical designで決定する。
 
 ### 4.3 タイムアウト設計
 
@@ -223,6 +260,8 @@ expected_duration: 60
 | ジョブ全体タイムアウト | 180秒 | 読み取りタイムアウト + 前後処理マージン |
 
 OI-030のtechnical margin `0.07秒`は元WebMのAzure送信前上限判定専用であり、接続・読み取り・ジョブ全体のtimeoutへ加算しない。
+
+ジョブ全体タイムアウト180秒が1 attempt単位かsubmission全体のwall-clock単位かは本書で新規決定しない。initial attempt＋最大3 retriesのapproved contractを損なわないtask-local technical designをT008-05で明確化し、T013-08で検証する。
 
 ---
 
@@ -235,7 +274,7 @@ sequenceDiagram
     participant U as ブラウザ
     participant L as Laravel Web
     participant Q as Queue Worker
-    participant V as Azure送信前検証責務（配置未確定）
+    participant V as Laravel側Azure送信前検証責務
     participant P as Python FastAPI
     participant A as Azure AI Speech
     participant DB as PostgreSQL
@@ -272,7 +311,7 @@ sequenceDiagram
     L-->>U: { status: "completed", redirect_url: "..." }
 ```
 
-`D`は元WebMからffprobeで取得するduration、`P`はsubmissionへ固定保存した`evaluation_profile_seconds`である。`env-d`（iPhone Safari）で`format.duration`が`N/A`の場合にだけ、packetの`pts_time + duration_time`最大値をfallbackとして使用する。D取得・判定をLaravel／Pythonのどちらへ配置するか、ffprobe取得失敗時および上限超過時の最終API contractは本書で確定せず、後続実装で決定する。
+`D`は元WebMからffprobeで取得するduration、`P`はsubmissionへ固定保存した`evaluation_profile_seconds`である。`env-d`（iPhone Safari）で`format.duration`が`N/A`の場合にだけ、packetの`pts_time + duration_time`最大値をfallbackとして使用する。D取得とOI-030判定はT008-05が担当するLaravel側Queue / Service責務とし、T007-06のPython Stage-A事実値契約へ配置しない。`ProcessSpeechEvaluationJob`へ直接置くかLaravel側専用Serviceへ分離するか、およびffprobe failureの具体的なinternal mappingはT008-05のtask-local technical designで決定する。
 
 OI-030の`0.07秒`をUI timer、ユーザー回答時間、auto stop時刻、time_score用の録音制御上の経過時間`T`、Queue timeout、HTTP timeoutへ転用しない。
 
@@ -280,14 +319,20 @@ time_score用`T`、stop reason／profile limit到達相当の事実はhistorical
 
 ### 5.2 リトライ方針
 
+retry可否はstable semantic classification / retry policyをprimaryとし、HTTP statusはsupporting / fallback signalとして扱う。
+
 | パラメータ | 値 |
 |---|---|
+| initial attempt | 1回 |
 | 最大リトライ回数 | 3回 |
+| 最大total attempts | 4回 |
 | バックオフ | 30秒 / 60秒 / 120秒 |
-| リトライ対象 | 500, 502, 503, 接続タイムアウト |
-| リトライ対象外 | 422（音声認識不可）, 401（認証エラー） |
+| non-retryable | `speech_unrecognized`、invalid audio / conversion input、permanent conversion dependency failure、`pre_azure_upper_limit`、Azure configuration unavailable、`stage_a_fact_failure` / `lexical_missing` |
+| bounded retry | Azure transient unavailable、retryable cancellation、`timeout` / `read`、`timeout` / `azure`、retryable invalid / unexpected Python response、`system_failure` / `unexpected` |
 
-全リトライ失敗時: `submissions.status` を `failed` に更新、`failed_jobs` テーブルへ記録。
+LaravelからPythonへの`timeout` / `connect`は、1回目のretry前に`GET /health`を確認する。healthが正常ならbounded retryへ進み、応答がなければ通常のretryable exceptionとして継続せず即terminal `failed`とする。
+
+全retry失敗時はno further retryとし、`submissions.status`を`failed`へ更新してterminal timestampを保存し、`failed_jobs`テーブルへの記録対象とする。
 
 ### 5.3 べき等性保証（3層）
 
@@ -295,7 +340,7 @@ time_score用`T`、stop reason／profile limit到達相当の事実はhistorical
 2. **ステータスチェック** — ジョブ開始時に `status !== 'pending'` なら正常終了
 3. **DB ユニーク制約** — `evaluations.submission_id` UNIQUE
 
-上記のリトライ方針とnon-pending no-opの関係は、current Stage-Aの最終retry contractとして未確定である。T008-05着手前に、authorized retry、duplicate dispatch、stale job、`processing`状態でのretry、terminal submission、retry exhaustionを区別するtask-local technical designを明確化し、T008-05で実装、T013-08でtestする。本文書では具体的なstatus transitionまたはretry実装方式を新規決定しない。
+semantic retry policy、最大4 total attempts、retry中`processing`、exhaustion後`failed`というcontractは確定済みである。一方、既存のnon-pending no-opとの実装上の関係はtask-local technical designとして、authorized retry、duplicate dispatch、stale job、`processing`状態でのretry、terminal submissionを区別してT008-05で明確化し、T013-08でtestする。本書では具体的なmethod / exception / release構造を固定しない。
 
 ### 5.4 ステータス遷移
 
@@ -304,6 +349,8 @@ time_score用`T`、stop reason／profile limit到達相当の事実はhistorical
                            → failed
          pending → cancelled（MVP 未実装・将来枠）
 ```
+
+`completed`はEvaluationが成立したStage-A pass / failに限定する。Evaluationなしで終了する`not_scored`、speech recognition failure、service / system failure、Stage-A fact failureは`failed`とし、意味はstructured classificationで区別する。retry中は`processing`を維持する。
 
 ### 5.5 ポーリング設計
 
@@ -315,6 +362,8 @@ time_score用`T`、stop reason／profile limit到達相当の事実はhistorical
 | 間隔 | 3秒 |
 | 最大回数 | 60回（= 3分） |
 | 認証 | セッション認証。自分の submission_id のみ参照可 |
+
+60回到達によるfrontend polling timeoutはfrontend-local stateであり、backend failure taxonomyへ含めない。frontend timeoutだけを理由にDB上のsubmissionを`failed`へ変更せず、実行中のbackend Jobも停止しない。backend lifecycleは3分を超えて継続し得るため、frontendは後から同じsubmissionのstatusを再取得可能な前提とする。
 
 ---
 
@@ -510,6 +559,9 @@ Stage-Bのcomment、内容・構成評価、Azure OpenAI等の具体構成は本
 - ローテーション: daily（Laravel 標準）
 - レベル設計: production は `warning` 以上、staging は `debug`
 - 音声評価ジョブ: `submission_id` を全ログ行に付与し追跡可能にする
+- Python / Laravel / Queueのfailure logはsubmission / requestをcorrelation可能にし、sanitized diagnosticをapplication log中心に保持する
+- stable public error contractとinternal diagnosticを分離し、secret、token、stack trace、provider-sensitive raw detailをuser-facing API / UIへ露出しない
+- exact logger channel、retention、sanitizer implementationはdownstream technical designで決定する
 
 ### 12.3 SSL/TLS
 
