@@ -53,7 +53,7 @@ STT 認識不可時の 422 は、原則として通常のシステム障害で�
 - Stripe Webhook 受信 → 契約状態更新
 - 退会: Stripe 解約 → 音声削除 → soft delete → 30日後 hard delete
 
-音声提出経路では、422 音声認識不可を 500 / 502 / 503 / タイムアウトと同列のサーバー障害として扱わない。422 は、原則として提出フロー内でエラー表示後に再録音 / 再提出へ戻す対象とする。
+音声提出経路では、422 音声認識不可をservice / system failureやtimeoutと同列に扱わない。failureはstable semantic classificationで区別し、HTTP statusだけでretry可否または運用上の意味を決定しない。422は原則として提出フロー内でエラー表示後に再録音 / 再提出へ戻す対象とする。
 
 管理画面の運用点検は、単一 `admin` ロールでのアクセスを前提とする。MVP で運用前提にする管理画面の最小範囲は OI-028 確定後に具体化する。
 
@@ -133,7 +133,7 @@ historical bulk rescoreの実行triggerは運用責務であり、scoring algori
 4. 安全な単位での再実行またはプロセス再起動
 5. DB・課金・削除状態の整合確認
 
-500 / 502 / 503 / タイムアウトはリトライ・障害調査対象とする。
+retry可否はsemantic classification / retry policyをprimaryとし、HTTP statusはsupporting / fallback signalとして扱う。permanent dependency / configuration failureはretryせず、transient service failureおよびapproved unknown failureだけをbounded retryする。
 422 音声認識不可はリトライ前提のサーバー障害ではなく、UI 上でエラー表示後に再録音 / 再提出へ戻す対象とする。
 
 Queue Worker 停止時は `jobs` テーブルの滞留を確認し、再開時は `php artisan queue:work --once` または `php artisan queue:work --stop-when-empty` で処理再開を確認する。
@@ -143,11 +143,21 @@ Queue Worker 停止時は `jobs` テーブルの滞留を確認し、再開時�
 ### 3.3 FastAPI 接続タイムアウト時
 
 Laravel から Python サービスへの接続タイムアウト発生時は、1回目の再試行前に `/health` を確認する。
-応答がなければジョブを即 failed として扱い、障害ログを出力する。
+正常応答があればbounded retryへ進み、応答がなければ通常のretryable exceptionとして継続せずジョブを即 failed として扱い、障害ログを出力する。
 （ARCHITECTURE.md §4.3 のタイムアウト設計と整合）
 
-500 / 502 / 503 / 接続タイムアウトはリトライ対象とする。
-422 音声認識不可は原則としてリトライ対象外とし、提出フロー上の再録音 / 再提出へ戻す。
+retry cardinalityはinitial attempt 1回＋最大3 retries＝最大4 total attempts、backoffは30秒 / 60秒 / 120秒とする。
+
+| Failure semantics | Retry operation |
+|---|---|
+| `speech_unrecognized`、invalid audio / conversion input、permanent conversion dependency failure、`pre_azure_upper_limit`、Azure configuration unavailable、`stage_a_fact_failure` / `lexical_missing` | retryしない |
+| Azure transient unavailable、retryable cancellation、`timeout` / `read`、`timeout` / `azure`、retryable invalid / unexpected Python response、`system_failure` / `unexpected` | bounded retry |
+| `timeout` / `connect` | 1回目のretry前に`/health`。正常ならbounded retry、無応答なら即failed |
+| retry exhaustion | no further retry、terminal `failed`、`failed_jobs`記録対象 |
+
+運用上も、speech recognition failure、`pre_azure_upper_limit` / `not_scored`、permanent service / configuration failure、transient service failure、`system_failure` / `unexpected`、`stage_a_fact_failure` / `lexical_missing`を混同しない。
+
+failure logはsubmission / requestをcorrelation可能にし、sanitized diagnosticをapplication log中心に保持する。stable public error contractとinternal diagnosticを分離し、secret、token、stack trace、provider-sensitive raw detailをuser-facing API / UIへ露出しない。exact logger channel、retention、sanitizer implementationはT007-06 / T008-05のtechnical designで決定する。
 
 ### 3.4 Stripe 連携異常
 
@@ -189,6 +199,14 @@ OI-027 確定前に、本文書でイベント一覧を確定済みとして扱�
 
 音声削除失敗が発生した場合でも、評価結果保存済みであれば DB メタデータの整合を優先する。
 そのうえで、残存一時ファイルは CleanupTempFilesJob により回復的に削除する。
+
+audio cleanup timingは次を前提とする。
+
+- retry途中の`processing`では再実行に必要な一時audioを保持する
+- `completed`確定時にcleanupする
+- non-retryable terminal `failed`確定時にcleanupする
+- retry exhaustionによるterminal `failed`確定時にcleanupする
+- 即時cleanup失敗時は既存のrecovery cleanup方針へ委譲する
 
 確認観点は以下とする。
 

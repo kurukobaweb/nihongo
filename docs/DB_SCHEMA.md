@@ -691,8 +691,8 @@ ORDER BY t.name ASC;
 | `audio_duration_seconds` | numeric(8,2) | Yes | NULL | 録音ファイルから取得した実測秒数 |
 | `prompt_snapshot` | text | No | なし | 提出時に実際に使用した設問文1件のスナップショット |
 | `evaluation_profile_seconds` | integer | No | なし | 録音開始前に最終選択されていた評価プロファイル |
-| `status` | varchar(20) | No | `'pending'` | 提出状態 |
-| `error_message` | text | Yes | NULL | 失敗時エラー |
+| `status` | varchar(20) | No | `'pending'` | 提出状態。`completed`はEvaluationが成立したpass / fail、`failed`はEvaluationなしのterminal outcome |
+| `error_message` | text | Yes | NULL | 利用者へ提示可能なsafe failure message。semantic classificationの代替または文字列markerには使用しない |
 | `submitted_at` | timestamp | No | CURRENT_TIMESTAMP | 提出日時 |
 | `completed_at` | timestamp | Yes | NULL | 完了または失敗確定日時 |
 | `created_at` | timestamp | No | CURRENT_TIMESTAMP | 作成日時 |
@@ -743,6 +743,13 @@ WHERE id = $1
 - OI-030で確定したproduction共通technical marginは `0.07秒` であり、`evaluation_profile_seconds` または `expected_duration` へ加算しない
 - 元WebMのffprobe durationを`D`、固定保存済み`evaluation_profile_seconds`を`P`とし、Azure送信前に `D <= P + 0.07` を上限内、`D > P + 0.07` を上限超過として扱う。上限超過時はAzureへ送信せず、Stage-A採点およびevaluation作成を行わない
 - 既存データの `prompt_snapshot` / `evaluation_profile_seconds` バックフィル方法は本書では確定しない
+- `pending` / `processing` / `completed` / `failed`の4状態を維持し、新しいsubmission statusは追加しない
+- `completed`は認識成功後にEvaluationが成立したStage-A pass / failのterminal stateとする
+- Evaluationを生成せずterminal終了するfailureは`failed`とし、`pre_azure_upper_limit` / `not_scored`、speech recognition failure、`system_failure` / `unexpected`、`stage_a_fact_failure` / `lexical_missing`等の意味はstatusではなくstructured semantic classificationで区別する
+- `completed_at`は`completed` / `failed`双方のterminal確定日時として使用する
+- failure時は、top-level failure category、該当するpublic subtype、safe user-facing message、safe user action、terminal classificationをsubmissionへ関連付けて永続化可能でなければならない
+- stable category / subtype / terminal classificationの値はOI-112で確定済みとする一方、それらを格納するphysical column名、型、長さ、NULL可否、CHECK、index、JSONまたは個別columnの選択は本書で新規決定せず、T002-07 / T008-05のtechnical designへ委譲する
+- error transport目的でinternal diagnostic、secret、token、stack trace、provider-sensitive raw detailをsubmissionへ保存必須としない。sanitized diagnosticはapplication log中心に扱う
 - `completed` / `failed` 確定時に音声ファイル実体を物理削除する
 - 即時削除に失敗した場合の回復手段は CleanupTempFilesJob とする
 - CleanupTempFilesJob の実行頻度および削除対象条件は OI-021 で管理する
@@ -765,8 +772,12 @@ Azure AI Speech の認識が成功し、Stage-A評価結果が成立した提出
 評価レコードを作成しないケース:
 
 - STT認識不可（422）
-- Azure送信前の時間上限超過
-- システム障害
+- invalid audio / conversion terminal failure
+- Azure送信前の時間上限超過（category `pre_azure_upper_limit`、terminal classification `not_scored`）
+- Azure / service terminal failure
+- backend `timeout`（subtype `connect` / `read` / `azure`）のretry exhaustion
+- generic system failure（category `system_failure`、subtype `unexpected`）
+- Lexical missingを含むStage-A fact failure（category `stage_a_fact_failure`、subtype `lexical_missing`）
 
 認識成功後の採点不合格は `final_score = 0`、`evaluation_result = 'fail'` として評価レコードを作成する。
 
@@ -848,7 +859,8 @@ WHERE submission_id = $1;
 - Stage-B導入後はStage-A結果に追加して使用・表示し、`final_score` を `overall_score` へ転用しない
 - `azure_request_id` / `raw_azure_response` はStage-AのAzure AI Speech情報に限定し、将来のAzure OpenAI等のStage-B情報を混在・上書きしない
 - 今回はStage-B用カラムまたはStage-B専用テーブルを追加しない
-- Stage-Aのfailure時にevaluationを作成するか、submissionをどのterminal stateへ遷移させるか、status API/UIへどのerrorを返すかというcross-layer contractは OI-112 / T000-10で確定する。本書では未確定のfield/statusを追加しない
+- Stage-A pass / failではevaluationを作成してsubmissionを`completed`とし、上記のEvaluation非作成failureではsubmissionをterminal `failed`とする。`failed`内の意味はstructured semantic classificationで区別し、status API / UIのlogical contractは`ARCHITECTURE.md` / `DESIGN.md`を参照する
+- failure persistenceのsemantic requirementはOI-112 / T000-10のユーザー承認済みcontractに従う。physical field設計はT002-07 / T008-05へ委譲し、internal diagnosticやprovider-sensitive raw detailをsubmission error transportへ混在させない
 - `raw_azure_response` は全文検索しない
 - `raw_azure_response` に GIN インデックスは付与しない
 - 非機能要件: `raw_azure_response` は 1件 500KB を想定上限とする
@@ -1616,7 +1628,7 @@ DB 設計に関する未確定事項は `OPEN_ISSUES.md` に一元管理する�
 | OI-105 | 30日後 hard delete 実行主体 | hard delete 条件は本文反映。実行主体は OI-105 参照 | 管理中 |
 | OI-109 | 退会時のsubmission / Queue競合 | data contractをOI-109で管理。未確定のstate遷移を追加しない | 管理中 |
 | OI-110 | 退会オーケストレーションの部分失敗・補償 | deletion orderの確定部分を維持し、未確定の補償contractはOI-110参照 | 管理中 |
-| OI-112 | Stage-A cross-layer error contract | failure時のevaluation有無、submission state、API/UI contractはOI-112参照 | 管理中 |
+| OI-112 | Stage-A cross-layer error contract | Evaluationありpass / failのみ`completed`、Evaluationなしterminal outcomeは`failed`とするlifecycle、structured failure classification、retry / API / UI contractを本文へ反映済み | 解消済み |
 | OI-106 | 規約更新時の再同意フロー | MVP 対象外。`consents` は新規登録時のみ記録 | 管理中 |
 | OI-107 | `raw_azure_response` 500KB 超過時の保持方針 | 想定上限と全文検索しない方針を本文反映。超過時の扱いは OI-107 参照 | 管理中 |
 | OI-108 | 利用規約 / PP 最新バージョンの永続管理方式 | 現時点ではアプリ設定値管理。専用テーブル追加要否は OI-108 参照 | 管理中 |

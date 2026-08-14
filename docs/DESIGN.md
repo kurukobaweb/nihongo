@@ -231,9 +231,11 @@ stateDiagram-v2
     提出確認 --> 課題表示: キャンセル
     アップロード中 --> 解析中: 202 Accepted
     解析中 --> 結果表示: 採点完了（pass / fail）
-    解析中 --> 採点対象外表示: 採点対象外（evaluationなし）
+    解析中 --> 採点対象外表示: pre_azure_upper_limit / not_scored（evaluationなし）
     解析中 --> 認識不可表示: 422 speech_unrecognized
-    解析中 --> システムエラー表示: system error
+    解析中 --> システムエラー表示: system_failure / unexpected等
+    解析中 --> Stage-A事実値エラー表示: stage_a_fact_failure / lexical_missing等
+    解析中 --> ポーリング待機終了表示: frontend polling timeout
 ```
 
 補足:
@@ -243,6 +245,8 @@ stateDiagram-v2
 * 最低採点時間以上のSTOPと、profile上限によるauto stopは提出確認へ進める。
 * OI-030のtechnical margin `0.07秒`はUI timer、ユーザー回答時間、auto stop時刻、STOP可能時間へ加算しない。
 * 422: 音声認識不可時は、エラー表示後に再録音または再提出へ戻す導線を用意する。
+* 採点対象外、認識不可、service / system failure、Stage-A fact failureはDB lifecycle上はいずれもEvaluationなしのterminal `failed`だが、user / application outcomeはstructured semantic classificationで区別する。
+* backend timeoutはstable category `timeout`とし、public subtype `connect` / `read` / `azure`を区別する。frontend polling timeoutはこのbackend categoryに含めないfrontend-local stateであり、backend submissionを`failed`へ変更せず、backend Jobも停止しない。後から同じsubmissionのstatusを再取得できる導線を持てるようにする。
 * 詳細なユーザー向け説明文言、再録音導線、エラー表示方針は OI-006 で管理する。
 * 本文書では具体文言を確定しない。
 
@@ -359,6 +363,8 @@ Mobile / Tablet ではボトムナビに主要導線を配置し、補助導線�
 * エラー時（422: 音声認識不可）は再提出を案内する（OI-006）
 * 422時は空欄の結果画面へ進めず、ホーム上または提出フロー内で再録音 / 再提出に戻す
 * 422の具体文言・配置と、その他のStage-A failureの最終UI actionは OI-006 / OI-112 の確定内容に従う
+* failure UIはmachine-readableなsemantic category、subtype、safe user actionを使用し、`error_message`文字列markerの解析へ依存しない
+* frontend pollingは3秒間隔・最大60回を維持し、待機終了後もbackendの処理を停止せずstatusを再取得可能にする
 
 #### 状態遷移
 
@@ -436,9 +442,15 @@ UIは次を別状態として扱い、同じエラー表示や空欄の結果画
 
 1. 合格: evaluationあり、`evaluation_result = pass`
 2. 採点不合格: evaluationあり、`evaluation_result = fail`、submissionは`completed`
-3. 採点対象外: Stage-A採点およびevaluation作成なし（例: OI-030上限超過）
+3. 採点対象外: Stage-A採点およびevaluation作成なし（OI-030上限超過のstable category `pre_azure_upper_limit`、terminal classification `not_scored`）
 4. 422 `speech_unrecognized`: STT認識不可
-5. system error: 500系、timeout等のシステム障害
+5. service / system failure: permanent service / configuration failure、transient service failure、backend category `timeout`（subtype `connect` / `read` / `azure`）、generic category `system_failure` / subtype `unexpected`等
+6. Stage-A fact failure: category `stage_a_fact_failure` / subtype `lexical_missing`等、採点に必要なcanonical factを構成できないfailure
+7. frontend polling timeout: backend submission failureでもbackend category `timeout`でもないfrontend-localな待機終了
+
+採点対象外はtransport state上`failed`だが、user / application outcomeは`not_scored`であり、system error、speech recognition failure、pass / failと混同しない。Stage-A fact failureも`speech_unrecognized`またはgeneric system failureへ表示上まとめず、safe actionを提示可能なerror flowとして扱う。Evaluationなしのterminal `failed` outcomeはResult routeへ進めず、Result routeへ進めるのは`completed`かつEvaluationありの場合だけとする。
+
+UIの分岐はstatus APIが返すmachine-readableなsemantic category、該当するsubtype、safe user actionを使用する。具体的なAPI key、ユーザー向け文言、ボタンラベル、component構造は本書で新規決定せず、OI-006 / T009-06へ委譲する。
 
 具体的なユーザー向け文言、ボタンラベル、最終レイアウトは本節で確定せず、OI-006等の未確定事項と後続UIタスクへ委譲する。
 
