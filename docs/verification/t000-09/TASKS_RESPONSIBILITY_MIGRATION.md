@@ -522,15 +522,19 @@ push後は必ずUser TASKS.md Direct Review Gateで停止し、final re-auditへ
 
 ### Current state
 
-- T000-09 completion decision: HOLD
+- T000-09 completion decision: APPROVED / COMPLETE
 - Finding correction: F-001〜F-007 resolved
 - correction diff: F-001〜F-004 direct review completed / user approved; F-005 direct review completed / technical PASS / user approved
 - User TASKS Direct Review Gate: completed / user approved
 - Step 17: completed
-- Step 18: final independent re-audit executed
-- Step 18 result: task graph / dependency / canonical / owner audit PASS。F-006 / F-007を検出
+- Step 18: final independent re-audit completed / PASS
+- Step 18 result: task graph / dependency / canonical / owner audit PASS。F-006 / F-007 correction後、F-001〜F-007 RESOLVED
+- Step 19: completion record finalized
+- Step 20: final PR review completed / PASS
+- Step 21: user completion / merge judgment approved
+- PR #73 merge: approved / execution pending
 - F-006 correction: user approved / applied
 - F-007 correction: PR #73 title / bodyをcurrent scope / current completion stateへ同期済み
 - Status Sync: completed
 - F-005 Status Sync: completed
-- current stopping point: final user completion / merge judgment pending
+- current stopping point: PR #73 merge execution pending
