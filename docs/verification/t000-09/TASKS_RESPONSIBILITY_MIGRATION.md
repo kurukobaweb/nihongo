@@ -445,7 +445,7 @@ Root causeは、historical task stateをcurrent task stateの判断へ混入さ�
 | F-004 | verification artifactの正式進行順とcurrent handoffの不一致 | `RESOLVED` | 承認済みcorrectionをactual diff直接レビューし、ユーザー承認済み |
 | F-005 | T014〜T017のcurrent taskへのlater-added provenance rule過剰適用 | `RESOLVED` | correction actual diffをChatGPTが直接レビューしてtechnical PASSと判定し、ユーザー承認済み |
 | F-006 | repository内workflow current-state記録が旧gateのまま | `RESOLVED` | Option Aに従いREADME / TASKS / verification artifactをcurrent workflowへ最小同期 |
-| F-007 | PR #73 current scope / completion stateとmetadataの不一致 | `APPROVED-FIX` | Option A user-approved。PR metadata correctionは未実施 |
+| F-007 | PR #73 current scope / completion stateとmetadataの不一致 | `RESOLVED` | PR #73 title / bodyをcurrent scope / current completion stateへ同期済み |
 
 #### F-005: T014〜T017 provenance metadata correction
 
@@ -484,7 +484,8 @@ Root causeは、historical task stateをcurrent task stateの判断へ混入さ�
 - issue: current PR scope / completion stateとmetadataが不一致
 - approved option: Option A
 - user judgment: approved
-- status: `APPROVED-FIX`（PR metadata correction pending）
+- correction evidence: PR #73 titleを`docs: finalize T000-09 task responsibility audit`へ変更し、bodyをcurrent scope / current completion stateへ同期済み。PRはOpen / Draft、changed filesは8件、T000-09 completion decisionはHOLD
+- status: `RESOLVED`
 
 - reviewed diff: `C:\temp\T000-09-post-finding-correction.diff`
 - size: 59,526 bytes
@@ -522,14 +523,14 @@ push後は必ずUser TASKS.md Direct Review Gateで停止し、final re-auditへ
 ### Current state
 
 - T000-09 completion decision: HOLD
-- Finding correction: F-001〜F-006 resolved / F-007 approved-fix
+- Finding correction: F-001〜F-007 resolved
 - correction diff: F-001〜F-004 direct review completed / user approved; F-005 direct review completed / technical PASS / user approved
 - User TASKS Direct Review Gate: completed / user approved
 - Step 17: completed
 - Step 18: final independent re-audit executed
 - Step 18 result: task graph / dependency / canonical / owner audit PASS。F-006 / F-007を検出
 - F-006 correction: user approved / applied
-- F-007 correction: user approved / PR metadata correction pending
+- F-007 correction: PR #73 title / bodyをcurrent scope / current completion stateへ同期済み
 - Status Sync: completed
 - F-005 Status Sync: completed
-- current stopping point: F-007 PR metadata correction / final review pending
+- current stopping point: final user completion / merge judgment pending

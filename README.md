@@ -209,7 +209,7 @@ CodeX で MVP 実装を進めるための実行計画書です。
 - 正規の作業ディレクトリ: `C:\Projects\nihongo`
 - 詳細なタスク状態・依存関係・次工程: `docs/TASKS.md` を参照
 - OI-029 / OI-030 / OI-031: 仕様確定済み。T000-08で正本文書への横断反映を完了
-- T000-09: TASKS責務整理・canonical migrationはPR #72 merge済み。User TASKS Direct Review Gateは承認済みで、final independent re-auditを実施し、task graph / dependency / canonical / owner監査部分はPASS。F-006 / F-007のみ検出し、両FindingのOption A correctionはユーザー承認済み。completion decisionはHOLD
+- T000-09: User TASKS Direct Review Gate完了、final independent re-audit実施済み、F-001〜F-007 resolved。current gateはfinal user completion / merge judgmentで、completion decisionはHOLD
 - `.env.example`: 実Secretsなしの雛形として追加済み
 - `docs/ARCHITECTURE.md`: MVP アーキテクチャ正本
 - `docs/DB_SCHEMA.md`: DB 設計正本
