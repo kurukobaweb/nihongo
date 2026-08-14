@@ -281,3 +281,207 @@ correction pass後も、new mandatory task 12件、new OI 4件、task削除0、r
 ### Final result
 
 TASKS.mdと正本文書の責務分離、canonical未配置0件、重要historical evidence消失0件、actual diffのユーザー承認、PR #72の`develop` mergeを確認し、T000-09の目的とcompletion conditionを満たした。これはT000-09の文書責務整理完了記録であり、MVP、T017、downstream taskの完了判定ではない。
+
+## 16. Final completeness incident / correction record
+
+### Audit result
+
+- Final Completeness Audit: HOLD
+- audit中のrepository変更: なし
+- PR #73: Draft / Open / 未merge
+- §15はcompletion recordを作成した時点のhistorical recordとして保持する。後続auditによりcurrent completion decisionはHOLDへ戻した
+
+### Confirmed findings
+
+#### KF-01: new mandatory task provenance metadata適用漏れ
+
+- T000-09で追加したnew mandatory task: 12件
+- correction前のlater-added provenance coverage: 0 / 12
+- existing later-added mandatory correction task: 10件中10件でstateとprovenance metadataを別軸管理
+- 原因: 承認済みlater-added metadata ruleをnew mandatory task 12件へ適用していなかった
+- correction: 12件それぞれへ追加区分、TASKS追加日、added commit / PR / merge commit、追加起点、追加前章状態、位置づけを追加した。current stateの`未着手`は変更していない
+
+対象task:
+
+- T000-10
+- T013-11
+- T013-12
+- T014-06-01
+- T015-01-01
+- T015-02-01
+- T015-03-01
+- T015-03-02
+- T016-01-01
+- T016-02-01
+- T016-05
+- T016-06
+
+#### KF-02: DESIGN current settings不整合
+
+- `DESIGN.md` §7-5にhistorical T011-02時点の旧5設定がcurrent設定として残っていた
+- 完了済みT011-02をfuture actionとして扱う記述が残っていた
+- current canonicalの2設定（`question_format_preference` / `timer_display_mode`）およびT011-03 correctionと不整合だった
+- correction: current設定表を2項目へ同期し、`user_learning_settings`方式、historical T011-02の5設定保存基盤、T011-03によるcurrent correctionを明示した
+
+### False-positive correction
+
+#### KF-03: Stage-A profile scoring ranges
+
+- Final Completeness Auditの指示に、current canonicalと異なるprofile scoring rangesが監査条件として含まれていた
+- current Stage-A scoring canonicalは`docs/STAGE_A_SCORING.md`であり、T000-07 / OI-031 Decision Recordでユーザー最終承認済みである
+- audit条件側の誤りであり、scoring canonicalのcorrectionは不要と判断した
+- `docs/STAGE_A_SCORING.md`、`docs/verification/t000-07/OI-031_DECISION.md`、scoring band、time_score、character_score、profile値は変更していない
+
+### Completion state
+
+- PR #72のimplementation、user approval、merge、post-merge cleanupのhistorical factsは有効である
+- T000-09 completion decision: HOLD
+- 本correctionのactual diff reviewとuser approval後、独立したFinal Completeness re-auditを行う
+- Final Completeness re-auditでFAIL 0 / UNVERIFIED 0となるまでT000-09をcompleteにしない
+- current stopping point: correction applied / independent re-audit pending
+
+## 17. Post-correction content & consistency review
+
+### Review method / result
+
+- review date: 2026-08-14
+- review candidate: PR #73 candidate HEAD `a866d306a601ec28ff5ddaf1d9a93908fd2e0cd0`と未commit Incident Correctionの合成状態
+- review result: HOLD
+- review中のrepository変更: なし
+- T012-06のlater-added provenance漏れに関するユーザー指摘を契機として、既知FindingだけでなくTASKS本文0〜17章とcanonical全体を内容ベースで再確認した
+- new mandatory 12件のprovenance correctionは12 / 12、DESIGN current settings correctionは2項目で妥当だった
+
+### Review procedure / recurrence prevention
+
+1. TASKS本文を章・task単位で読み、state、role、dependency、canonical、OI、gate、historical/current位置づけを理解する
+2. baselineとcurrentをtask単位でsemantic比較する
+3. TASKSのcurrent記述をcanonical documentsと内容照合する
+4. later-addedまたはhistorical/currentに疑義があるtaskだけGit historyでaddition originを確認する
+5. task / dependency / OI件数等のmachine validationは最後の補助として用い、semantic reviewを代替させない
+6. 既知Finding以外の不整合も独立Findingとして記録する
+7. completion確定前に独立再監査でFAIL 0 / UNVERIFIED 0を要求する
+
+### Confirmed findings and correction
+
+#### F-01: additional later-added provenance omission
+
+- affected: T000-09、T012-06、T013-06、T013-08、T013-09、T013-10
+- correction: 6件へ追加区分、TASKS追加日、addition commit / PR / merge、追加起点、追加前章状態、位置づけを追加した
+- T013-06はoriginal logical task `T013-06-pre`のadditionと、後続の`T013-06`へのrenumber historyを分離して記録した
+- T013-07はlogical load-test taskのrenumberであり、本6件のlater-added logical taskとしてmetadataを追加していない
+
+#### F-02: Chapter 12 current purpose
+
+- historical T012-01〜T012-05のT013-02前準備と、later-added current follow-up T012-06を章注記で分離した
+- T012-06はT012-01のcleanup semanticsを再決定せず、OI-021のnon-production MVP条件を確定してT013-05へ接続する
+- production path / volume / permissions / cadence / monitoring等はR1へ維持した
+
+#### F-03: admin access behavior
+
+User decision:
+
+- unauthenticated: existing auth middleware / login flowに従ってloginへ遷移
+- authenticated `users.role = user`: HTTP 403
+- authenticated `users.role = admin`: admin route / minimal admin shellへのアクセスを許可
+
+ARCHITECTURE.md、DESIGN.md、T016-01、T016-04へ同じtest oracleを反映した。OI-028の管理機能scope、role種類、permission table、provisioning、navigationは変更していない。
+
+#### F-04: canonical consistency ledger tense
+
+- CONSISTENCY_CHECK.mdのT011-02をcurrent実装前提とする表現を、historical 5-setting implementation / T011-03 current 2-setting correctionへ同期した
+- DB_SCHEMA.md §11.3 A-05〜A-08は、canonical反映済み状態とapplication follow-upを分離した
+- table / column / type / constraint / default / relation / index / deletion semantics / scoring / migration designは変更していない
+
+#### F-05: OI-017 tense
+
+- resolved OI-017の確定先を、完了済みT003-05による確認・必要最小限の反映済みというhistorical completion factへ時制同期した
+- remember me、session lifetime、`SESSION_EXPIRE_ON_CLOSE`、`remember_token`、UI方針は変更していない
+
+### Completion state after extended correction
+
+- T000-09 completion decision: HOLD
+- extended correction applied
+- independent actual diff review / user approval / final re-audit pending
+- FAIL 0 / UNVERIFIED 0を確認するまでT000-09をcompleteにしない
+- current stopping point: correction applied / actual diff review pending
+
+## 18. Actual diff review finding / micro-correction
+
+### Review evidence / result
+
+- reviewed patch SHA-256: `9CB9F02551F9B9A841212E478B93DA5C932BBE16FAD993FED8A8AF1C9EFE4370`
+- actual diff review result: HOLD
+- CodeXによるactual diff export時のPotential issuesは`None`だったが、ChatGPTによるdiff本文のdirect reviewで追加Findingを検出した
+- review中のrepository変更: なし
+- micro-correction: 適用済み
+- actual diff re-review: completed
+
+### Findings
+
+1. T013-06 provenance metadataで、original addition時点のhistorical snapshotとcurrent task state / current roleを混同していた
+2. resolved OI-022 / OI-023の確定先が、current canonical反映済み・application correction未完了という現在状態に対してstaleだった
+3. CONSISTENCY_CHECK.mdの`要確認（OI 依存）`見出しが、resolved decision後のimplementation / migration / actual environment確認というsection本文の現在責務に対してstaleだった
+4. actual diff review Finding、再発防止、User TASKS.md Direct Review Gateのchronology記録が必要だった
+
+### Root cause / recurrence prevention
+
+Root causeは、historical task stateをcurrent task stateの判断へ混入させたことである。
+
+1. correction開始時にcurrent working treeのTASKS stateを固定する
+2. completed taskをprotected stateとして扱い、state・完了日・completion evidenceを変更しない
+3. Git historyはprovenance / historical snapshot / renumber historyの確認に限定する
+4. historicalな`未着手`をcurrent task stateへ伝播させない
+5. `追加時点の章状態（historical snapshot）`とcurrentの`位置づけ`を分離する
+6. correction後にcompleted-state regressionを独立確認する
+7. task / dependency / OI件数等のmachine validationはsemantic reviewの補助として用いる
+
+### Final Completeness Audit Finding Register
+
+| ID | Finding | Status | 解消確認 |
+|---|---|---|---|
+| F-001 | T013-11 / OI-010 acceptance design owner不足 | `RESOLVED` | 承認済みcorrectionをactual diff直接レビューし、ユーザー承認済み |
+| F-002 | T015-02-01 / OI-111 decision owner不足 | `RESOLVED` | 承認済みcorrectionをactual diff直接レビューし、ユーザー承認済み |
+| F-003 | TASKS全体のID順と実行順の説明不足 | `RESOLVED` | 承認済みcorrectionをactual diff直接レビューし、ユーザー承認済み |
+| F-004 | verification artifactの正式進行順とcurrent handoffの不一致 | `RESOLVED` | 承認済みcorrectionをactual diff直接レビューし、ユーザー承認済み |
+
+- reviewed diff: `C:\temp\T000-09-post-finding-correction.diff`
+- size: 59,526 bytes
+- SHA-256: `801d812b4ed7b49d127d8f1e5d9e6316e1fc8a13790a450834367320b831abd6`
+- stat: 8 files changed, 384 insertions(+), 69 deletions(-)
+
+### User TASKS.md Direct Review Gate
+
+正式な後続順序は次のとおりとする。
+
+1. Startup Audit Workflow
+2. TASKS全文監査
+3. Finding Register確定
+4. ユーザー判断
+5. correction plan
+6. ユーザー承認
+7. CodeX correction
+8. actual diff直接レビュー
+9. ユーザー承認
+10. Status Sync
+11. Status Sync diff確認
+12. ユーザー承認
+13. correction commit
+14. push / PR #73 update
+15. STOP
+16. ユーザーがGitHub上の `docs/TASKS.md` を直接確認
+17. ユーザー承認
+18. final independent re-audit
+19. completion record finalization
+20. final PR review
+21. merge判断
+
+push後は必ずUser TASKS.md Direct Review Gateで停止し、final re-auditへ自動進行しない。
+
+### Current state
+
+- T000-09 completion decision: HOLD
+- Finding correction: F-001〜F-004 resolved
+- correction diff: direct review completed / user approved
+- final independent re-audit: not yet executed
+- Status Sync: completed
+- current stopping point: Step 11 Status Sync diff review pending

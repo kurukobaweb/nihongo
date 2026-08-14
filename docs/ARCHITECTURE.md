@@ -450,6 +450,8 @@ Stage-Bのcomment、内容・構成評価、Azure OpenAI等の具体構成は本
 ### 10.2 認可
 
 - `users.role` で `user` / `admin` を区別。admin ミドルウェアで管理画面をガード
+- 未ログインでadmin routeへアクセスした場合は、既存auth middleware / login導線に従ってログイン画面へ遷移する
+- 認証済みの`users.role = user`はHTTP 403で拒否し、認証済みの`users.role = admin`だけadmin route / minimal admin shellへのアクセスを許可する
 - ポリシーベース認可: 自分の submissions / evaluations のみ閲覧可
 - MVP 管理画面の最小範囲は OI-028 で管理する
 - 追加権限テーブルは現時点では追加しない

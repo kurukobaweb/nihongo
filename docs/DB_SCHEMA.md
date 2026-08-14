@@ -1583,15 +1583,15 @@ MVP 規模は年間 `submissions` が概ね 100,000 件未満を想定する。
 
 | ID | 仕様確定 | DB_SCHEMA.md | 実装コード | 他の正本文書 |
 |---|---|---|---|---|
-| A-05 問題形式・設問文 | OI-022で解消済み | §4-2-3、§4-2-5へ反映 | 本書では未確認 | ARCHITECTURE.md等は後続確認・補正対象 |
-| A-06 学習設定 | OI-023で解消済み | §2.2、§4-1-2へ2項目構成を反映 | 本書では未確認 | ARCHITECTURE.md / DESIGN.md等は後続確認・補正対象 |
-| A-07 評価プロファイル | OI-009で解消済み | questions初期値とsubmission最終選択値へ反映 | 本書では未確認 | ARCHITECTURE.md / DESIGN.md等は後続確認・補正対象 |
-| A-08 Stage-A評価 | OI-029〜OI-031で確定済み | §4-2-5、§4-2-6へ責務に必要な範囲を反映 | 本書では未確認 | T000-08でARCHITECTURE.md等を横断補正 |
+| A-05 問題形式・設問文 | OI-022で解消済み | §4-2-3、§4-2-5へ反映 | current application correctionはT004-04等で確認・実装する | ARCHITECTURE.md / DESIGN.mdへcurrent canonicalを反映済み |
+| A-06 学習設定 | OI-023で解消済み | §2.2、§4-1-2へ2項目構成を反映 | historical T011-02の5設定との差をT011-03で補正する | ARCHITECTURE.md / DESIGN.mdへcurrent 2項目を反映済み |
+| A-07 評価プロファイル | OI-009で解消済み | questions初期値とsubmission最終選択値へ反映 | current application correctionはT004-04 / T005-04 / T006-03等で確認・実装する | ARCHITECTURE.md / DESIGN.mdへcurrent canonicalを反映済み |
+| A-08 Stage-A評価 | OI-029〜OI-031で確定済み | §4-2-5、§4-2-6へ責務に必要な範囲を反映 | current application correctionはT007-06 / T008-05 / T009-06等で確認・実装する | T000-08でARCHITECTURE.md / DESIGN.md等へcurrent canonicalを横断反映済み |
 
 ### 11.4 反映順序推奨
 
-- OPEN_ISSUESで確定した仕様と、本書へ反映したDB設計を基準に、実装コードと他の正本文書を個別に確認する
-- ARCHITECTURE.mdのStage-A処理フローとStage-A / Stage-B責務はT000-08で横断補正し、実装コードへの反映は後続タスクで確認する
+- OPEN_ISSUESで確定した仕様と、本書および反映済みcanonicalを基準に、実装コードへのcurrent correctionを各後続タスクで確認する
+- ARCHITECTURE.mdのStage-A処理フローとStage-A / Stage-B責務はT000-08で横断補正済みであり、実装コードへの反映は後続タスクで確認する
 - 実装コードへの反映済み・未実装は本書から推測せず、別タスクでmigration、Model、validation、Seeder、評価処理、テストを確認する
 - OI-029〜OI-031の確定結果は各正本を参照し、本書にはDB永続化責務に必要な範囲だけを反映する
 

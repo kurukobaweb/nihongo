@@ -74,7 +74,7 @@
 | A-05 | `ARCHITECTURE.md §13` | `questions.question_format` 追加の反映 | **解消済み** — DB_SCHEMA.md 反映済み。値域は `single_prompt` / `two_choice` として確定済み |
 | A-06 | `ARCHITECTURE.md §13` | ユーザー設定保存先の反映 | **解消済み** — OI-023確定済み。`user_learning_settings` テーブル方式で統一し、18テーブル / 5カテゴリへ更新 |
 
-### 要確認（OI 依存）
+### 要確認（実装・migration・実環境での後続確認）
 
 - `questions.question_format` の具体値は `single_prompt` / `two_choice` として確定済み。CHECK制約、Seeder、UIラベル、validationのコード反映・静的確認はT002-05で完了済みであり、当時未完了だった実DB確認等はT002-06 / T002-07等の後続current chainで回収する
 - ユーザー設定2項目の保存方式は OI-023 で `user_learning_settings` テーブル方式に確定済み
@@ -230,10 +230,10 @@
 - DESIGN.md §7-4 のStage-A結果表示が、DB_SCHEMA.md §4-2-6の`final_score` / `evaluation_result` / transcript / Stage-A補助情報と一致している
 - `pronunciation_result` / `fluency_result` / `overall_score` / `comment`はStage-B用nullableカラムであり、Stage-AのみではNULL・非表示とする方針が整合している
 - DESIGN.md §7-1 の consents 記録が DB_SCHEMA.md §4-5-1 と一致している
-- 設定項目の保存先は OI-023 で `user_learning_settings` テーブル方式に確定済みであり、DB_SCHEMA.md では T011-02 実装前提のテーブル仕様として整合している
+- 設定項目の保存先は OI-023 で `user_learning_settings` テーブル方式に確定済みである。historical T011-02では当時の5設定保存基盤を実装済みであり、current 2項目へのapplication correctionはT011-03で回収する。DB_SCHEMA.md / ARCHITECTURE.md / DESIGN.mdはcurrent 2項目で整合している
 - DESIGN.md でも `user_learning_settings` テーブル方式に確定済み、かつ `users` JSONB方式は不採用として扱っている
 
-### 要確認（OI 依存）
+### 要確認（実装・実DBでの後続確認）
 
 - `questions.question_format`: DBカラム、具体値・値域 `single_prompt` / `two_choice`、CHECK制約、Seeder、UIラベル、validationはT002-05で反映・静的確認済みであり、実DB確認等はT002-06 / T002-07等の後続current chainで回収する
 - 設定項目の保存先: OI-023 確定方針に従い、DB_SCHEMA.md / DESIGN.md / ARCHITECTURE.md の該当箇所を `user_learning_settings` テーブル方式へ更新済み
