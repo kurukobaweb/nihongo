@@ -6953,12 +6953,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T014-06-01: OI-027 MVP Stripe Webhookイベント範囲確定
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T014-01〜T014-08未着手
-- 位置づけ: T000-09でT014-06とT014-07間のOI-027 decision owner不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: decision gate
 - 目的:
   - Webhook foundation確認後、MVP対象event scopeをuser decisionで確定する
@@ -7103,12 +7098,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T015-01-01: OI-109/OI-110 退会オーケストレーション確定
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T015-01〜T015-04未着手
-- 位置づけ: T000-09で退会時race・partial failure decision owner不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: decision gate
 - 目的:
   - 退会時のsubmission/Queue競合と、Stripe解約予約・audio cleanup・sessions削除・soft deleteの部分失敗／補償contractを確定する
@@ -7182,12 +7172,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T015-02-01: 退会完了通知実装
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T015-01〜T015-04未着手
-- 位置づけ: T000-09でMVP退会完了通知のimplementation/test owner不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: 通知実装・テスト
 - 目的:
   - OI-111で確定したtimingに、退会完了通知を重複なく送信する
@@ -7253,12 +7238,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T015-03-01: OI-105 hard delete executor確定
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T015-01〜T015-04未着手
-- 位置づけ: T000-09でOI-105 hard delete executor decision owner不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: decision gate
 - 目的:
   - 30日後hard deleteをbatch/manual等のどのexecutorで起動するか確定する
@@ -7281,12 +7261,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T015-03-02: actual hard delete実装
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T015-01〜T015-04未着手
-- 位置づけ: T000-09でactual hard delete implementation/test path不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: 実装・テスト
 - 目的:
   - 承認済みexecutorとcanonical deletion semanticsに従いactual hard deleteを実装する
@@ -7394,12 +7369,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T016-01-01: non-production admin provisioning実装
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T016-01〜T016-04未着手
-- 位置づけ: T000-09でactual admin E2E用non-production provisioning path不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: non-production環境準備
 - 目的:
   - actual browserでadmin accessを確認できるnon-production admin accountを安全に用意する
@@ -7458,12 +7428,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T016-02-01: OI-028 MVP admin scope確定
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T016-01〜T016-04未着手
-- 位置づけ: T000-09でOI-028 admin scope decision owner不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: decision gate
 - 目的:
   - MVP admin scopeをexplicit minimal-onlyまたはselected featuresとしてuser decisionで確定する
@@ -7556,12 +7521,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T016-05: OI-024 navigation確定・実装・browser acceptance
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T016-01〜T016-04未着手
-- 位置づけ: T000-09でOI-024 decision・implementation・browser acceptance path不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: decision・UI・browser acceptance
 - 目的:
   - OI-024を確定し、legal/site policy、subscription、withdrawal、admin entryを含むPC/mobile navigationを実装・確認する
@@ -7588,12 +7548,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T016-06: OI-025 minimum design token確定・実装・browser acceptance
 
 - [ ] 状態: 未着手
-- 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-13T19:37:47+09:00
-- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
-- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
-- 追加前章状態: T016-01〜T016-04未着手
-- 位置づけ: T000-09でOI-025 decision・implementation・browser acceptance path不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: decision・UI・browser acceptance
 - 目的:
   - MVPに必要なminimum design tokenを確定し、代表画面へ反映・browser確認する

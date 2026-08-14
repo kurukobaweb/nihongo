@@ -443,6 +443,27 @@ Root causeは、historical task stateをcurrent task stateの判断へ混入さ�
 | F-002 | T015-02-01 / OI-111 decision owner不足 | `RESOLVED` | 承認済みcorrectionをactual diff直接レビューし、ユーザー承認済み |
 | F-003 | TASKS全体のID順と実行順の説明不足 | `RESOLVED` | 承認済みcorrectionをactual diff直接レビューし、ユーザー承認済み |
 | F-004 | verification artifactの正式進行順とcurrent handoffの不一致 | `RESOLVED` | 承認済みcorrectionをactual diff直接レビューし、ユーザー承認済み |
+| F-005 | T014〜T017のcurrent taskへのlater-added provenance rule過剰適用 | `RESOLVED` | correction actual diffをChatGPTが直接レビューしてtechnical PASSと判定し、ユーザー承認済み |
+
+#### F-005: T014〜T017 provenance metadata correction
+
+- chapter: T014〜T017
+- issue: T000-09監査時、later-added provenance ruleを14〜17章の未着手current taskへ過剰適用し、`追加区分`、`追加commit`、`追加起点`、`追加前章状態`、`位置づけ`等をtask本文へ追加した
+- impact: current taskとhistorical provenanceが混在し、current developですでに存在するtaskが今回追加されたtaskであるかのように誤読可能だった
+- fact: PR #72で新規task blockとして登録された14〜16章のtaskは、T014-06-01、T015-01-01、T015-02-01、T015-03-01、T015-03-02、T016-01-01、T016-02-01、T016-05、T016-06の9件
+- approved correction: 上記9件は`TASKS追加日: 2026-08-13T19:37:47+09:00`のみ保持し、詳細provenanceはTASKS本文から除去する
+- historical evidence: 詳細な追加commit / PR / 起点 / historical snapshotはverification artifactおよびGit履歴で保持する
+- actual diff review: ChatGPT direct review completed / technical result `PASS`
+- changed files: `docs/TASKS.md`、`docs/verification/t000-09/TASKS_RESPONSIBILITY_MIGRATION.md`
+- reviewed diff: `C:\temp\T000-09-post-direct-review-provenance-correction.diff`
+- size: 10,833 bytes
+- SHA-256: `db17ca61fb1b093b85130816320d8c9413725f3573081a625437f9a9944301bc`
+- TASKS diff: 0 insertions / 45 deletions。指定9 taskから5 provenance metadata行ずつを削除した変更のみ
+- invariant check: 9件の`TASKS追加日`、T015-02-01 decision phase、OI-111 timing / dependency条件を含む実装内容補正を維持。dependency、task ID、task title、task state、completed task regressionはいずれも変更0件
+- protected file check: `docs/STAGE_A_SCORING.md`変更なし
+- diff check: `git diff --check` PASS
+- user judgment: correction diff approved
+- status: `RESOLVED`
 
 - reviewed diff: `C:\temp\T000-09-post-finding-correction.diff`
 - size: 59,526 bytes
@@ -480,8 +501,10 @@ push後は必ずUser TASKS.md Direct Review Gateで停止し、final re-auditへ
 ### Current state
 
 - T000-09 completion decision: HOLD
-- Finding correction: F-001〜F-004 resolved
-- correction diff: direct review completed / user approved
+- Finding correction: F-001〜F-005 resolved
+- correction diff: F-001〜F-004 direct review completed / user approved; F-005 direct review completed / technical PASS / user approved
 - final independent re-audit: not yet executed
 - Status Sync: completed
-- current stopping point: Step 11 Status Sync diff review pending
+- F-005 Status Sync: completed
+- User TASKS Direct Review Gate: HOLD / F-005 correction diff user-approved / remote reflection and GitHub re-review pending
+- current stopping point: User TASKS Direct Review Gate HOLD / remote reflection and GitHub re-review pending
