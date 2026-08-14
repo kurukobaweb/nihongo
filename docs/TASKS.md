@@ -41,6 +41,7 @@
 
 ## 実装順序の補足
 
+- taskはID順に記載するが、ID順は実行順を意味しない。後追加taskが既存taskの前提になる場合を含め、実際の着手順は各taskの「依存タスク」を正とする。
 - 最初の大マイルストーンまでは、基盤 → DB → 認証 → 問題表示 → 録音UI → 音声提出 → Python評価 → Laravel ⇔ Python連携 → ポーリング → 結果表示 → Feature Flag表示制御 → 422再録音 / 再提出導線の順を維持する
 - 12〜16章は依存関係に従って進める。speech、Stripe、UI等の独立系列を章番号だけで不要に直列化しない
 - T013-02はhistoricalにStripe着手前の課金なし音声提出E2Eとして実施された記録であり、current T014のexecution gateまたはMVP全体完了判定ではない
@@ -943,7 +944,13 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 
 ### T000-09: TASKS.md責務整理・仕様正本切り分け
 
-- [ ] 状態: 未着手
+- [x] 状態: 完了（2026-08-14 最終ユーザー承認済み）
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-12T16:57:06+09:00
+- 追加commit: `40ebff354270e857bd5933aafaea5f145875c455`（`docs: finalize T000-07 Stage-A scoring specification`、merge `99c0c0259377aae343fbf76325638cd37e327916`、PR #69）
+- 追加起点: T000-07 / OI-031完了後、T000-08直後にTASKS責務整理を行うため追加
+- 追加前章状態: T000-01〜T000-06-05完了済み、T000-07 / T000-08未着手
+- 位置づけ: T000-08後にTASKSとcanonicalの責務分離を行うため追加されたmandatory task。current stateと追加区分を別軸で管理する
 - 種別: 文書整理
 - 目的:
   - T000-08直後に`docs/TASKS.md`全体をレビューし、「TASKSは実行計画、仕様は仕様書」という責務へ戻す
@@ -981,6 +988,16 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - TASKS.mdから削除した各仕様に対応する正本配置先と参照がある
   - commit、PR、test、E2E等の重要証跡が整理前後で追跡可能である
   - 文書整理による仕様内容の変更がない
+- 確認結果:
+  - PR #72でTASKS.mdをexecution plan責務へ整理し、恒久仕様を既存canonicalへ同期した。新規canonical documentは作成していない
+  - PR #72時点でexisting task削除0件、task renumber 0件、canonical orphan 0件、historical evidence orphan 0件を確認し、重要historical evidenceを維持した
+  - new mandatory task 12件、new OI 4件（OI-109〜OI-112）を登録し、`docs/STAGE_A_SCORING.md`は変更していない。application implementationは行っていない
+  - actual diffをChatGPTがreviewし、ユーザーが最終diffを承認した。implementation commitは`d59396fd595115d4233d6d89110f58ec5cfe412a`、PRは#72、merge commitは`03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`
+  - merge後のlocal / remote `develop`は`03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`へ同期し、task branchはlocal / remoteともcleanup済み
+  - 後続Final Completeness Auditで、新規mandatory task 12件のlater-added provenance metadata適用漏れ（KF-01）と`DESIGN.md`のcurrent settings不整合（KF-02）を確認した
+  - KF-01 / KF-02 correction後のPost-Correction Content & Consistency ReviewでF-01〜F-05を確認し、extended correctionを適用した。actual diff reviewと独立再監査でFAIL 0 / UNVERIFIED 0となるまでcompletion decisionはHOLDとする
+  - User TASKS Direct Review Gate完了、final independent re-audit PASS、F-001〜F-007 RESOLVED、T000-09 completion承認済み。PR #73 merge承認済み / merge execution pending
+  - verification: `docs/verification/t000-09/TASKS_RESPONSIBILITY_MIGRATION.md`
 - CodeX投入時の注意:
   - 文書責務の整理だけを行い、仕様再決定や実装へ進まない
 - 担当:
@@ -992,6 +1009,12 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T000-10: OI-112 Stage-A cross-layer error contract確定
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-13T19:37:47+09:00
+- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
+- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
+- 追加前章状態: T000-01〜T000-08完了済み、T000-09未着手
+- 位置づけ: T000-09でerror contractのdecision owner不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: 仕様確定・文書同期
 - 目的:
   - Python / Laravel Job / DB state / status API / Result・error UIを跨ぐStage-A error contractを確定する
@@ -5198,7 +5221,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 
 # 12. 課金なしE2E前の運用準備
 
-12章は、課金なし音声提出E2Eの前に必要な運用準備だけを扱う。OI-021の実行頻度・削除対象条件は未確定のまま維持し、Scheduler頻度はここで固定しない。Stripe Webhookログは14章のStripeタスク側で扱う。
+12章のT012-01〜T012-05は、historicalにT013-02の課金なし音声提出E2E前の運用準備として完了した。T012-06はその後に追加されたcurrent follow-upであり、完了済みT012-01のcleanup semanticsを再決定せず、OI-021のnon-production MVP側運用条件を確定してT013-05のcleanup acceptanceへ接続する。production absolute path、volume、permissions、production cadence、monitoring等はR1へ分離する。Stripe Webhookログは14章のStripeタスク側で扱う。
 
 ### T012-01: CleanupTempFilesJob 実装
 
@@ -5718,6 +5741,12 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T012-06: OI-021 音声一時保存・回復削除運用条件確定
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory follow-up
+- TASKS追加日: 2026-08-04T15:20:28+09:00
+- 追加commit: `0954c29f7cbfdd263c90fedce3ddffa102244c05`（`docs: register T012-06 OI-021 operations task`、merge `4c23432c885e2921437e24a7695cf0958db4f57b`、PR #59）
+- 追加起点: 完了済みT012-01を再開せず、OI-021の未確定cleanup運用条件を独立follow-upとして管理するため追加
+- 追加前章状態: T012-01〜T012-05完了済み
+- 位置づけ: historicalな課金なしE2E前準備の完了後に追加されたcurrent follow-up。stateと追加区分を別軸で管理する
 - 種別: 運用
 - 目的:
   - OI-021のうち、non-production MVP環境で回復削除を再現・acceptanceできる最小運用条件を確定する
@@ -6290,6 +6319,13 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T013-06: VPSテスト環境・GitHub接続確認
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory precheck
+- TASKS追加日: 2026-07-10T16:27:25+09:00
+- 追加commit: `1563bd8bf05e15b7439dd610559f2e514d2636b1`（`docs: define VPS load test precheck`、merge `aa7ae64fc7c64beabe4e5da445545f466b715792`、PR #46）
+- renumber履歴: logical taskは`T013-06-pre`として追加され、`5dc3ea1608c4d39589ad0f71641faecbed5728c8`（`docs: renumber load test tasks`、merge `03f1336cdd58d6c20d361503ac130423ae08a1fa`、PR #48）で`T013-06`へ変更した。TASKS追加日はoriginal logical taskの追加日を維持する
+- 追加起点: PR #46時点の3秒ポーリング簡易負荷確認を、ローカルではなく意味のあるVPSテスト環境で実施するためのprecheckとして追加
+- 追加時点の章状態（historical snapshot）: PR #46 base `4055d8d41750d6125bd667daa77d83c093b86e4d`時点でT013-01 / T013-02完了、T013-03〜T013-05および当時のT013-06「3秒ポーリング簡易負荷確認」未着手。これはcurrent task stateではない
+- 位置づけ: current VPS performance / stability / actual E2Eの共通readiness task。state、original addition、renumber historyを別軸で管理する
 - 種別: 確認
 - 目的:
   - T013-07、T013-11およびT013-09を実行できるnon-production VPS runtime prerequisiteを確認する
@@ -6442,6 +6478,12 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T013-08: 自動テスト・既存DB移行リハーサル
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction gate
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後のspeech specification follow-up registration
+- 追加前章状態: T013-01〜T013-04完了済み、T013-05〜T013-07未着手
+- 位置づけ: current Stage-A correction後のautomated test / existing DB migration rehearsal gate。stateと追加区分を別軸で管理する
 - 種別: テスト
 - 目的:
   - 新音声仕様のfresh DB、既存DB upgrade、Laravel／Python／UI連携を自動確認する
@@ -6491,41 +6533,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - CodeX
 - Blocker区分: Pre-E2E
 
-### T013-11: OI-010 continuous recognition安定性検証
-
-- [ ] 状態: 未着手
-- 種別: 実Azure安定性検証
-- 目的:
-  - long-duration continuous recognitionの途切れ、timeout、transcript truncation、EndOfStream、retry影響について、T013-09前のacceptance evidenceを得る
-- 参照仕様書:
-  - `OPEN_ISSUES.md` OI-010
-  - `ARCHITECTURE.md`
-  - `OPERATIONS.md`
-- 依存タスク:
-  - T013-08
-  - T013-06
-- 実装内容:
-  - OI-010で承認されたprofile / trial / acceptance designに従いnon-production VPSとtest Azure Speechで検証する
-  - timeout、transcript truncation、EndOfStream、retryの証跡を記録する
-  - 結果をOI-010の判断材料として同期する
-  - user acceptance結果をOI-010へ記録する
-- 実装してはいけないこと:
-  - profile、trial数、acceptance thresholdを本タスク内で独断決定しない
-  - 単発成功だけで長時間安定性を証明済みとしない
-  - production Azureを使用しない
-- 完了条件:
-  - OI-010の承認済み検証設計に対する証跡とuser acceptanceが揃い、OI-010が解消されT013-09を開始できる
-- テスト観点:
-  - long-duration recognition、timeout、truncation、EndOfStream、retry
-- CodeX投入時の注意:
-  - 実Azure利用はユーザー承認後に行い、Secrets・音声をcommitしない
-- 担当:
-  - ユーザー＋CodeX
-- Blocker区分: Pre-E2E
-
 ### T013-09: 新音声仕様の実Azure・実ブラウザ総合E2E
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory E2E follow-up
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後のspeech specification follow-up registration
+- 追加前章状態: T013-01〜T013-04完了済み、T013-05〜T013-07未着手
+- 位置づけ: T013-08後にactual browser / non-production VPS / test Azureを通す総合E2E。stateと追加区分を別軸で管理する
 - 種別: E2E
 - 目的:
   - current Stage-Aをactual browser → non-production VPS → Laravel → Queue → Python/ffmpeg → test Azure → DB/API → Result UIまで同一submissionで総合確認する
@@ -6592,6 +6608,12 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T013-10: OI・TASKS・整合台帳の完了反映
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory evidence follow-up
+- TASKS追加日: 2026-08-03T10:03:41+09:00
+- 追加commit: `bf15014b8486cf16c17a10a98eae3dd256f4a753`（`docs: register speech specification follow-up tasks`、merge `fecf1f284d283ba8384ee768e0ca4de6cf719697`、PR #55）
+- 追加起点: PR #53 / PR #54後のspeech specification follow-up registration
+- 追加前章状態: T013-01〜T013-04完了済み、T013-05〜T013-07未着手
+- 位置づけ: current correction系列のimplementation / test / actual E2E evidence、OI、TASKS、consistency stateを同期するfinal ledger task。stateと追加区分を別軸で管理する
 - 種別: 文書
 - 目的:
   - 実装、テスト、E2Eの事実をOI・タスク・整合台帳へ反映する
@@ -6635,9 +6657,57 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - ユーザーが承認する
 - Blocker区分: Pre-MVP
 
+### T013-11: OI-010 continuous recognition安定性検証
+
+- [ ] 状態: 未着手
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-13T19:37:47+09:00
+- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
+- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
+- 追加前章状態: T013-01〜T013-04完了済み、T013-05〜T013-10未着手
+- 位置づけ: T000-09でactual E2E前のcontinuous recognition stability evidence不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
+- 種別: 実Azure安定性検証
+- 目的:
+  - long-duration continuous recognitionの途切れ、timeout、transcript truncation、EndOfStream、retry影響について、T013-09前のacceptance evidenceを得る
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-010
+  - `ARCHITECTURE.md`
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T013-08
+  - T013-06
+- decision phase:
+  - current implementation、existing evidence、OI-010をread-onlyでinventoryする
+  - continuous recognition stability検証のprofile、trial構成、acceptance criteria、failure / interruption判定の候補を整理する
+  - CodeXは検証designを独断で確定せず、各候補の判断材料をユーザーへ提示する
+  - ユーザー承認後、profile、trial構成、acceptance criteria、failure / interruption判定をOI-010の検証designとして確定する
+- 実装内容:
+  - OI-010で確定した検証designに従い、non-production VPSとtest Azure Speechで実Azure stability acceptanceを実施する
+  - timeout、transcript truncation、EndOfStream、retryの証跡を記録する
+  - 結果とuser acceptanceをOI-010、canonical、downstream evidenceへ同期する
+- 実装してはいけないこと:
+  - profile、trial数、acceptance thresholdを本タスク内で独断決定しない
+  - 単発成功だけで長時間安定性を証明済みとしない
+  - production Azureを使用しない
+- 完了条件:
+  - OI-010の承認済み検証設計に対する証跡とuser acceptanceが揃い、OI-010が解消されT013-09を開始できる
+- テスト観点:
+  - long-duration recognition、timeout、truncation、EndOfStream、retry
+- CodeX投入時の注意:
+  - 実Azure利用はユーザー承認後に行い、Secrets・音声をcommitしない
+- 担当:
+  - ユーザー＋CodeX
+- Blocker区分: Pre-E2E
+
 ### T013-12: OI-012 Pronunciation Assessment PoC Go/No-Go確定
 
 - [ ] 状態: 未着手
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-13T19:37:47+09:00
+- 追加commit: `d59396fd595115d4233d6d89110f58ec5cfe412a`（`docs: reorganize MVP task responsibilities`、merge `03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`、PR #72）
+- 追加起点: T000-09 Phase 2 / Phase 3 responsibility-gap correction
+- 追加前章状態: T013-01〜T013-04完了済み、T013-05〜T013-10未着手
+- 位置づけ: T000-09でOI-012 Go/No-Go decision owner不足を回収するため追加されたmandatory task。状態と追加区分を別軸で管理する
 - 種別: PoC・事業判断
 - 目的:
   - OI-012に必要なPoC evidence、実施timing、Go/No-Go判断を確定し、Feature Flag境界を同期する
@@ -6883,6 +6953,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T014-06-01: OI-027 MVP Stripe Webhookイベント範囲確定
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: decision gate
 - 目的:
   - Webhook foundation確認後、MVP対象event scopeをuser decisionで確定する
@@ -7027,6 +7098,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T015-01-01: OI-109/OI-110 退会オーケストレーション確定
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: decision gate
 - 目的:
   - 退会時のsubmission/Queue競合と、Stripe解約予約・audio cleanup・sessions削除・soft deleteの部分失敗／補償contractを確定する
@@ -7100,6 +7172,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T015-02-01: 退会完了通知実装
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: 通知実装・テスト
 - 目的:
   - OI-111で確定したtimingに、退会完了通知を重複なく送信する
@@ -7110,11 +7183,17 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - `OPERATIONS.md`
 - 依存タスク:
   - T015-02
+- decision phase:
+  - current withdrawal orchestration、canonical、OI-111をread-onlyで確認する
+  - 退会完了通知timingの候補として、soft delete成立時、Stripe等の外部処理完了時、hard delete完了時、その他current canonicalと両立する候補を整理する
+  - 各候補のwithdrawal orchestration、外部処理、hard delete、通知の整合性と影響を整理する
+  - CodeXはtimingを独断で確定せず判断材料を提示し、ユーザーがtimingを決定する
+  - 決定結果をOI-111と必要なcanonicalへ同期する
 - decision gate:
   - OI-111解消済み
   - OI-111の決定結果がhard delete完了後の通知を要求する場合は、T015-03-02へのdependencyを追加してから実装する
 - 実装内容:
-  - test mailerで通知実装と自動testを行う
+  - OI-111で確定したtimingとそのdependency条件に従い、test mailerで通知実装と自動testを行う
   - retry等でduplicate sendしないことを確認する
 - 実装してはいけないこと:
   - OI-111未確定で送信timingを決めない
@@ -7159,6 +7238,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T015-03-01: OI-105 hard delete executor確定
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: decision gate
 - 目的:
   - 30日後hard deleteをbatch/manual等のどのexecutorで起動するか確定する
@@ -7181,6 +7261,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T015-03-02: actual hard delete実装
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: 実装・テスト
 - 目的:
   - 承認済みexecutorとcanonical deletion semanticsに従いactual hard deleteを実装する
@@ -7269,15 +7350,17 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - T002-03
 - 実装内容:
   - `users.role = admin` のみアクセス許可
-  - 一般ユーザーは403または適切な画面へ遷移
+  - 未ログインユーザーは既存auth middleware / login導線に従ってログイン画面へ遷移
+  - authenticated一般ユーザー（`users.role = user`）はHTTP 403で拒否
+  - authenticated admin（`users.role = admin`）はadmin route / minimal admin shellへのアクセスを許可
 - 実装してはいけないこと:
   - 複数管理ロールや追加権限テーブルを作らない
 - 完了条件:
   - adminのみ管理画面へ到達できる
 - テスト観点:
-  - admin
-  - user
-  - 未ログイン
+  - authenticated adminはアクセス成功
+  - authenticated一般ユーザーはHTTP 403
+  - 未ログインユーザーはログイン画面へ遷移
 - CodeX投入時の注意:
   - admin入口制御に限定する
   - MVP管理画面範囲はOI-028で管理する
@@ -7286,6 +7369,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T016-01-01: non-production admin provisioning実装
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: non-production環境準備
 - 目的:
   - actual browserでadmin accessを確認できるnon-production admin accountを安全に用意する
@@ -7344,6 +7428,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T016-02-01: OI-028 MVP admin scope確定
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: decision gate
 - 目的:
   - MVP admin scopeをexplicit minimal-onlyまたはselected featuresとしてuser decisionで確定する
@@ -7420,14 +7505,15 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - T016-01-01
 - 実装内容:
   - actual non-production adminのbrowserアクセス
-  - user拒否
-  - 未ログイン拒否
+  - authenticated adminのアクセス成功
+  - authenticated一般ユーザーのHTTP 403
+  - 未ログインユーザーのログイン画面への遷移
 - 実装してはいけないこと:
   - OI-028未確定の管理機能範囲までテスト対象にしない
 - 完了条件:
   - admin middlewareと管理画面最小シェルのアクセス制御が期待通り動作する
 - テスト観点:
-  - 権限別アクセス
+  - admin access success / authenticated user HTTP 403 / unauthenticated login redirect
 - CodeX投入時の注意:
   - OI-028未確定の管理機能範囲までテスト対象にしない
   - 範囲確定後の管理機能テストは別タスク化する
@@ -7435,6 +7521,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T016-05: OI-024 navigation確定・実装・browser acceptance
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: decision・UI・browser acceptance
 - 目的:
   - OI-024を確定し、legal/site policy、subscription、withdrawal、admin entryを含むPC/mobile navigationを実装・確認する
@@ -7461,6 +7548,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 ### T016-06: OI-025 minimum design token確定・実装・browser acceptance
 
 - [ ] 状態: 未着手
+- TASKS追加日: 2026-08-13T19:37:47+09:00
 - 種別: decision・UI・browser acceptance
 - 目的:
   - MVPに必要なminimum design tokenを確定し、代表画面へ反映・browser確認する
