@@ -944,7 +944,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 
 ### T000-09: TASKS.md責務整理・仕様正本切り分け
 
-- [ ] 状態: 対応中（Final Completeness Audit HOLD。F-001〜F-004 correction diff承認・Status Sync済み。次gateはStatus Sync diff review）
+- [ ] 状態: 対応中（User TASKS Direct Review Gate承認済み。final independent re-audit実施済みでtechnical audit部分PASS。F-006 / F-007 Option A correctionはユーザー承認済み。completion decisionはHOLD）
 - 追加区分: 後追加mandatory task
 - TASKS追加日: 2026-08-12T16:57:06+09:00
 - 追加commit: `40ebff354270e857bd5933aafaea5f145875c455`（`docs: finalize T000-07 Stage-A scoring specification`、merge `99c0c0259377aae343fbf76325638cd37e327916`、PR #69）
@@ -996,7 +996,7 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - merge後のlocal / remote `develop`は`03e2c712b30abc1f44fc4e41a9d1aed5307bf90f`へ同期し、task branchはlocal / remoteともcleanup済み
   - 後続Final Completeness Auditで、新規mandatory task 12件のlater-added provenance metadata適用漏れ（KF-01）と`DESIGN.md`のcurrent settings不整合（KF-02）を確認した
   - KF-01 / KF-02 correction後のPost-Correction Content & Consistency ReviewでF-01〜F-05を確認し、extended correctionを適用した。actual diff reviewと独立再監査でFAIL 0 / UNVERIFIED 0となるまでcompletion decisionはHOLDとする
-  - Final Completeness Audit F-001〜F-004 correctionはactual diff直接レビューで解消確認済み、ユーザー承認済み。final independent re-auditは未実施で、次gateはStatus Sync diff review。completion decisionはHOLDを維持する
+  - User TASKS Direct Review Gate承認後にfinal independent re-auditを実施し、task graph / dependency / canonical / owner監査部分はPASS。F-006 / F-007のみを検出し、両FindingのOption A correctionはユーザー承認済み。completion decisionはHOLDを維持する
   - verification: `docs/verification/t000-09/TASKS_RESPONSIBILITY_MIGRATION.md`
 - CodeX投入時の注意:
   - 文書責務の整理だけを行い、仕様再決定や実装へ進まない
