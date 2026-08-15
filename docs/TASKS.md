@@ -41,6 +41,15 @@
 
 ## 実装順序の補足
 
+### Task ID / Current Execution Work Group（WG）管理原則
+
+- Task IDは、責務、scope、dependency、completion condition、implementation / decision / test evidence、completion recordを管理する単位とする
+- Task ID番号順はexecution orderを意味しない
+- Current Execution Work Group（WG）は、複数Task IDを横断した進行管理、通常実行順、WG完了条件、次WGへのhandoffを管理する単位とする。current positionおよび次に着手するTask IDは、各Task IDの状態とWGの通常実行順から判定する
+- 実際の着手可否は、各Task IDに記載された「依存タスク」をhard constraintとして維持する。WGの通常実行順と個別dependencyが衝突する場合は、個別Task IDのdependencyを優先する
+- 並行可能taskが存在しても、通常運用ではWGに記載したexecution orderを基本queueとする。ただしdependencyを満たし、同一tracked fileの競合等がない場合の並行可能性そのものは否定しない
+- 「1回のCodeX依頼では、原則1タスクのみ実施する」という共通ルールは、1 requestで複数Task IDをまとめて実装しないための実行粒度として維持する。WGは複数Task IDの進行管理単位であり、1回のCodeX依頼でWG内の全taskを一括実装する意味ではない
+
 - taskはID順に記載するが、ID順は実行順を意味しない。後追加taskが既存taskの前提になる場合を含め、実際の着手順は各taskの「依存タスク」を正とする。
 - 最初の大マイルストーンまでは、基盤 → DB → 認証 → 問題表示 → 録音UI → 音声提出 → Python評価 → Laravel ⇔ Python連携 → ポーリング → 結果表示 → Feature Flag表示制御 → 422再録音 / 再提出導線の順を維持する
 - 12〜16章は依存関係に従って進める。speech、Stripe、UI等の独立系列を章番号だけで不要に直列化しない
@@ -59,7 +68,118 @@
 - T000-06-02〜T000-06-04は、T000-06-01完了後、各物理端末と安全なテストURLを利用でき、environment IDと保存先が競合せず、同じtrackedファイルを同時編集せず、各trialのユーザー承認境界を維持できる場合だけ並行可能とする
 - 並行可能なタスクでも同一ファイルを変更する場合は同時実装せず、競合しない順序へ分ける
 
+### Current Execution Work Group（WG）
+
+Current Execution Work Group（WG）はMVP内の進行管理に限る。MVP完了後のproduction deployment / release / rollback / 本番化task体系は対象外とし、ここでは追加・変更しない。
+
+Current MVPの通常management queueは次のとおりとする。
+
+WG-A → WG-B → WG-C → WG-D → WG-E → WG-F → WG-G
+
+このqueueは、次にどのTask ID / WGへ進むかをID番号から推測しなくてよい状態にするための進行管理順であり、すべてのWG間に新しいhard dependencyを追加するものではない。特にWG-CはStage-A critical pathから独立し、WG-DのStripe foundationには早期開始可能なtaskが存在する。実際の着手可否は各Task ID本文のdependencyを最終hard constraintとする。
+
+#### WG-A — Stage-A Current Correction Implementation
+
+- 目的: T000-10までに確定した新音声仕様を、DB / question / settings / recording / submission / Python / Laravel / Queue / API / UIへ反映する
+- 通常実行順:
+  1. T002-06 — 音声仕様migration・backfill設計
+  2. T002-07 — 先行互換DB差分・Model基盤実装
+  3. T004-04 — 二テーマ選択・設問3カラム・初期profile実装
+  4. T011-03 — user_learning_settings 2項目化
+  5. T005-04 — 評価profile選択・timer・常時上限監視
+  6. T006-03 — submission snapshot保存
+  7. T007-06 — Python Stage-A事実値契約
+  8. T008-05 — Laravel Stage-A採点・Queue連携
+  9. T010-04 — Stage-B用カラム・旧Feature Flag・comment実装の新仕様反映
+  10. T009-06 — Stage-A結果・submission snapshot表示
+- 補足: T004-04 / T011-03 / T007-06等にはdependency上の並行可能性があるが、通常進行queueは上記順とする。hard dependencyは各Task ID本文を正とする
+- WG完了: T009-06までの対象Task IDが完了し、WG-Bの検証系列へ進める状態
+
+#### WG-B — Stage-A Validation & Operations Acceptance
+
+- 目的: Stage-A correction実装後のcleanup、automated verification、existing DB migration rehearsal、VPS readiness、polling load、continuous recognition stability、actual E2E、evidence同期を行う
+- 通常実行順:
+  1. T012-06 — OI-021 音声一時保存・回復削除運用条件確定
+  2. T013-05 — 音声ファイル削除テスト
+  3. T013-08 — 自動テスト・既存DB移行リハーサル
+  4. T013-06 — VPSテスト環境・GitHub接続確認
+  5. T013-07 — 3秒ポーリング簡易負荷確認
+  6. T013-11 — OI-010 continuous recognition安定性検証
+  7. T013-09 — 新音声仕様の実Azure・実ブラウザ総合E2E
+  8. T013-10 — OI・TASKS・整合台帳の完了反映
+- WG完了: T013-10まで完了し、speech / operation branch final evidenceが同期されている状態
+
+#### WG-C — OI-012 / Stage-B Go-No-Go Decision
+
+- 目的: OI-012のPronunciation Assessment PoCについてGo/No-Goを確定し、user decisionと必要evidenceを同期する
+- 対象: T013-12 — OI-012 Pronunciation Assessment PoC Go/No-Go確定
+- 位置づけ:
+  - Stage-A critical pathとは独立したdecision work groupとし、hard dependencyはT013-12本文を正とする
+  - Stage-B implementationを行うWGではない
+  - 通常management queueではWG-B後に扱うが、WG-B完了をhard dependencyとして新規追加しない
+- WG完了: OI-012のuser decisionと必要evidenceが同期され、T017-01のMVP complete prerequisiteを満たす状態
+
+#### WG-D — Stripe / Legal
+
+- 目的: MVPの法務・情報系対応とStripe test-mode系列を進め、Stripe E2Eを成立させる
+- 通常実行順:
+  1. T014-01
+  2. T014-02
+  3. T014-03
+  4. T014-04
+  5. T014-05
+  6. T014-06
+  7. T014-06-01
+  8. T014-07
+  9. T014-08
+- 補足: dependency上、一部taskには並行開始可能性があるが、通常management queueでは上記順とする。OI-027 decision gateを飛ばさない。Stripe live / productionは今回のMVP WG対象外とする
+- WG完了: T014-08のStripe test-mode E2Eまで成立している状態
+
+#### WG-E — Withdrawal
+
+- 目的: decision gate / dependencyを維持してwithdrawal系列を実装・検証し、integration acceptanceを完了する
+- 通常実行順:
+  1. T015-01
+  2. T015-01-01
+  3. T015-02
+  4. T015-03
+  5. T015-03-01
+  6. T015-03-02
+  7. T015-02-01
+  8. T015-04
+- 重要: 単純なTask ID順ではない。T015-02-01はOI-111の通知timing decisionを含み、decision結果によってT015-03-02 dependencyが必要になる可能性があるため、通常execution queueではT015-03-02後へ置く。ただしTask本文に記載されたdecision gate / dependencyを最終的なhard constraintとする
+- T015-04は、少なくともcurrent dependency上、T015-03-02、T015-02-01、T014-08を要求する
+- WG完了: T015-04 withdrawal integration acceptance完了
+
+#### WG-F — Admin / MVP UI
+
+- 目的: OI-028のdecision結果に従ってadmin系列を確定し、navigation / minimum design tokenを含むMVP UI evidenceを揃える
+- 通常実行順:
+  1. T016-01
+  2. T016-01-01
+  3. T016-02
+  4. T016-02-01
+  5. T016-04
+  6. T016-03
+  7. T016-05
+  8. T016-06
+- T016-03はconditional aggregatorとする:
+  - OI-028がminimal-onlyの場合は、explicit zero-child evidenceを確認して完了する
+  - OI-028でselected featureが存在する場合は、必要なchild taskを独立作成し、child taskを実施し、全selected child完了後にT016-03を完了する
+- 実際のflow: T016-04 → T016-03開始 → selected childがあればchild実施 → T016-03完了 → T016-05 → T016-06
+- WG完了: T016-03、T016-05、T016-06が完了し、admin / navigation / minimum design tokenのMVP evidenceが揃っている状態
+
+#### WG-G — MVP Final Acceptance
+
+- 目的: T017-01本文のprerequisiteに基づき、MVPの最終完了判定をreviewする
+- 対象: T017-01 — MVP完了判定レビュー
+- 通常実行: WG-A〜WG-FのMVP complete prerequisiteが揃った後に最終reviewとして行う
+- 補足: T017-01自体にはhard dependencyがないため、必要なら途中時点で`incomplete` reviewを実施できる既存仕様を維持する。MVP complete判定のprerequisiteはT017-01本文を正とし、今回変更しない
+- WG完了: T017-01のMVP完了判定レビューが完了している状態
+
 ### PR #53／PR #54後続の未処理13作業群割当
+
+この表は、PR #53 / PR #54で抽出した未処理作業について、どのTask IDがどの作業を回収するかを示す責務割当表である。current MVP全taskのexecution orderまたはWG-A〜WG-Gの進行順を示す表ではない。Current Execution Work Group（WG）とは役割が異なるため、両方を維持する。
 
 | 作業群 | 割当タスク | 扱い |
 |---|---|---|
