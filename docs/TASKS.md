@@ -74,9 +74,20 @@ Current Execution Work Group（WG）はMVP内の進行管理に限る。MVP完�
 
 Current MVPの通常management queueは次のとおりとする。
 
-WG-A → WG-B → WG-C → WG-D → WG-E → WG-F → WG-G
+WG-0 → WG-A → WG-B → WG-C → WG-D → WG-E → WG-F → WG-G
 
 このqueueは、次にどのTask ID / WGへ進むかをID番号から推測しなくてよい状態にするための進行管理順であり、すべてのWG間に新しいhard dependencyを追加するものではない。特にWG-CはStage-A critical pathから独立し、WG-DのStripe foundationには早期開始可能なtaskが存在する。実際の着手可否は各Task ID本文のdependencyを最終hard constraintとする。
+
+#### WG-0 — Infrastructure & Canonical Preparation
+
+- 目的: Stage-A correction実装に先立ち、稼働環境で音声処理が成立する状態を整え、正本文書を稼働実態へ同期する
+- 通常実行順:
+  1. T001-06 — php.ini・ffmpeg・opcacheの導入（完了）
+  2. T000-11 — Docker構成・PostgreSQL版数の確定前提反映
+  3. T001-07 — Python音声評価サービスとQueue Workerのコンテナ追加
+  4. T001-08 — docker-composeのバージョン管理下への移行
+- 補足: T001-07はStage-A実装の検証（T013-08 / T013-09）までに完了していればよく、WG-Aの各Task IDに対するhard dependencyではない
+- WG完了: 稼働環境で音声提出から評価までのプロセスが常駐し、正本文書が稼働実態と一致している状態
 
 #### WG-A — Stage-A Current Correction Implementation
 
@@ -85,13 +96,15 @@ WG-A → WG-B → WG-C → WG-D → WG-E → WG-F → WG-G
   1. T002-06 — 音声仕様migration・backfill設計
   2. T002-07 — 先行互換DB差分・Model基盤実装
   3. T004-04 — 二テーマ選択・設問3カラム・初期profile実装
-  4. T011-03 — user_learning_settings 2項目化
-  5. T005-04 — 評価profile選択・timer・常時上限監視
-  6. T006-03 — submission snapshot保存
-  7. T007-06 — Python Stage-A事実値契約
-  8. T008-05 — Laravel Stage-A採点・Queue連携
-  9. T010-04 — Stage-B用カラム・旧Feature Flag・comment実装の新仕様反映
-  10. T009-06 — Stage-A結果・submission snapshot表示
+  4. T004-05 — 問題データCSVインポート機能
+  5. T011-03 — user_learning_settings 2項目化
+  6. T005-04 — 評価profile選択・timer・常時上限監視
+  7. T006-03 — submission snapshot保存
+  8. T007-06 — Python Stage-A事実値契約
+  9. T008-05 — Laravel Stage-A採点・Queue連携
+  10. T008-06 — Queue可視性タイムアウトとジョブtimeoutの整合
+  11. T010-04 — Stage-B用カラム・旧Feature Flag・comment実装の新仕様反映
+  12. T009-06 — Stage-A結果・submission snapshot表示
 - 補足: T004-04 / T011-03 / T007-06等にはdependency上の並行可能性があるが、通常進行queueは上記順とする。hard dependencyは各Task ID本文を正とする
 - WG完了: T009-06までの対象Task IDが完了し、WG-Bの検証系列へ進める状態
 
@@ -99,14 +112,16 @@ WG-A → WG-B → WG-C → WG-D → WG-E → WG-F → WG-G
 
 - 目的: Stage-A correction実装後のcleanup、automated verification、existing DB migration rehearsal、VPS readiness、polling load、continuous recognition stability、actual E2E、evidence同期を行う
 - 通常実行順:
-  1. T012-06 — OI-021 音声一時保存・回復削除運用条件確定
-  2. T013-05 — 音声ファイル削除テスト
-  3. T013-08 — 自動テスト・既存DB移行リハーサル
-  4. T013-06 — VPSテスト環境・GitHub接続確認
-  5. T013-07 — 3秒ポーリング簡易負荷確認
-  6. T013-11 — OI-010 continuous recognition安定性検証
-  7. T013-09 — 新音声仕様の実Azure・実ブラウザ総合E2E
-  8. T013-10 — OI・TASKS・整合台帳の完了反映
+  1. T003-06 — 認証境界・レート制限のroute middleware整合
+  2. T012-06 — OI-021 音声一時保存・回復削除運用条件確定
+  3. T012-07 — pg_dumpによる論理バックアップの導入
+  4. T013-05 — 音声ファイル削除テスト
+  5. T013-08 — 自動テスト・既存DB移行リハーサル
+  6. T013-06 — VPSテスト環境・GitHub接続確認
+  7. T013-07 — 3秒ポーリング簡易負荷確認
+  8. T013-11 — OI-010 continuous recognition安定性検証
+  9. T013-09 — 新音声仕様の実Azure・実ブラウザ総合E2E
+  10. T013-10 — OI・TASKS・整合台帳の完了反映
 - WG完了: T013-10まで完了し、speech / operation branch final evidenceが同期されている状態
 
 #### WG-C — OI-012 / Stage-B Go-No-Go Decision
@@ -1198,6 +1213,61 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - ユーザーが確定する
 - Blocker区分: Blocker
 
+
+### T000-11: Docker構成・PostgreSQL版数の確定前提反映
+
+- [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-16T17:42:51+09:00
+- 追加起点: Claude / Claude Code引継ぎ時のインフラ実態調査で判明した、正本文書と稼働環境の差分
+- 確定根拠: 稼働中の`/home/manabuzo_prod/docker-compose.yml`および`/home/manabuzo_dev/docker-compose.yml`の実態
+- 位置づけ: 実装前確定タスクの後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T000-01〜T000-10完了済み
+- 種別: 文書
+- 目的:
+  - 稼働中のDocker構成と実際のPostgreSQL版数を確定前提として正本文書へ反映する
+- 参照仕様書:
+  - `README.md` §4.2
+  - `ARCHITECTURE.md` §2, §3, §4, §10.4, §14.2
+  - `DB_SCHEMA.md`
+  - `OPERATIONS.md`
+- 変更対象:
+  - `README.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/DB_SCHEMA.md`
+  - `docs/OPERATIONS.md`
+  - `docs/CONSISTENCY_CHECK.md`
+- 依存タスク:
+  - なし
+- decision gate:
+  - PostgreSQL 16から17への確定前提変更をtask冒頭でユーザー確定してから文書更新へ進む
+- 実施内容:
+  - `README.md` §4.2の「PostgreSQL 16」を稼働実態の版数へ更新する
+  - `ARCHITECTURE.md` §14.2の推奨バージョンセットを稼働実態（PHP・Node.js・PostgreSQL）へ整合させる
+  - `ARCHITECTURE.md` §2の構成図へ、単一VPS上でDockerにより本番・開発環境を分離している構成を反映する
+  - Laravel ⇔ Python間の接続先が`127.0.0.1`ではなくcompose service名による名前解決であることを反映し、§10.4の「localhostのみLISTEN」という記述を「compose内部ネットワークにのみ公開し、hostへportを開けない」という意味へ書き換える
+  - `SPEECH_SERVICE_URL`で接続先を吸収する既存実装は変更しない
+  - `OPERATIONS.md`へDocker前提の運用（コンテナ再起動、ログ確認場所）を反映する
+  - `CONSISTENCY_CHECK.md`へ本taskの確認結果を記録する
+- 実装してはいけないこと:
+  - application code、migration、Dockerfile、docker-compose.ymlを本taskで変更しない
+  - PostgreSQL版数以外の確定前提をユーザー承認なく変更しない
+  - コンテナオーケストレーション（Kubernetes等）をスコープへ追加しない
+  - 2台構成前提の記述を追加しない（1台構成で確定済み）
+- 完了条件:
+  - 正本文書のPostgreSQL版数、Docker構成、Laravel ⇔ Python接続方式が稼働実態と一致している
+  - ユーザーが確定前提の変更を承認している
+- テスト観点:
+  - 文書間で版数・構成の記述が矛盾していないこと
+  - `.env.example`のキー名と文書の記述が矛盾していないこと
+- CodeX投入時の注意:
+  - 稼働環境の設定値そのもの（パスワード、キー等）を文書へ記載しない
+- 担当:
+  - 実装担当が調査・起案する
+  - ユーザーが確定前提の変更を承認する
+- Blocker区分: Pre-merge
+
 ---
 
 # 1. プロジェクト基盤
@@ -1508,6 +1578,161 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - OFF時にfalseとして取得できる
 - CodeX投入時の注意:
   - 表示制御本体は結果画面タスクで実装する
+
+
+### T001-06: php.ini・ffmpeg・opcacheの導入
+
+- [x] 状態: 完了（2026-08-16。開発環境は2026-08-07に対応済み、本番環境へ2026-08-16に反映。両環境で `ffprobe 7.1.5` / `upload_max_filesize 16M` / `post_max_size 20M` / `memory_limit 256M` / OPcache有効を確認済み）
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-16T17:42:51+09:00
+- 追加起点: Claude / Claude Code引継ぎ時のDockerfile調査で判明した、本番環境における音声提出実行環境の不足
+- 位置づけ: 基盤章の完了後に追加されたcurrent task。状態と追加区分を別軸で管理する
+- 追加前章状態: T001-01〜T001-05完了済み
+- 種別: 設定・インフラ
+- 目的:
+  - 音声ファイルのアップロードとffprobeによる上限判定が成立するPHP実行環境を、本番・開発の両環境で整える
+- 参照仕様書:
+  - `ARCHITECTURE.md` §4.3, §5.1
+  - `docs/STAGE_A_SCORING.md`
+  - `app/Http/Requests/StoreSubmissionRequest.php`の`MAX_AUDIO_KILOBYTES`
+- 変更対象:
+  - phpコンテナの`Dockerfile`（本番・開発）
+  - phpコンテナ向け`uploads.ini`（本番・開発）
+- 依存タスク:
+  - なし
+- 実装内容:
+  - `upload_max_filesize`をアプリ側の音声サイズ上限（10240KB）を超える値へ設定する
+  - `post_max_size`をmultipartのオーバーヘッドを含めて`upload_max_filesize`より大きい値へ設定する
+  - `memory_limit`を音声バイナリの読み込みに耐える値へ設定する
+  - phpコンテナへ`ffmpeg`パッケージを追加し、`ffprobe`が実行可能な状態にする
+  - `opcache`拡張を追加し、本番と開発で`opcache.validate_timestamps`を使い分ける
+- 実装してはいけないこと:
+  - アプリ側の`MAX_AUDIO_KILOBYTES`を本taskで変更しない
+  - PHPのメジャーバージョンを本taskで変更しない
+  - 秘密情報を`Dockerfile`または`uploads.ini`へ記載しない
+  - `max_execution_time`を本taskで設定しない（CLIでは無視されQueue Workerへ影響せず、現行のWebリクエストは短時間で完了するため）
+- 完了条件:
+  - 10MB程度のWebMファイルがPHPに弾かれずLaravelのバリデーションへ到達する
+  - コンテナ内で`ffprobe -version`が成功する
+  - `opcache`が有効である
+- テスト観点:
+  - 上限サイズ付近のアップロード
+  - 上限超過時にアプリのバリデーションエラーが返ること
+  - `T00006AudioAnalyzerTest`がコンテナ内で成功すること
+- 確認結果:
+  - 開発環境: 2026-08-07に`ffmpeg`および`uploads.ini`（`upload_max_filesize = 16M` / `post_max_size = 20M`）を導入済みであることを確認
+  - 本番環境: 2026-08-16に開発環境の`Dockerfile`および`uploads.ini`を複製し、`docker compose build php` / `up -d php`で反映
+  - 両環境: 2026-08-16に`memory_limit = 256M`とOPcacheを追加。`opcache.validate_timestamps`は開発`1` / 本番`0`
+  - 本番検証: `ffprobe version 7.1.5`、`upload_max_filesize => 16M`、`post_max_size => 20M`、`memory_limit => 256M`、`opcache.enable => On`、`opcache.validate_timestamps => Off`
+  - メモリ基準値（Python / Queueコンテナ追加前）: システム使用 618MiB / 1.9GiB、利用可能 1.3GiB、swap使用 51MiB / 2.0GiB、コンテナ合計 117MiB（6コンテナ）。OI-114の判断材料として記録
+- 申し送り:
+  - 本番は`opcache.validate_timestamps = 0`のため、コード更新後にphpコンテナの再起動が必要である。デプロイ手順へ反映すること
+  - 変更した`Dockerfile` / `uploads.ini`はサーバー上にのみ存在する。バージョン管理下への移行はT001-08で扱う
+- 担当:
+  - 実装担当
+- 関連OI:
+  - OI-114
+- Blocker区分: Pre-E2E
+
+
+### T001-07: Python音声評価サービスとQueue Workerのコンテナ追加
+
+- [ ] 状態: 未着手
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-16T17:42:51+09:00
+- 追加起点: Claude / Claude Code引継ぎ時のコンテナ調査で判明した、音声評価に必要なプロセスの不在
+- 位置づけ: 基盤章の完了後に追加されたcurrent task。状態と追加区分を別軸で管理する
+- 追加前章状態: T001-01〜T001-05完了済み、T001-06追加済み
+- 種別: インフラ
+- 目的:
+  - 音声提出から評価までの処理が稼働環境で成立するよう、Python音声評価サービスとQueue Workerを常駐させる
+- 参照仕様書:
+  - `ARCHITECTURE.md` §2, §4, §5, §10.4
+  - `python/README.md`
+- 変更対象:
+  - `docker-compose.yml`（本番・開発の両方）
+  - Python用`Dockerfile`
+  - Queue Worker用の起動定義
+- 依存タスク:
+  - T001-06
+- 実装内容:
+  - Python音声評価サービスのコンテナを追加し、FastAPIをconfigured internal portで起動する
+  - Pythonコンテナへ`ffmpeg`を含め、WebM/Opus → WAV変換が実行可能な状態にする
+  - Pythonコンテナはcompose内部ネットワークにのみ公開し、hostへportを開けない
+  - Queue Workerのコンテナを追加し、phpイメージを再利用して`queue:work`を常駐させる
+  - Queue Workerコンテナはphpコンテナと同一のアプリケーションソースを参照する
+  - `SPEECH_SERVICE_URL`をcompose service名による接続先へ設定する
+  - Queue Workerの再起動方針（`restart`ポリシー、デプロイ時の再起動手順）を定める
+  - 本番環境と開発環境で同じ構成を適用し、DBおよびportの分離を維持する
+- 実装してはいけないこと:
+  - PythonコンテナのportをhostへPUBLISHしない
+  - PythonからLaravelのDBへ直接接続する構成にしない
+  - Redisを本taskで導入しない（Queue driver変更判断はOI-003）
+  - `X-Internal-Token`の実値を`docker-compose.yml`へ直書きしない
+  - Queue Workerをphp-fpmコンテナ内のプロセスとして同居させない
+- 完了条件:
+  - Laravelコンテナから`GET /health`でPythonサービスの応答を確認できる
+  - Queue Workerが常駐し、投入されたジョブを処理できる
+  - Pythonコンテナ内で`ffmpeg -version`が成功する
+  - 本番・開発の両環境で同構成が成立している
+- テスト観点:
+  - コンテナ再起動後の自動復帰
+  - Laravel → Pythonのservice名解決
+  - Queue Workerがコード更新後に新しい設定を読み込むこと
+  - コンテナ追加後のメモリ使用量（OI-114の計測材料）
+- CodeX投入時の注意:
+  - コンテナ追加後に`docker stats`でメモリ使用量を記録し、T001-06で記録した基準値と比較してOI-114の判断材料とする
+- 担当:
+  - 実装担当
+- 関連OI:
+  - OI-002
+  - OI-114
+- Blocker区分: Pre-E2E
+
+
+### T001-08: docker-composeのバージョン管理下への移行
+
+- [ ] 状態: 未着手
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-16T17:42:51+09:00
+- 追加起点: Claude / Claude Code引継ぎ時の調査で判明した、compose定義がサーバー上にのみ存在する状態
+- 位置づけ: 基盤章の完了後に追加されたcurrent task。状態と追加区分を別軸で管理する
+- 追加前章状態: T001-01〜T001-05完了済み、T001-06 / T001-07追加済み
+- 種別: 運用・インフラ
+- 目的:
+  - 環境構成を再現可能にし、変更履歴を追跡できる状態にする
+- 参照仕様書:
+  - `OPERATIONS.md`
+  - `ARCHITECTURE.md` §14
+- 変更対象:
+  - インフラ構成リポジトリ
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T001-07
+- 実施内容:
+  - `docker-compose.yml`、`Dockerfile`、`uploads.ini`、nginx設定をバージョン管理下へ移す
+  - 秘密情報を含むファイルを管理対象から除外し、雛形のみを管理する
+  - 本番・開発それぞれの構成差分が追跡できる形にする
+  - サーバー上の定義とリポジトリ上の定義を同期させる手順を`OPERATIONS.md`へ記載する
+  - アプリケーションリポジトリとインフラ構成リポジトリの責務境界を明記する
+- 実装してはいけないこと:
+  - 秘密情報（DBパスワード、Azureキー、内部トークン等）をリポジトリへ含めない
+  - 稼働中コンテナの構成を本taskで変更しない
+  - デプロイ方式そのものを本taskで確定しない（OI-018のR1側）
+- 完了条件:
+  - 構成定義がバージョン管理下にあり、サーバー上の定義と一致している
+  - 秘密情報がリポジトリへ含まれていないことを確認できている
+  - 同期手順が`OPERATIONS.md`へ記載されている
+- テスト観点:
+  - リポジトリの定義から同一構成を再現できること
+  - 秘密情報の混入チェック
+- CodeX投入時の注意:
+  - 既存のサーバー上ファイルを削除せず、同期状態を確認してから運用へ切り替える
+- 担当:
+  - 実装担当
+  - インフラ構築者との調整が必要
+- 関連OI:
+  - OI-018
 
 ---
 
@@ -2577,6 +2802,54 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - CodeX投入時の注意:
   - OI-017確定後に実施する
 
+
+### T003-06: 認証境界・レート制限のroute middleware整合
+
+- [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-16T17:42:51+09:00
+- 追加起点: Claude / Claude Code引継ぎ時のcurrent実装監査で検出した、正本記載と実装の認証境界差分
+- 確定根拠: `ARCHITECTURE.md` §10.1 / §10.2 / §10.3で確定済みの認証・認可・レート制限方針
+- 位置づけ: historical第3章完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T003-01〜T003-05完了済み
+- 種別: 実装・セキュリティ
+- 目的:
+  - 正本で確定済みのメール認証必須範囲とレート制限を、実際のroute middlewareへ反映する
+- 参照仕様書:
+  - `ARCHITECTURE.md` §10.1, §10.2, §10.3
+  - `DESIGN.md`
+- 変更対象:
+  - `routes/web.php`
+  - 認証・レート制限関連の自動テスト
+- 依存タスク:
+  - なし
+- 実装内容:
+  - メール認証を要求する範囲を確定し、`verified` middlewareを該当routeへ適用する
+  - 音声提出、submission status、result、settings、questionsの各routeについて、認証済み・メール未認証ユーザーの可否を明示する
+  - `ARCHITECTURE.md` §10.3のレート制限（API 60回/分）を該当routeへ適用する
+  - 音声提出routeは1リクエストが外部API課金を伴うため、レート制限適用対象として扱う
+  - polling routeのレート制限値が3秒間隔・最大60回のポーリング設計と矛盾しないことを確認する
+- 実装してはいけないこと:
+  - メール認証の要否そのものを本taskで新規に決定しない。正本と異なる場合は先にユーザーへ確認する
+  - Sanctumトークン認証を追加しない
+  - 認可（自分のsubmissionのみ閲覧）の実装方式を本taskで変更しない
+  - Stage-A採点・Queue・Python連携へ変更を波及させない
+  - レート制限値を正本と異なる値へ独断で変更しない
+- 完了条件:
+  - メール未認証ユーザーが音声提出APIを直接呼び出せないことがテストで確認できる
+  - 正本のレート制限値が該当routeへ適用されている
+  - 既存の認証E2E（T013-01）が引き続き成立する
+- テスト観点:
+  - メール未認証ユーザーによる各routeへの直接アクセス
+  - レート制限の超過時レスポンス
+  - ポーリング設計とレート制限の両立
+- CodeX投入時の注意:
+  - T003-01〜T003-05は当時の実施履歴として維持し、本taskで正本との差分だけを扱う
+- 担当:
+  - 実装担当
+- Blocker区分: Pre-E2E
+
 ---
 
 # 4. 問題管理・問題選択
@@ -3121,6 +3394,67 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 担当:
   - CodeX
 - Blocker区分: Pre-merge
+
+
+### T004-05: 問題データCSVインポート機能
+
+- [ ] 状態: 未着手
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-16T17:42:51+09:00
+- 追加起点: 正式問題データが400問（超級を除く）であることが判明し、Seeder直書きでの投入が非現実的となったため
+- 確定根拠: ユーザー確定のカテゴリ設計（二択質問 / 自由回答 / 10秒チャレンジの3分類、将来の追加を想定）および投入方式（CSVインポート）
+- 位置づけ: 問題管理章の完了後に追加されたcurrent task。状態と追加区分を別軸で管理する
+- 追加前章状態: T004-01〜T004-03完了済み、T004-04未着手
+- 種別: DB・Service・運用
+- 目的:
+  - 正式問題データをCSVから投入・更新できるようにし、運用開始後の設問追加を可能にする
+- 参照仕様書:
+  - `OPEN_ISSUES.md` OI-009, OI-022
+  - `DB_SCHEMA.md`
+  - `docs/STAGE_A_SCORING.md`
+- 変更対象:
+  - 問題インポート用Service
+  - Artisanコマンドまたは管理画面の投入経路
+  - categories / tags / questions関連Seeder
+  - インポート関連自動テスト
+- 依存タスク:
+  - T004-04
+- 固定条件:
+  - カテゴリは「二択質問」「自由回答」「10秒チャレンジ」の3分類とし、カテゴリの追加が可能な構造とする
+  - 10秒チャレンジの`difficulty`は`beginner`とする
+  - 10秒チャレンジの`recommended_duration_seconds`は`10`、それ以外は原則`60`とする
+  - 超級の設問はMVPでは投入しない
+  - 既存の検証用問題データは削除する
+  - `has_model_answer`は全件`false`とする
+- 実装内容:
+  - CSVの列定義（カテゴリ、難易度、問題形式、設問文、二択の各テーマ、評価プロファイル）を確定する
+  - `single_prompt`は`prompt_text`、`two_choice`は`prompt_text_1` / `prompt_text_2`へ投入する
+  - 投入前にCHECK制約・値域・必須項目を検証し、不正行を明示して中断できるようにする
+  - 再実行時に重複を生まない冪等な投入とする
+  - 既存の検証用問題データを安全に削除する手順を用意する
+  - 投入結果（件数、スキップ、エラー）を出力する
+- 実装してはいけないこと:
+  - カテゴリから評価プロファイルを動的に導出しない
+  - タグ文字列から10秒チャレンジを判定しない
+  - `／`区切りの連結文字列を`prompt_text`へ保存しない
+  - 不正行を推測補完して投入しない
+  - 超級の設問をMVPの投入対象へ含めない
+- 完了条件:
+  - 400問がカテゴリ・難易度・問題形式・評価プロファイルどおりに投入される
+  - 再実行しても重複が発生しない
+  - 不正なCSVが検証で弾かれる
+- テスト観点:
+  - `single_prompt` / `two_choice`双方の投入
+  - 二択テーマの分割結果
+  - 評価プロファイル5値と10秒チャレンジの初期値
+  - 冪等性
+  - 不正行の検出と中断
+- CodeX投入時の注意:
+  - 実データのCSVはリポジトリへcommitせず、投入手順のみを管理する
+  - 正式データの内訳は初級130問（二択50 / 自由回答80）、中級100問（50 / 50）、上級100問（50 / 50）、10秒チャレンジ70問の計400問である
+- 担当:
+  - 実装担当
+- Blocker区分: Pre-MVP
 
 ---
 
@@ -4500,6 +4834,55 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
 - 担当:
   - CodeX
 - Blocker区分: Pre-merge
+
+
+### T008-06: Queue可視性タイムアウトとジョブtimeoutの整合
+
+- [ ] 状態: 未着手
+- 追加区分: 後追加mandatory correction
+- TASKS追加日: 2026-08-16T17:42:51+09:00
+- 追加起点: Claude / Claude Code引継ぎ時のcurrent実装監査で検出した、Queue設定とHTTP timeoutの不整合
+- 確定根拠: `ARCHITECTURE.md` §4.3のtimeout設計および§5.2 / §5.3のretry・べき等性contract
+- 位置づけ: historical第8章完了後に追加されたcurrent correction。状態と追加区分を別軸で管理する
+- 進行制約: historical completed taskをcurrent仕様へ書き換えず、本taskで差分を回収する
+- 追加前章状態: T008-01〜T008-04完了済み、T008-05未着手
+- 種別: Queue・設定
+- 目的:
+  - Queueの可視性タイムアウトとジョブ実行時間の関係を正本のtimeout設計へ整合させ、同一submissionに対する重複実行を防ぐ
+- 参照仕様書:
+  - `ARCHITECTURE.md` §4.3, §5.2, §5.3
+  - `OPERATIONS.md`
+- 変更対象:
+  - `config/queue.php`
+  - `app/Jobs/ProcessSpeechEvaluationJob.php`
+  - `.env.example`
+  - Queue関連自動テスト
+- 依存タスク:
+  - T008-05
+- 実装内容:
+  - `database` connectionの`retry_after`と、Python読み取りタイムアウト（既定120秒）およびジョブ全体タイムアウト（正本180秒）の関係を確定する
+  - ジョブ側の`$timeout`を正本のジョブ全体タイムアウトへ整合させる
+  - `retry_after`がジョブ全体タイムアウトを下回らないことを設定値として保証する
+  - `.env`で読み取りタイムアウトを変更した場合に整合が崩れないよう、設定間の前提を明記する
+  - ジョブ全体タイムアウト180秒が1 attempt単位かsubmission全体のwall-clock単位かは、T008-05で決定したtask-local technical designに従う
+- 実装してはいけないこと:
+  - OI-112で承認済みのretry policy（initial 1回＋最大3 retries、backoff 30 / 60 / 120秒）を変更しない
+  - Queueドライバをdatabaseから変更しない（Redis移行判断はOI-003）
+  - 読み取りタイムアウト120秒という正本値を本taskで変更しない
+  - T008-05のべき等性設計を本taskで再決定しない
+- 完了条件:
+  - `retry_after` >= ジョブ全体タイムアウトが成立している
+  - 同一submissionに対してworkerが重複してPython/Azureを呼び出さないことがテストで確認できる
+  - 既存のretry・backoff契約が変更されていない
+- テスト観点:
+  - 長時間応答時のジョブ重複取得
+  - retry回数とbackoffが契約どおりであること
+  - タイムアウト設定値の整合チェック
+- CodeX投入時の注意:
+  - T008-05のべき等性実装（`ShouldBeUnique`相当）と本taskの設定整合は補完関係にある。片方だけで重複防止が成立すると判断しない
+- 担当:
+  - 実装担当
+- Blocker区分: Pre-E2E
 
 ---
 
@@ -5965,6 +6348,50 @@ T000-06-01〜T000-06-05は、T000-07およびproductionのAzure送信前上限�
   - 音声ファイルをGitまたはバックアップ対象へ追加しない
   - T000-06の作業をこのタスクへ混在させない
   - production path / volume / permissions / monitoring thresholdをMVP値として確定しない
+
+
+### T012-07: pg_dumpによる論理バックアップの導入
+
+- [ ] 状態: 未着手
+- 追加区分: 後追加mandatory task
+- TASKS追加日: 2026-08-16T17:42:51+09:00
+- 追加起点: PostgreSQLのデータディレクトリがbind mountされており、サーバースナップショットのみでは整合性ある復旧が保証されないことが判明したため
+- 位置づけ: 運用準備章の完了後に追加されたcurrent task。状態と追加区分を別軸で管理する
+- 追加前章状態: T012-01〜T012-05完了済み、T012-06未着手
+- 種別: 運用
+- 目的:
+  - PostgreSQLの業務データについて、整合性のある復旧が可能なバックアップ手段を用意する
+- 参照仕様書:
+  - `ARCHITECTURE.md` §14.4
+  - `OPERATIONS.md`
+- 変更対象:
+  - バックアップ実行手順
+  - `OPERATIONS.md`
+- 依存タスク:
+  - T001-02
+- 実施内容:
+  - `pg_dump`による論理バックアップの実行方法を定める
+  - 実行頻度と保持世代数を`ARCHITECTURE.md` §14.4の方針（日次1回・保持30日）と整合させる
+  - 出力先をコンテナ外の永続領域とし、サーバースナップショットの対象に含める
+  - 復旧手順を文書化し、実際にリストアできることを確認する
+  - 音声ファイルをバックアップ対象に含めない方針を維持する
+- 実装してはいけないこと:
+  - 音声ファイルをバックアップ対象へ追加しない
+  - バックアップファイルをリポジトリへ含めない
+  - 暗号化方式・外部保管先を本taskで確定しない（OI-020）
+  - 稼働中コンテナのデータディレクトリを直接コピーする方式を正としない
+- 完了条件:
+  - 論理バックアップが取得でき、そこからリストアできることを確認している
+  - 実行頻度と保持世代が定まり、`OPERATIONS.md`へ記載されている
+- テスト観点:
+  - バックアップ取得と実際のリストア
+  - 保持世代の超過分が削除されること
+- CodeX投入時の注意:
+  - DB接続情報を`OPERATIONS.md`へ記載しない
+- 担当:
+  - 実装担当
+- 関連OI:
+  - OI-020
 
 ---
 
