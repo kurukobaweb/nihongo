@@ -532,9 +532,10 @@ push後は必ずUser TASKS.md Direct Review Gateで停止し、final re-auditへ
 - Step 19: completion record finalized
 - Step 20: final PR review completed / PASS
 - Step 21: user completion / merge judgment approved
-- PR #73 merge: approved / execution pending
+- PR #73 merge: completed / merge commit `3ae8307`（2026-08-14）
 - F-006 correction: user approved / applied
 - F-007 correction: PR #73 title / bodyをcurrent scope / current completion stateへ同期済み
 - Status Sync: completed
 - F-005 Status Sync: completed
-- current stopping point: PR #73 merge execution pending
+- current stopping point: なし。PR #73 mergeが完了し、T000-09の成果はcurrent `develop`へ反映済み
+- 本Current stateは2026-08-16にmerge実績（`3ae8307`）と同期した。historical記録およびcompletion evidenceは変更していない
